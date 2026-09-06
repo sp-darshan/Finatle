@@ -28,7 +28,6 @@ export function App() {
   const [isMobileScreen, setIsMobileScreen] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   );
-  const [isMobilePreview, setIsMobilePreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
@@ -49,6 +48,7 @@ export function App() {
   // Financial Data State (Strictly loaded from DB only)
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loans, setLoans] = useState<LoanItem[]>([]);
+  const [settlementError, setSettlementError] = useState('');
   const refreshRequestRef = useRef(0);
 
   // Auto detect mobile window size
@@ -104,7 +104,7 @@ export function App() {
       });
   }, []);
 
-  const fetchUserData = async (authToken: string) => {
+  const fetchUserData = async (authToken: string, refreshLoans = true) => {
     const refreshRequest = ++refreshRequestRef.current;
     try {
       const summaryRes = await apiFetch('/api/finance/summary', {
@@ -134,7 +134,7 @@ export function App() {
         if (data.moneyLent && Array.isArray(data.moneyLent)) {
           data.moneyLent.forEach((l: any) => {
             const amount = Number(l.amount);
-            const paid = Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? amount : 0));
+            const paid = l.status === 'PAID' ? amount : Number(l.paidAmount || 0);
             mappedLoans.push({
               id: l.lid,
               kind: 'lent',
@@ -151,7 +151,7 @@ export function App() {
         if (data.moneyBorrowed && Array.isArray(data.moneyBorrowed)) {
           data.moneyBorrowed.forEach((b: any) => {
             const amount = Number(b.amount);
-            const paid = Number(b.paidAmount !== undefined ? b.paidAmount : (b.status === 'PAID' ? amount : 0));
+            const paid = b.status === 'PAID' ? amount : Number(b.paidAmount || 0);
             mappedLoans.push({
               id: b.bid,
               kind: 'borrowed',
@@ -165,7 +165,7 @@ export function App() {
             });
           });
         }
-        setLoans(mappedLoans);
+        if (refreshLoans) setLoans(mappedLoans);
       }
     } catch {
       // Backend unavailable or empty
@@ -196,30 +196,35 @@ export function App() {
     }
   };
 
+  const handleTransactionSuccess = async () => {
+    if (token) {
+      await fetchUserData(token, false);
+    }
+  };
+
   const handleEditTransaction = (transaction: TransactionItem) => {
     setEditingTransaction(transaction);
   };
 
   const handleSettleLoan = async (loanId: string, currentStatus: LoanItem['status']) => {
+    setSettlementError('');
     const isCurrentlyPaid = currentStatus === 'PAID';
     const nextStatus: LoanItem['status'] = isCurrentlyPaid ? 'PENDING' : 'PAID';
-    
-    setLoans((prev) =>
-      prev.map((item) => {
-        if (item.id !== loanId) return item;
-        const newPaid = isCurrentlyPaid ? 0 : item.amount;
-        return {
-          ...item,
-          status: nextStatus,
-          paidAmount: newPaid,
-          statusLabel: nextStatus === 'PAID' ? '✓ Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
-        };
-      })
-    );
 
+    setLoans((prev) =>
+      prev.map((item) => item.id === loanId
+        ? {
+            ...item,
+            status: nextStatus,
+            paidAmount: isCurrentlyPaid ? 0 : item.amount,
+            statusLabel: nextStatus === 'PAID' ? '✓ Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+          }
+        : item)
+    );
+    
     if (token) {
       try {
-        await apiFetch(`/api/finance/loans/${loanId}/status`, {
+        const response = await apiFetch(`/api/finance/loans/${loanId}/status`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -227,9 +232,23 @@ export function App() {
           },
           body: JSON.stringify({ status: nextStatus }),
         });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Unable to update settlement status.');
+        }
         await fetchUserData(token);
-      } catch {
-        // ignore
+      } catch (error: any) {
+        setLoans((prev) =>
+          prev.map((item) => item.id === loanId
+            ? {
+                ...item,
+                status: currentStatus,
+                paidAmount: currentStatus === 'PAID' ? item.amount : 0,
+                statusLabel: currentStatus === 'PAID' ? '✓ Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+              }
+            : item)
+        );
+        setSettlementError(error.message || 'Unable to update settlement status.');
       }
     }
   };
@@ -274,10 +293,11 @@ export function App() {
     .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0))), 0);
 
   const netSavings = Math.max(0, totalIncome - totalExpense - lentOutstanding);
-  const actualBalance = totalIncome - totalExpense - lentOutstanding + borrowedOutstanding;
+  const actualBalance = Math.max(0, totalIncome - totalExpense - lentOutstanding + borrowedOutstanding);
 
   const canSettleLoan = (loan: LoanItem) =>
-    !(loan.kind === 'lent' && loan.status === 'PAID' && netSavings < loan.amount);
+    !(loan.kind === 'lent' && loan.status === 'PAID' && netSavings < loan.amount) &&
+    !(loan.kind === 'borrowed' && loan.status !== 'PAID' && actualBalance <= 0);
 
   // Pending unpaid settlements total
   const pendingSettlementsTotal = loans
@@ -323,12 +343,11 @@ export function App() {
   };
 
   // 1. If user is not authenticated and not loading, show the Hero Landing Page!
-  if (!user && !loadingUser && !isMobilePreview) {
+  if (!user && !loadingUser && !isMobileScreen) {
     return (
       <>
         <HeroLanding
           onOpenAuth={handleOpenAuth}
-          onTryMobilePreview={() => setIsMobilePreview(true)}
         />
         <AuthModal
           isOpen={isAuthOpen}
@@ -340,21 +359,11 @@ export function App() {
     );
   }
 
-  // 2. If viewing on mobile screen OR desktop preview toggle is active:
-  if (isMobileScreen || isMobilePreview) {
+  // Use the mobile layout automatically on narrow screens.
+  if (isMobileScreen) {
     return (
       <div className="mobile-view-wrapper" style={{ minHeight: '100vh', background: 'var(--bg-app)' }}>
-        {/* If on desktop preview mode, show top bar toggle to exit */}
-        {!isMobileScreen && (
-          <div style={{ background: '#ffffff', padding: '0.6rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Mobile Simulator Preview</span>
-            <button className="select-pill" onClick={() => setIsMobilePreview(false)}>
-              Switch to Desktop View 💻
-            </button>
-          </div>
-        )}
-
-        <div style={{ padding: isMobileScreen ? 0 : '1.5rem 0', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ padding: 0, display: 'flex', justifyContent: 'center' }}>
           <MobileDashboard
             balance={netSavings}
             userName={user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Friend'}
@@ -372,7 +381,7 @@ export function App() {
               }
             }}
             onOpenAllTransactions={() => setMobileNav('transactions')}
-            onOpenAuth={() => handleOpenAuth('signin')}
+            onLogout={handleLogout}
             onOpenPWA={() => setIsPWAOpen(true)}
             onEditTransaction={handleEditTransaction}
             onEditLoan={(loan) => setEditingLoan(loan)}
@@ -404,7 +413,7 @@ export function App() {
           onClose={() => setEditingTransaction(null)}
           transaction={editingTransaction}
           token={token}
-          onSuccess={handleAddRecordSuccess}
+          onSuccess={handleTransactionSuccess}
         />
 
         <EditLoanModal
@@ -470,8 +479,6 @@ export function App() {
           user={user}
           onOpenAuth={() => handleOpenAuth('signin')}
           onLogout={handleLogout}
-          isMobilePreview={isMobilePreview}
-          onToggleMobilePreview={() => setIsMobilePreview(!isMobilePreview)}
         />
 
         <main className="page-container">
@@ -499,6 +506,7 @@ export function App() {
                 </div>
 
                 {/* 4 Metric Cards */}
+                {settlementError && <p className="form-error">{settlementError}</p>}
                 <MetricCards
                   income={totalIncome}
                   expenses={totalExpense}
@@ -643,7 +651,7 @@ export function App() {
         onClose={() => setEditingTransaction(null)}
         transaction={editingTransaction}
         token={token}
-        onSuccess={handleAddRecordSuccess}
+        onSuccess={handleTransactionSuccess}
       />
 
       <EditLoanModal

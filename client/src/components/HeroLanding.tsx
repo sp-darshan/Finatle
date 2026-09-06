@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  FinapseLogo,
+  FinatleLogo,
   LeafSproutIcon,
   IncomeCardIcon,
   ExpenseCardIcon,
@@ -12,19 +12,17 @@ import {
 
 interface HeroLandingProps {
   onOpenAuth: (mode?: 'signin' | 'signup') => void;
-  onTryMobilePreview: () => void;
 }
 
 export const HeroLanding: React.FC<HeroLandingProps> = ({
   onOpenAuth,
-  onTryMobilePreview,
 }) => {
   return (
     <div className="landing-page">
       {/* Top Navbar */}
       <header className="landing-header">
         <div className="landing-logo">
-          <FinapseLogo size={36} />
+          <FinatleLogo size={36} />
           <div className="landing-logo-text">
             <h2>Finatle</h2>
             <p>Money in sync with you.</p>
@@ -62,9 +60,6 @@ export const HeroLanding: React.FC<HeroLandingProps> = ({
           <div className="hero-cta-group">
             <button className="landing-btn-primary large" onClick={() => onOpenAuth('signup')}>
               Create Free Account →
-            </button>
-            <button className="landing-btn-outline large" onClick={onTryMobilePreview}>
-              📱 Preview Mobile Experience
             </button>
           </div>
         </section>
@@ -149,7 +144,7 @@ export const HeroLanding: React.FC<HeroLandingProps> = ({
       <footer className="landing-footer">
         <div className="landing-footer-content">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <FinapseLogo size={24} />
+            <FinatleLogo size={24} />
             <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>Finatle</span>
           </div>
           <p>© {new Date().getFullYear()} Finatle. Your money, clearly accounted for.</p>

@@ -12,6 +12,31 @@ function parseAmount(value: unknown) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
+async function getFinancialState(userId: string) {
+  const [transactions, moneyLent, moneyBorrowed] = await Promise.all([
+    prisma.transaction.findMany({ where: { uid: userId }, select: { type: true, amount: true } }),
+    prisma.moneyLent.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
+    prisma.moneyBorrowed.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
+  ]);
+  const transactionBalance = transactions.reduce(
+    (total, transaction) => total + (transaction.type === 'INCOME' ? Number(transaction.amount) : -Number(transaction.amount)),
+    0,
+  );
+  const outstanding = (loan: { amount: unknown; paidAmount: unknown; status: string }) =>
+    Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0)));
+  const lentOutstanding = moneyLent.reduce((total, loan) => total + outstanding(loan), 0);
+  const borrowedOutstanding = moneyBorrowed.reduce((total, loan) => total + outstanding(loan), 0);
+
+  return {
+    netSavings: transactionBalance - lentOutstanding,
+    actualBalance: transactionBalance - lentOutstanding + borrowedOutstanding,
+  };
+}
+
+function violatesBalanceRules(netSavings: number, actualBalance: number) {
+  return netSavings < 0 || actualBalance < 0;
+}
+
 export async function getFinanceSummary(req: AuthenticatedRequest, res: Response) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -51,28 +76,10 @@ export async function createTransaction(req: AuthenticatedRequest, res: Response
     return res.status(400).json({ error: 'Type must be INCOME or EXPENSE and amount must be greater than zero.' });
   }
 
-  if (type === 'EXPENSE') {
-    const [transactions, moneyLent, moneyBorrowed] = await Promise.all([
-      prisma.transaction.findMany({ where: { uid: userId }, select: { type: true, amount: true } }),
-      prisma.moneyLent.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
-      prisma.moneyBorrowed.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
-    ]);
-    const transactionBalance = transactions.reduce(
-      (total, transaction) => total + (transaction.type === 'INCOME' ? Number(transaction.amount) : -Number(transaction.amount)),
-      0,
-    );
-    const outstandingLent = moneyLent.reduce(
-      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
-      0,
-    );
-    const outstandingBorrowed = moneyBorrowed.reduce(
-      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
-      0,
-    );
-    const actualBalance = transactionBalance - outstandingLent + outstandingBorrowed;
-    if (actualBalance < amount) {
-      return res.status(400).json({ error: 'Insufficient balance for this expense.' });
-    }
+  const state = await getFinancialState(userId);
+  const transactionImpact = type === 'INCOME' ? amount : -amount;
+  if (violatesBalanceRules(state.netSavings + transactionImpact, state.actualBalance + transactionImpact)) {
+    return res.status(400).json({ error: 'Insufficient balance for this transaction.' });
   }
 
   const balanceChange = type === 'INCOME' ? amount : -amount;
@@ -128,8 +135,12 @@ export async function updateTransaction(req: AuthenticatedRequest, res: Response
   const oldImpact = existing.type === 'INCOME' ? Number(existing.amount) : -Number(existing.amount);
   const newImpact = newType === 'INCOME' ? newAmount : -newAmount;
   const netDifference = newImpact - oldImpact;
-  const currentAccount = await prisma.account.findUnique({ where: { uid: userId } });
-  if (Number(currentAccount?.balance || 0) + netDifference < 0) {
+  const state = await getFinancialState(userId);
+  const netSavingsBeforeEditedTransaction = state.netSavings - oldImpact;
+  const actualBalanceBeforeEditedTransaction = state.actualBalance - oldImpact;
+  const netSavingsAfterEdit = netSavingsBeforeEditedTransaction + newImpact;
+  const actualBalanceAfterEdit = actualBalanceBeforeEditedTransaction + newImpact;
+  if (violatesBalanceRules(netSavingsAfterEdit, actualBalanceAfterEdit)) {
     return res.status(400).json({ error: 'Insufficient balance for this transaction.' });
   }
 
@@ -172,6 +183,10 @@ export async function deleteTransaction(req: AuthenticatedRequest, res: Response
   }
 
   const reverseImpact = existing.type === 'INCOME' ? -Number(existing.amount) : Number(existing.amount);
+  const state = await getFinancialState(userId);
+  if (violatesBalanceRules(state.netSavings + reverseImpact, state.actualBalance + reverseImpact)) {
+    return res.status(400).json({ error: 'Insufficient balance to delete this transaction.' });
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.transaction.delete({ where: { tid: existing.tid } });
@@ -208,28 +223,11 @@ async function createLoan(req: AuthenticatedRequest, res: Response, kind: 'lent'
     dueAt: dueAt ? new Date(dueAt) : null,
     status: status as any,
   };
-  if (kind === 'lent') {
-    const [transactions, moneyLent, moneyBorrowed] = await Promise.all([
-      prisma.transaction.findMany({ where: { uid: userId }, select: { type: true, amount: true } }),
-      prisma.moneyLent.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
-      prisma.moneyBorrowed.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
-    ]);
-    const transactionBalance = transactions.reduce(
-      (total, transaction) => total + (transaction.type === 'INCOME' ? Number(transaction.amount) : -Number(transaction.amount)),
-      0,
-    );
-    const outstandingLent = moneyLent.reduce(
-      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
-      0,
-    );
-    const outstandingBorrowed = moneyBorrowed.reduce(
-      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
-      0,
-    );
-    const actualBalance = transactionBalance - outstandingLent + outstandingBorrowed;
-    if (actualBalance < amount - numericPaid) {
-      return res.status(400).json({ error: 'Insufficient balance to lend this amount.' });
-    }
+  const state = await getFinancialState(userId);
+  const loanImpact = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
+  const netSavingsImpact = kind === 'lent' ? loanImpact : 0;
+  if (violatesBalanceRules(state.netSavings + netSavingsImpact, state.actualBalance + loanImpact)) {
+    return res.status(400).json({ error: 'Insufficient balance for this loan.' });
   }
   const balanceChange = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
   const result = await prisma.$transaction(async (tx) => {
@@ -280,8 +278,8 @@ export async function updateLoanStatus(req: AuthenticatedRequest, res: Response)
     }
 
     const repaymentChange = newPaid - oldPaid;
-    const account = await prisma.account.findUnique({ where: { uid: userId } });
-    if (Number(account?.balance || 0) + repaymentChange < 0) {
+    const state = await getFinancialState(userId);
+    if (violatesBalanceRules(state.netSavings + repaymentChange, state.actualBalance + repaymentChange)) {
       return res.status(400).json({ error: 'Insufficient balance to reopen this lent record.' });
     }
     const result = await prisma.$transaction(async (tx) => {
@@ -322,6 +320,10 @@ export async function updateLoanStatus(req: AuthenticatedRequest, res: Response)
     }
 
     const repaymentChange = -(newPaid - oldPaid);
+    const state = await getFinancialState(userId);
+    if (violatesBalanceRules(state.netSavings, state.actualBalance + repaymentChange)) {
+      return res.status(400).json({ error: 'Insufficient balance to repay this borrowed record.' });
+    }
     const result = await prisma.$transaction(async (tx) => {
       const loan = await tx.moneyBorrowed.update({
         where: { bid: borrowed.bid },
@@ -380,11 +382,11 @@ export async function updateLoan(req: AuthenticatedRequest, res: Response) {
   const oldEffect = existingKind === 'lent' ? oldPaid - Number(existing.amount) : Number(existing.amount) - oldPaid;
   const newEffect = targetKind === 'lent' ? newPaid - newAmount : newAmount - newPaid;
   const balanceDelta = newEffect - oldEffect;
-  if (balanceDelta < 0) {
-    const account = await prisma.account.findUnique({ where: { uid: userId } });
-    if (Number(account?.balance || 0) + balanceDelta < 0) {
-      return res.status(400).json({ error: 'Insufficient balance to update this lent record.' });
-    }
+  const state = await getFinancialState(userId);
+  const oldNetEffect = existingKind === 'lent' ? oldEffect : 0;
+  const newNetEffect = targetKind === 'lent' ? newEffect : 0;
+  if (violatesBalanceRules(state.netSavings + newNetEffect - oldNetEffect, state.actualBalance + balanceDelta)) {
+    return res.status(400).json({ error: 'Insufficient balance to update this loan.' });
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -475,10 +477,16 @@ export async function deleteLoan(req: AuthenticatedRequest, res: Response) {
   const existing = lent || borrowed!;
   const existingKind = lent ? 'lent' : 'borrowed';
   const oldAmountNum = Number(existing.amount);
+  const oldPaid = Number((existing as any).paidAmount || (existing.status === 'PAID' ? oldAmountNum : 0));
   const oldEffect = existingKind === 'lent'
-    ? (existing.status === 'PAID' ? 0 : -oldAmountNum)
-    : (existing.status === 'PAID' ? 0 : oldAmountNum);
+    ? oldPaid - oldAmountNum
+    : oldAmountNum - oldPaid;
   const balanceDelta = -oldEffect;
+  const state = await getFinancialState(userId);
+  const netSavingsDelta = existingKind === 'lent' ? -oldEffect : 0;
+  if (violatesBalanceRules(state.netSavings + netSavingsDelta, state.actualBalance + balanceDelta)) {
+    return res.status(400).json({ error: 'Insufficient balance to delete this loan.' });
+  }
 
   await prisma.$transaction(async (tx) => {
     if (existingKind === 'lent') {

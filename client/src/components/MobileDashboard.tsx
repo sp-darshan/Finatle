@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FinapseLogo,
+  FinatleLogo,
   CalendarIcon,
   EyeIcon,
   EyeOffIcon,
@@ -31,7 +31,7 @@ interface MobileDashboardProps {
   onOpenScanner: () => void;
   onOpenLoans: () => void;
   onOpenAllTransactions: () => void;
-  onOpenAuth: () => void;
+  onLogout: () => void;
   onOpenPWA: () => void;
   onEditTransaction?: (transaction: TransactionItem) => void;
   onEditLoan?: (loan: LoanItem) => void;
@@ -52,12 +52,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   onOpenScanner,
   onOpenLoans,
   onOpenAllTransactions,
-  onOpenAuth,
+  onLogout,
   onOpenPWA,
   onEditTransaction,
   onEditLoan,
-  onSettleLoan,
-  canSettleLoan,
   currentNav,
   onSelectNav,
 }) => {
@@ -69,7 +67,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true ||
-      localStorage.getItem('finapse_pwa_installed') === 'true';
+      localStorage.getItem('finatle_pwa_installed') === 'true';
     setIsPWAInstalled(isStandalone);
   }, []);
 
@@ -99,7 +97,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       {/* 1. Header with Menu Drawer Trigger */}
       <header className="mobile-header">
         <div className="mobile-header-left" onClick={() => setIsDrawerOpen(true)} style={{ cursor: 'pointer' }}>
-          <FinapseLogo size={32} />
+          <FinatleLogo size={32} />
           <h2>Finatle</h2>
         </div>
         <div className="mobile-header-right">
@@ -109,7 +107,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
           <div
             className="user-avatar"
             style={{ width: 34, height: 34, cursor: 'pointer' }}
-            onClick={onOpenAuth}
+            onClick={onLogout}
             title="Profile"
           >
             {userName.slice(0, 2).toUpperCase()}
@@ -123,7 +121,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
           <div className="mobile-drawer" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <FinapseLogo size={30} />
+                <FinatleLogo size={30} />
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Finatle</h3>
               </div>
               <button
@@ -424,8 +422,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                           {formatRupee(isPartial ? remaining : item.amount)}
                         </span>
 
-                        <button
-                          type="button"
+                        <span
                           className={`loan-status-btn ${
                             isSettled
                               ? 'settled'
@@ -435,9 +432,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                               ? 'to-receive'
                               : 'to-pay'
                           }`}
-                          onClick={() => onSettleLoan && onSettleLoan(item.id, item.status)}
-                          disabled={canSettleLoan ? !canSettleLoan(item) : false}
-                          title={canSettleLoan && !canSettleLoan(item) ? 'Insufficient balance to reopen this loan' : 'Toggle settlement'}
                         >
                           {isSettled
                             ? '✓ Settled'
@@ -448,7 +442,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                             : isSplit
                             ? 'Split'
                             : 'To pay'}
-                        </button>
+                        </span>
 
                         {onEditLoan && (
                           <button
@@ -480,9 +474,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
       {/* VIEW 2: ALL TRANSACTIONS */}
       {currentNav === 'transactions' && (
-        <section className="mobile-section" style={{ paddingTop: '0.5rem', paddingBottom: '5.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Transactions</h3>
+        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+          <div className="mobile-sec-header">
+            <h4>Transactions</h4>
             <button
               className="btn-submit-primary"
               style={{ width: 'auto', margin: 0, padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}
@@ -575,8 +569,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
       {/* VIEW 3: INSIGHTS */}
       {currentNav === 'insights' && (
-        <section className="mobile-section" style={{ paddingTop: '0.5rem', paddingBottom: '5.5rem' }}>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>Financial Insights</h3>
+        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+          <div className="mobile-sec-header">
+            <h4>Financial Insights</h4>
+          </div>
           <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
           <div style={{ marginTop: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
             <h5 style={{ fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Monthly Summary</h5>
@@ -594,8 +590,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
       {/* VIEW 4: GOALS */}
       {currentNav === 'goals' && (
-        <section className="mobile-section" style={{ paddingTop: '0.5rem', paddingBottom: '5.5rem' }}>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem' }}>Savings Goals</h3>
+        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+          <div className="mobile-sec-header">
+            <h4>Savings Goals</h4>
+          </div>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>Track emergency funds and purchase targets</p>
           
           <div style={{ background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', padding: '1.25rem', marginBottom: '1rem', boxShadow: 'var(--shadow-sm)' }}>

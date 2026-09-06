@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finapse-cache-v2';
+const CACHE_NAME = 'finatle-cache-v2';
 
 self.addEventListener('install', (event) => {
   // Activate immediately

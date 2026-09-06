@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FinapseLogo, DownloadAppIcon } from './Icons';
+import { FinatleLogo, DownloadAppIcon } from './Icons';
 
 interface PWAInstallPromptProps {
   isOpen: boolean;
@@ -20,7 +20,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
     const isRunningStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true ||
-      localStorage.getItem('finapse_pwa_installed') === 'true';
+      localStorage.getItem('finatle_pwa_installed') === 'true';
     setIsStandalone(isRunningStandalone);
 
     // Detect iOS
@@ -36,7 +36,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
 
     const handleAppInstalled = () => {
       setInstalled(true);
-      localStorage.setItem('finapse_pwa_installed', 'true');
+      localStorage.setItem('finatle_pwa_installed', 'true');
       setDeferredPrompt(null);
     };
 
@@ -55,7 +55,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setInstalled(true);
-        localStorage.setItem('finapse_pwa_installed', 'true');
+        localStorage.setItem('finatle_pwa_installed', 'true');
       }
       setDeferredPrompt(null);
     }
@@ -68,7 +68,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <FinapseLogo size={36} />
+            <FinatleLogo size={36} />
             <div>
               <h3>Install Finatle Mobile App</h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>

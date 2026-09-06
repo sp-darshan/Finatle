@@ -1,5 +1,5 @@
 import React from 'react';
-import { FinapseLogo, NavIcons } from './Icons';
+import { FinatleLogo, NavIcons } from './Icons';
 
 export type TabType = 'dashboard' | 'transactions' | 'budgets' | 'analytics' | 'loans' | 'goals' | 'statements' | 'settings';
 
@@ -26,7 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <FinapseLogo size={36} />
+        <FinatleLogo size={36} />
         <div className="sidebar-logo-text">
           <h1>Finatle</h1>
           <p>Money in sync with you.</p>

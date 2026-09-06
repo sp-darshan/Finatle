@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FinapseLogo } from './Icons';
+import { FinatleLogo } from './Icons';
 import { apiFetch } from '../lib/api';
 
 interface AuthModalProps {
@@ -70,7 +70,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <FinapseLogo size={32} />
+            <FinatleLogo size={32} />
             <div>
               <h3>{isSignUp ? 'Create your Account' : 'Welcome Back'}</h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -144,7 +144,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               type="password"
               className="form-control"
-              placeholder="Minimum 6 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

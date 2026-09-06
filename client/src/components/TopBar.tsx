@@ -7,8 +7,6 @@ interface TopBarProps {
   user: { name?: string | null; email?: string } | null;
   onOpenAuth: () => void;
   onLogout: () => void;
-  isMobilePreview: boolean;
-  onToggleMobilePreview: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -17,8 +15,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   user,
   onOpenAuth,
   onLogout,
-  isMobilePreview,
-  onToggleMobilePreview,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -45,23 +41,6 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="top-actions">
-        {/* Toggle between desktop and mobile layout preview */}
-        <button
-          className="select-pill"
-          onClick={onToggleMobilePreview}
-          title="Toggle Mobile View Layout"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            borderColor: isMobilePreview ? 'var(--primary)' : 'var(--border-color)',
-            background: isMobilePreview ? 'var(--primary-50)' : '#f8fafc',
-            color: isMobilePreview ? 'var(--primary-dark)' : 'var(--text-secondary)',
-          }}
-        >
-          <span>📱 {isMobilePreview ? 'Mobile View' : 'Desktop View'}</span>
-        </button>
-
         {/* Notification Bell */}
         <button className="icon-button" title="Notifications">
           <BellIcon size={18} />

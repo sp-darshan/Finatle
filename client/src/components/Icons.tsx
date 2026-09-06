@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const FinapseLogo: React.FC<{ size?: number; className?: string }> = ({ size = 28, className = '' }) => (
+export const FinatleLogo: React.FC<{ size?: number; className?: string }> = ({ size = 28, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 40 40" fill="none" className={className}>
     <rect width="40" height="40" rx="10" fill="#10B981" />
     <path d="M10 30 C10 20 16 10 30 10 C30 20 24 30 10 30 Z" fill="#ffffff" />
