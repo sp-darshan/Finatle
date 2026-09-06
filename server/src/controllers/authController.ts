@@ -284,9 +284,15 @@ export async function deleteMe(req: AuthenticatedRequest, res: Response) {
   }
 
   try {
-    const deletedUser = await prisma.user.delete({
-      where: { uid: userId },
-      select: { uid: true },
+    const deletedUser = await prisma.$transaction(async (tx) => {
+      await tx.account.deleteMany({ where: { uid: userId } });
+      await tx.transaction.deleteMany({ where: { uid: userId } });
+      await tx.moneyLent.deleteMany({ where: { uid: userId } });
+      await tx.moneyBorrowed.deleteMany({ where: { uid: userId } });
+      return tx.user.delete({
+        where: { uid: userId },
+        select: { uid: true },
+      });
     });
 
     return res.json({

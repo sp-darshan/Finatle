@@ -36,6 +36,7 @@ interface MobileDashboardProps {
   onEditTransaction?: (transaction: TransactionItem) => void;
   onEditLoan?: (loan: LoanItem) => void;
   onSettleLoan?: (id: string, status: LoanItem['status']) => void;
+  canSettleLoan?: (loan: LoanItem) => boolean;
   currentNav: string;
   onSelectNav: (nav: string) => void;
 }
@@ -56,6 +57,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   onEditTransaction,
   onEditLoan,
   onSettleLoan,
+  canSettleLoan,
   currentNav,
   onSelectNav,
 }) => {
@@ -434,7 +436,8 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                               : 'to-pay'
                           }`}
                           onClick={() => onSettleLoan && onSettleLoan(item.id, item.status)}
-                          title="Toggle settlement"
+                          disabled={canSettleLoan ? !canSettleLoan(item) : false}
+                          title={canSettleLoan && !canSettleLoan(item) ? 'Insufficient balance to reopen this loan' : 'Toggle settlement'}
                         >
                           {isSettled
                             ? '✓ Settled'

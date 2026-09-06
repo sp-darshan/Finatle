@@ -8,7 +8,7 @@ interface EditTransactionModalProps {
   onClose: () => void;
   transaction: TransactionItem | null;
   token: string | null;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
@@ -70,7 +70,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         if (!res.ok) throw new Error(data.error || 'Failed to update transaction');
       }
 
-      onSuccess();
+      await onSuccess();
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error updating transaction');
@@ -98,7 +98,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         }
       }
 
-      onSuccess();
+      await onSuccess();
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error deleting transaction');

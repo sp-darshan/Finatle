@@ -10,6 +10,7 @@ interface MetricCardsProps {
   income: number;
   expenses: number;
   savings: number;
+  actualBalance: number;
   pendingSettlements: number;
   settlementDetails?: string;
   onCardClick?: (type: 'income' | 'expenses' | 'savings' | 'settlements') => void;
@@ -19,6 +20,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   income,
   expenses,
   savings,
+  actualBalance,
   pendingSettlements,
   settlementDetails = '0 pending settlements',
   onCardClick,
@@ -75,6 +77,9 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         </div>
         <div className="metric-card-value">
           {formatRupee(savings)}
+        </div>
+        <div className="metric-card-actual-balance">
+          Actual balance: {formatRupee(actualBalance)}
         </div>
         <div className={`metric-card-badge ${savings > 0 ? 'positive' : 'settlement'}`}>
           <span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { HeroLanding } from './components/HeroLanding';
 import { Sidebar } from './components/Sidebar';
 import type { TabType } from './components/Sidebar';
@@ -49,6 +49,7 @@ export function App() {
   // Financial Data State (Strictly loaded from DB only)
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loans, setLoans] = useState<LoanItem[]>([]);
+  const refreshRequestRef = useRef(0);
 
   // Auto detect mobile window size
   useEffect(() => {
@@ -104,12 +105,14 @@ export function App() {
   }, []);
 
   const fetchUserData = async (authToken: string) => {
+    const refreshRequest = ++refreshRequestRef.current;
     try {
       const summaryRes = await apiFetch('/api/finance/summary', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (summaryRes.ok) {
         const data = await summaryRes.json();
+        if (refreshRequest !== refreshRequestRef.current) return;
         
         // Transactions strictly from DB
         if (data.transactions && Array.isArray(data.transactions)) {
@@ -187,9 +190,9 @@ export function App() {
   };
 
 
-  const handleAddRecordSuccess = () => {
+  const handleAddRecordSuccess = async () => {
     if (token) {
-      fetchUserData(token);
+      await fetchUserData(token);
     }
   };
 
@@ -224,7 +227,7 @@ export function App() {
           },
           body: JSON.stringify({ status: nextStatus }),
         });
-        fetchUserData(token);
+        await fetchUserData(token);
       } catch {
         // ignore
       }
@@ -260,18 +263,21 @@ export function App() {
     .filter((t) => t.type === 'EXPENSE')
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  // Money lent: repaid money increases available savings
-  const lentRecovered = loans
+  // Unpaid lent money is out of savings. Borrowed money is tracked separately
+  // because it increases cash on hand without increasing earned savings.
+  const lentOutstanding = loans
     .filter((l) => l.kind === 'lent')
-    .reduce((sum, l) => sum + Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0)), 0);
+    .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0))), 0);
 
-  // Money borrowed: repaid money decreases available savings
-  const borrowedRepaid = loans
+  const borrowedOutstanding = loans
     .filter((l) => l.kind === 'borrowed')
-    .reduce((sum, l) => sum + Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0)), 0);
+    .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0))), 0);
 
-  // Net Savings reflects core income - expense + lent repayments received - borrowed repayments made (never negative)
-  const netSavings = Math.max(0, totalIncome - totalExpense + lentRecovered - borrowedRepaid);
+  const netSavings = Math.max(0, totalIncome - totalExpense - lentOutstanding);
+  const actualBalance = totalIncome - totalExpense - lentOutstanding + borrowedOutstanding;
+
+  const canSettleLoan = (loan: LoanItem) =>
+    !(loan.kind === 'lent' && loan.status === 'PAID' && netSavings < loan.amount);
 
   // Pending unpaid settlements total
   const pendingSettlementsTotal = loans
@@ -371,6 +377,7 @@ export function App() {
             onEditTransaction={handleEditTransaction}
             onEditLoan={(loan) => setEditingLoan(loan)}
             onSettleLoan={handleSettleLoan}
+            canSettleLoan={canSettleLoan}
             currentNav={mobileNav}
             onSelectNav={setMobileNav}
           />
@@ -496,6 +503,7 @@ export function App() {
                   income={totalIncome}
                   expenses={totalExpense}
                   savings={netSavings}
+                  actualBalance={actualBalance}
                   pendingSettlements={pendingSettlementsTotal}
                   settlementDetails={settlementDetails}
                   onCardClick={(type) => {
@@ -522,6 +530,7 @@ export function App() {
                     loans={filteredLoans}
                     onViewAll={() => setCurrentTab('loans')}
                     onSettle={handleSettleLoan}
+                    canSettle={canSettleLoan}
                     onAddNew={() => openAdd('lent')}
                     onEditLoan={(loan) => setEditingLoan(loan)}
                   />
@@ -586,6 +595,7 @@ export function App() {
                 <LoansSettlements
                   loans={filteredLoans}
                   onSettle={handleSettleLoan}
+                  canSettle={canSettleLoan}
                   onAddNew={() => openAdd('lent')}
                   onEditLoan={(loan) => setEditingLoan(loan)}
                 />

@@ -9,7 +9,7 @@ interface EditLoanModalProps {
   onClose: () => void;
   loan: LoanItem | null;
   token: string | null;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 export const EditLoanModal: React.FC<EditLoanModalProps> = ({
@@ -90,7 +90,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
         if (!res.ok) throw new Error(data.error || 'Failed to update loan record');
       }
 
-      onSuccess();
+      await onSuccess();
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error updating loan record');
@@ -129,7 +129,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
         }
       }
 
-      onSuccess();
+      await onSuccess();
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error deleting loan');

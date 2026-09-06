@@ -8,7 +8,7 @@ interface AddRecordModalProps {
   onClose: () => void;
   initialKind?: RecordKind;
   token: string | null;
-  onSuccess: (newRecord: any) => void;
+  onSuccess: (newRecord?: any) => void | Promise<void>;
 }
 
 export const AddRecordModal: React.FC<AddRecordModalProps> = ({
@@ -69,7 +69,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
           if (!res.ok) throw new Error(data.error || 'Failed to save transaction');
         }
 
-        onSuccess({
+        await onSuccess({
           kind: 'transaction',
           data: {
             id: `t-${Date.now()}`,
@@ -101,7 +101,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
           if (!res.ok) throw new Error(data.error || `Failed to save ${kind} record`);
         }
 
-        onSuccess({
+        await onSuccess({
           kind,
           data: {
             id: `loan-${Date.now()}`,

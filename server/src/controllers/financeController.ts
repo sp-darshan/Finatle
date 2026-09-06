@@ -51,6 +51,30 @@ export async function createTransaction(req: AuthenticatedRequest, res: Response
     return res.status(400).json({ error: 'Type must be INCOME or EXPENSE and amount must be greater than zero.' });
   }
 
+  if (type === 'EXPENSE') {
+    const [transactions, moneyLent, moneyBorrowed] = await Promise.all([
+      prisma.transaction.findMany({ where: { uid: userId }, select: { type: true, amount: true } }),
+      prisma.moneyLent.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
+      prisma.moneyBorrowed.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
+    ]);
+    const transactionBalance = transactions.reduce(
+      (total, transaction) => total + (transaction.type === 'INCOME' ? Number(transaction.amount) : -Number(transaction.amount)),
+      0,
+    );
+    const outstandingLent = moneyLent.reduce(
+      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
+      0,
+    );
+    const outstandingBorrowed = moneyBorrowed.reduce(
+      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
+      0,
+    );
+    const actualBalance = transactionBalance - outstandingLent + outstandingBorrowed;
+    if (actualBalance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance for this expense.' });
+    }
+  }
+
   const balanceChange = type === 'INCOME' ? amount : -amount;
   const result = await prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.create({
@@ -63,12 +87,12 @@ export async function createTransaction(req: AuthenticatedRequest, res: Response
         occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
       },
     });
-    const account = await tx.account.upsert({
+    const updatedAccount = await tx.account.upsert({
       where: { uid: userId },
       create: { uid: userId, balance: new Prisma.Decimal(balanceChange) },
       update: { balance: { increment: new Prisma.Decimal(balanceChange) } },
     });
-    return { transaction, account };
+    return { transaction, account: updatedAccount };
   });
 
   return res.status(201).json(result);
@@ -104,6 +128,10 @@ export async function updateTransaction(req: AuthenticatedRequest, res: Response
   const oldImpact = existing.type === 'INCOME' ? Number(existing.amount) : -Number(existing.amount);
   const newImpact = newType === 'INCOME' ? newAmount : -newAmount;
   const netDifference = newImpact - oldImpact;
+  const currentAccount = await prisma.account.findUnique({ where: { uid: userId } });
+  if (Number(currentAccount?.balance || 0) + netDifference < 0) {
+    return res.status(400).json({ error: 'Insufficient balance for this transaction.' });
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.update({
@@ -180,6 +208,29 @@ async function createLoan(req: AuthenticatedRequest, res: Response, kind: 'lent'
     dueAt: dueAt ? new Date(dueAt) : null,
     status: status as any,
   };
+  if (kind === 'lent') {
+    const [transactions, moneyLent, moneyBorrowed] = await Promise.all([
+      prisma.transaction.findMany({ where: { uid: userId }, select: { type: true, amount: true } }),
+      prisma.moneyLent.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
+      prisma.moneyBorrowed.findMany({ where: { uid: userId }, select: { amount: true, paidAmount: true, status: true } }),
+    ]);
+    const transactionBalance = transactions.reduce(
+      (total, transaction) => total + (transaction.type === 'INCOME' ? Number(transaction.amount) : -Number(transaction.amount)),
+      0,
+    );
+    const outstandingLent = moneyLent.reduce(
+      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
+      0,
+    );
+    const outstandingBorrowed = moneyBorrowed.reduce(
+      (total, loan) => total + Math.max(0, Number(loan.amount) - Number(loan.paidAmount || (loan.status === 'PAID' ? loan.amount : 0))),
+      0,
+    );
+    const actualBalance = transactionBalance - outstandingLent + outstandingBorrowed;
+    if (actualBalance < amount - numericPaid) {
+      return res.status(400).json({ error: 'Insufficient balance to lend this amount.' });
+    }
+  }
   const balanceChange = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
   const result = await prisma.$transaction(async (tx) => {
     const loan = kind === 'lent'
@@ -229,6 +280,10 @@ export async function updateLoanStatus(req: AuthenticatedRequest, res: Response)
     }
 
     const repaymentChange = newPaid - oldPaid;
+    const account = await prisma.account.findUnique({ where: { uid: userId } });
+    if (Number(account?.balance || 0) + repaymentChange < 0) {
+      return res.status(400).json({ error: 'Insufficient balance to reopen this lent record.' });
+    }
     const result = await prisma.$transaction(async (tx) => {
       const loan = await tx.moneyLent.update({
         where: { lid: lent.lid },
@@ -325,6 +380,12 @@ export async function updateLoan(req: AuthenticatedRequest, res: Response) {
   const oldEffect = existingKind === 'lent' ? oldPaid - Number(existing.amount) : Number(existing.amount) - oldPaid;
   const newEffect = targetKind === 'lent' ? newPaid - newAmount : newAmount - newPaid;
   const balanceDelta = newEffect - oldEffect;
+  if (balanceDelta < 0) {
+    const account = await prisma.account.findUnique({ where: { uid: userId } });
+    if (Number(account?.balance || 0) + balanceDelta < 0) {
+      return res.status(400).json({ error: 'Insufficient balance to update this lent record.' });
+    }
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     let updatedLoan;

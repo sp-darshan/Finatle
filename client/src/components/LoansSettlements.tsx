@@ -18,6 +18,7 @@ interface LoansSettlementsProps {
   loans: LoanItem[];
   onViewAll?: () => void;
   onSettle?: (id: string, currentStatus: LoanItem['status']) => void;
+  canSettle?: (loan: LoanItem) => boolean;
   onAddNew?: () => void;
   onEditLoan?: (loan: LoanItem) => void;
 }
@@ -26,6 +27,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
   loans,
   onViewAll,
   onSettle,
+  canSettle,
   onAddNew,
   onEditLoan,
 }) => {
@@ -66,6 +68,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
             const isPartial = item.status === 'PARTIAL';
             const paid = item.paidAmount || 0;
             const remaining = Math.max(0, item.amount - paid);
+            const settlementAllowed = canSettle ? canSettle(item) : true;
 
             return (
               <div className="loan-row" key={item.id}>
@@ -118,7 +121,8 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
                         : 'to-pay'
                     }`}
                     onClick={() => onSettle && onSettle(item.id, item.status)}
-                    title="Click to toggle settlement status"
+                    disabled={!settlementAllowed}
+                    title={settlementAllowed ? 'Click to toggle settlement status' : 'Insufficient balance to reopen this loan'}
                   >
                     {isSettled
                       ? '✓ Settled'
