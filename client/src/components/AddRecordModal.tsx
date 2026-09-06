@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiFetch } from '../lib/api';
+import { CategoryPicker } from './CategoryPicker';
 
 export type RecordKind = 'expense' | 'income' | 'lent' | 'borrowed' | 'split';
 
@@ -22,6 +23,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Food & Dining');
+  const [otherCategory, setOtherCategory] = useState('');
   const [personName, setPersonName] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [splitPeopleCount, setSplitPeopleCount] = useState('4');
@@ -49,11 +51,12 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
 
     try {
       if (kind === 'expense' || kind === 'income') {
+        const selectedCategory = category === 'Other' ? otherCategory.trim() || 'Other' : category;
         const payload = {
           type: kind === 'income' ? 'INCOME' : 'EXPENSE',
           amount: numericAmount,
-          description: title.trim() || (kind === 'income' ? 'Income' : category),
-          category: category,
+          description: title.trim() || (kind === 'income' ? 'Income' : selectedCategory),
+          category: selectedCategory,
         };
 
         if (token) {
@@ -74,7 +77,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
           data: {
             id: `t-${Date.now()}`,
             name: title.trim() || (kind === 'income' ? 'Salary' : category),
-            category: category,
+            category: selectedCategory,
             date: 'Just now',
             amount: numericAmount,
             type: kind === 'income' ? 'INCOME' : 'EXPENSE',
@@ -240,20 +243,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
           {(kind === 'expense' || kind === 'income') && (
             <div className="form-group">
               <label>Category</label>
-              <select
-                className="form-control"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option>Food & Dining</option>
-                <option>Shopping</option>
-                <option>Rent & Housing</option>
-                <option>Travel</option>
-                <option>Utilities</option>
-                <option>Entertainment</option>
-                <option>Salary</option>
-                <option>Others</option>
-              </select>
+              <CategoryPicker value={category} onChange={setCategory} otherValue={otherCategory} onOtherChange={setOtherCategory} />
             </div>
           )}
 

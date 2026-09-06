@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FinatleLogo,
   CalendarIcon,
@@ -18,20 +18,31 @@ import {
 import type { TransactionItem } from './RecentTransactions';
 import { ExpenseDonutChart, type CategoryExpense } from './ExpenseDonutChart';
 import type { LoanItem } from './LoansSettlements';
+import { BudgetManager, type BudgetLimit } from './BudgetManager';
+import { SettingsView } from './SettingsView';
 
 
 interface MobileDashboardProps {
   balance: number;
   userName?: string;
+  user?: { uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null;
+  token?: string | null;
+  onUpdateUser?: (user: any) => void;
+  onDeleteAccount?: () => void;
   transactions: TransactionItem[];
   loans?: LoanItem[];
   totalExpense?: number;
   expenseCategories?: CategoryExpense[];
+  budgets: BudgetLimit[];
+  spending: Record<string, number>;
+  onSaveBudget: (budget: BudgetLimit) => void;
+  onDeleteBudget: (category: string) => void;
   onOpenAddModal: (initialKind?: 'expense' | 'income' | 'lent' | 'borrowed' | 'split') => void;
   onOpenScanner: () => void;
   onOpenLoans: () => void;
   onOpenAllTransactions: () => void;
   onLogout: () => void;
+  onOpenSettings: () => void;
   onOpenPWA: () => void;
   onEditTransaction?: (transaction: TransactionItem) => void;
   onEditLoan?: (loan: LoanItem) => void;
@@ -44,15 +55,24 @@ interface MobileDashboardProps {
 export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   balance = 0,
   userName = 'Darshan',
+  user,
+  token,
+  onUpdateUser,
+  onDeleteAccount,
   transactions = [],
   loans = [],
   totalExpense = 0,
   expenseCategories = [],
+  budgets,
+  spending,
+  onSaveBudget,
+  onDeleteBudget,
   onOpenAddModal,
   onOpenScanner,
   onOpenLoans,
   onOpenAllTransactions,
   onLogout,
+  onOpenSettings,
   onOpenPWA,
   onEditTransaction,
   onEditLoan,
@@ -61,7 +81,23 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 }) => {
   const [showBalance, setShowBalance] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPWAInstalled, setIsPWAInstalled] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+    };
+    if (isProfileOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileOpen]);
 
   useEffect(() => {
     const isStandalone =
@@ -104,13 +140,29 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
           <button className="icon-button" style={{ width: 34, height: 34 }} title="Calendar">
             <CalendarIcon size={16} />
           </button>
-          <div
-            className="user-avatar"
-            style={{ width: 34, height: 34, cursor: 'pointer' }}
-            onClick={onLogout}
-            title="Profile"
-          >
-            {userName.slice(0, 2).toUpperCase()}
+          <div className="mobile-profile-wrapper" ref={profileMenuRef} style={{ position: 'relative' }}>
+            <div
+              className="user-avatar"
+              style={{ width: 34, height: 34, cursor: 'pointer' }}
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              title="Profile"
+            >
+              {userName.slice(0, 2).toUpperCase()}
+            </div>
+            {isProfileOpen && (
+              <div className="mobile-profile-menu">
+                <div className="mobile-profile-header">
+                  <div className="mobile-profile-name">{user?.name || userName}</div>
+                  <div className="mobile-profile-email">{user?.email || 'User Account'}</div>
+                </div>
+                <button type="button" onClick={() => { setIsProfileOpen(false); onOpenSettings(); }}>
+                  Settings
+                </button>
+                <button type="button" className="mobile-profile-logout" onClick={() => { setIsProfileOpen(false); onLogout(); }}>
+                  Sign Out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -174,14 +226,24 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                 <span>Analytics & Insights</span>
               </button>
               <button
-                className={`nav-item ${currentNav === 'goals' ? 'active' : ''}`}
+                className={`nav-item ${currentNav === 'budgets' ? 'active' : ''}`}
                 onClick={() => {
-                  onSelectNav('goals');
+                  onSelectNav('budgets');
                   setIsDrawerOpen(false);
                 }}
               >
-                <NavIcons.Goals active={currentNav === 'goals'} />
-                <span>Savings Goals</span>
+                <NavIcons.Budgets active={currentNav === 'budgets'} />
+                <span>Budgets</span>
+              </button>
+              <button
+                className={`nav-item ${currentNav === 'settings' ? 'active' : ''}`}
+                onClick={() => {
+                  onSelectNav('settings');
+                  setIsDrawerOpen(false);
+                }}
+              >
+                <NavIcons.Settings active={currentNav === 'settings'} />
+                <span>Settings</span>
               </button>
             </nav>
 
@@ -389,6 +451,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                   const isPartial = item.status === 'PARTIAL';
                   const paid = item.paidAmount || 0;
                   const remaining = Math.max(0, item.amount - paid);
+                  const formatLoanDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Not set';
 
                   return (
                     <div className="loan-row" key={item.id}>
@@ -402,7 +465,11 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                         </div>
                         <div className="row-info">
                           <h4>{item.title}</h4>
-                          <p>{isPartial ? `₹${paid} paid • ₹${remaining} left` : item.subtext}</p>
+                          <p className="loan-description">{item.subtext}</p>
+                          <div className="loan-meta">
+                            <span>{isLent ? 'Lent' : 'Borrowed'}: {formatLoanDate(item.date)}</span>
+                            <span>Due: {formatLoanDate(item.dueDate)}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -465,10 +532,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
             )}
           </section>
 
-          {/* Monthly Overview Donut */}
-          <section className="mobile-section" style={{ paddingBottom: '5rem' }}>
-            <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
-          </section>
         </>
       )}
 
@@ -588,27 +651,23 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         </section>
       )}
 
-      {/* VIEW 4: GOALS */}
-      {currentNav === 'goals' && (
+      {currentNav === 'budgets' && (
         <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
-          <div className="mobile-sec-header">
-            <h4>Savings Goals</h4>
-          </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>Track emergency funds and purchase targets</p>
-          
-          <div style={{ background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-xl)', padding: '1.25rem', marginBottom: '1rem', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <h5 style={{ fontWeight: 800 }}>Emergency Fund Target</h5>
-              <span style={{ fontWeight: 700, color: 'var(--primary-dark)', fontSize: '0.85rem' }}>65%</span>
-            </div>
-            <div style={{ background: '#f1f5f9', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: '0.5rem' }}>
-              <div style={{ background: 'var(--primary)', height: '100%', width: '65%' }}></div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              <span>Saved: {formatRupee(balance)}</span>
-              <span>Target: ₹1,00,000</span>
-            </div>
-          </div>
+          <div className="mobile-sec-header"><h4>Budgets</h4></div>
+          <BudgetManager categories={Object.keys(spending)} spending={spending} budgets={budgets} onSave={onSaveBudget} onDelete={onDeleteBudget} />
+        </section>
+      )}
+
+      {currentNav === 'settings' && (
+        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+          <SettingsView
+            user={user || null}
+            token={token || null}
+            transactions={transactions}
+            onUpdateUser={onUpdateUser || (() => {})}
+            onLogout={onLogout}
+            onDeleteAccount={onDeleteAccount || onLogout}
+          />
         </section>
       )}
 
@@ -640,12 +699,13 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         </button>
 
         <button
-          className={`bottom-nav-item ${currentNav === 'goals' ? 'active' : ''}`}
-          onClick={() => onSelectNav('goals')}
+          className={`bottom-nav-item ${currentNav === 'budgets' ? 'active' : ''}`}
+          onClick={() => onSelectNav('budgets')}
         >
-          <NavIcons.Goals active={currentNav === 'goals'} />
-          <span>Goals</span>
+          <NavIcons.Budgets active={currentNav === 'budgets'} />
+          <span>Budgets</span>
         </button>
+
       </nav>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { TransactionItem } from './RecentTransactions';
 import { apiFetch } from '../lib/api';
+import { CategoryPicker } from './CategoryPicker';
 
 interface EditTransactionModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Food & Dining');
+    const [otherCategory, setOtherCategory] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -32,6 +34,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setAmount(String(transaction.amount));
       setDescription(transaction.name || '');
       setCategory(transaction.category || 'Food & Dining');
+        setOtherCategory(transaction.category && !['Food & Dining', 'Shopping', 'Rent & Housing', 'Travel', 'Utilities', 'Entertainment', 'Salary', 'General'].includes(transaction.category) ? transaction.category : '');
       setError('');
     }
   }, [transaction, isOpen]);
@@ -52,6 +55,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
     try {
       if (token) {
+        const selectedCategory = category === 'Other' ? otherCategory.trim() || 'Other' : category;
         const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
           method: 'PUT',
           headers: {
@@ -62,7 +66,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             type,
             amount: numericAmount,
             description: description.trim(),
-            category,
+            category: selectedCategory,
           }),
         });
 
@@ -169,20 +173,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           {/* Category */}
           <div className="form-group">
             <label>Category</label>
-            <select
-              className="form-control"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option>Food & Dining</option>
-              <option>Shopping</option>
-              <option>Rent & Housing</option>
-              <option>Travel</option>
-              <option>Utilities</option>
-              <option>Entertainment</option>
-              <option>Salary</option>
-              <option>Others</option>
-            </select>
+            <CategoryPicker value={category} onChange={setCategory} otherValue={otherCategory} onOtherChange={setOtherCategory} />
           </div>
 
           {error && (

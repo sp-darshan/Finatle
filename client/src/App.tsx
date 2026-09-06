@@ -19,6 +19,9 @@ import { EditLoanModal } from './components/EditLoanModal';
 import { BillScannerModal } from './components/BillScannerModal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { AuthModal } from './components/AuthModal';
+import { BudgetManager } from './components/BudgetManager';
+import type { BudgetLimit } from './components/BudgetManager';
+import { SettingsView } from './components/SettingsView';
 import { apiFetch } from './lib/api';
 
 export function App() {
@@ -41,13 +44,14 @@ export function App() {
   const [isPWAOpen, setIsPWAOpen] = useState(false);
 
   // Authentication State
-  const [user, setUser] = useState<{ uid: string; email: string; name?: string | null; age?: number | null } | null>(null);
+  const [user, setUser] = useState<{ uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [loadingUser, setLoadingUser] = useState<boolean>(true);
 
   // Financial Data State (Strictly loaded from DB only)
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loans, setLoans] = useState<LoanItem[]>([]);
+  const [budgets, setBudgets] = useState<BudgetLimit[]>([]);
   const [settlementError, setSettlementError] = useState('');
   const refreshRequestRef = useRef(0);
 
@@ -59,6 +63,30 @@ export function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    const userId = user?.uid || (() => {
+      try {
+        const u = localStorage.getItem('user');
+        return u ? JSON.parse(u).uid : null;
+      } catch {
+        return null;
+      }
+    })();
+    const storageKey = userId ? `finatle_budgets_${userId}` : 'finatle_budgets_local';
+    const savedBudgets = localStorage.getItem(storageKey) || localStorage.getItem('finatle_budgets_local');
+    if (savedBudgets) {
+      try {
+        const parsed = JSON.parse(savedBudgets);
+        if (Array.isArray(parsed)) {
+          setBudgets(parsed);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [user?.uid]);
 
   // Restore and verify the stored session with the backend.
   useEffect(() => {
@@ -143,6 +171,8 @@ export function App() {
               subtext: l.description || 'Personal expense',
               amount,
               paidAmount: paid,
+              date: l.lentAt,
+              dueDate: l.dueAt,
               status: l.status,
               statusLabel: l.status === 'PAID' ? '✓ Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
             });
@@ -160,6 +190,8 @@ export function App() {
               subtext: b.description || 'Personal loan',
               amount,
               paidAmount: paid,
+              date: b.borrowedAt,
+              dueDate: b.dueAt,
               status: b.status,
               statusLabel: b.status === 'PAID' ? '✓ Settled' : b.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to pay',
             });
@@ -180,6 +212,34 @@ export function App() {
     fetchUserData(authToken);
   };
 
+  const tabToMobileNav = (tab: TabType): string => {
+    if (tab === 'dashboard') return 'home';
+    if (tab === 'analytics') return 'insights';
+    return tab;
+  };
+
+  const mobileNavToTab = (nav: string): TabType => {
+    if (nav === 'home') return 'dashboard';
+    if (nav === 'insights') return 'analytics';
+    if (nav === 'transactions' || nav === 'budgets' || nav === 'loans' || nav === 'settings') return nav as TabType;
+    return 'dashboard';
+  };
+
+  const handleSelectTab = (tab: TabType) => {
+    setCurrentTab(tab);
+    setMobileNav(tabToMobileNav(tab));
+  };
+
+  const handleSelectMobileNav = (nav: string) => {
+    setMobileNav(nav);
+    setCurrentTab(mobileNavToTab(nav));
+  };
+
+  const handleOpenSettings = () => {
+    setCurrentTab('settings');
+    setMobileNav('settings');
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -187,6 +247,30 @@ export function App() {
     setToken(null);
     setTransactions([]);
     setLoans([]);
+    setBudgets([]);
+    setCurrentTab('dashboard');
+    setMobileNav('home');
+  };
+
+  const saveBudget = (budget: BudgetLimit) => {
+    setBudgets((previous) => {
+      const filtered = previous.filter((item) => item.category.toLowerCase() !== budget.category.toLowerCase());
+      const next = [...filtered, budget];
+      const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const deleteBudget = (category: string) => {
+    setBudgets((previous) => {
+      const next = previous.filter((item) => item.category.toLowerCase() !== category.toLowerCase());
+      const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
+      return next;
+    });
   };
 
 
@@ -331,6 +415,7 @@ export function App() {
     percentage: totalExpense > 0 ? Math.round((amount / totalExpense) * 100) : 0,
     color: '',
   }));
+  const expenseSpending = Object.fromEntries(Object.entries(categoryMap));
 
   const openAdd = (kind: RecordKind = 'expense') => {
     setAddRecordKind(kind);
@@ -343,7 +428,7 @@ export function App() {
   };
 
   // 1. If user is not authenticated and not loading, show the Hero Landing Page!
-  if (!user && !loadingUser && !isMobileScreen) {
+  if (!user && !loadingUser) {
     return (
       <>
         <HeroLanding
@@ -367,28 +452,34 @@ export function App() {
           <MobileDashboard
             balance={netSavings}
             userName={user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Friend'}
+            user={user}
+            token={token}
+            onUpdateUser={(updatedUser) => {
+              setUser(updatedUser);
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+            }}
+            onDeleteAccount={handleLogout}
             transactions={filteredTransactions}
             loans={filteredLoans}
             totalExpense={totalExpense}
             expenseCategories={expenseCategories}
             onOpenAddModal={(k) => openAdd((k as RecordKind) || 'expense')}
             onOpenScanner={() => setIsScannerOpen(true)}
-            onOpenLoans={() => {
-              if (isMobileScreen) {
-                setMobileNav('transactions');
-              } else {
-                setCurrentTab('loans');
-              }
-            }}
-            onOpenAllTransactions={() => setMobileNav('transactions')}
+            onOpenLoans={() => handleSelectTab('loans')}
+            onOpenAllTransactions={() => handleSelectTab('transactions')}
+            budgets={budgets}
+            spending={expenseSpending}
+            onSaveBudget={saveBudget}
+            onDeleteBudget={deleteBudget}
             onLogout={handleLogout}
+            onOpenSettings={handleOpenSettings}
             onOpenPWA={() => setIsPWAOpen(true)}
             onEditTransaction={handleEditTransaction}
             onEditLoan={(loan) => setEditingLoan(loan)}
             onSettleLoan={handleSettleLoan}
             canSettleLoan={canSettleLoan}
             currentNav={mobileNav}
-            onSelectNav={setMobileNav}
+            onSelectNav={handleSelectMobileNav}
           />
         </div>
 
@@ -465,7 +556,7 @@ export function App() {
       <Sidebar
         currentTab={currentTab}
         onSelectTab={(tab) => {
-          setCurrentTab(tab);
+          handleSelectTab(tab);
           if (tab === 'loans') setIsAddRecordOpen(false);
         }}
       />
@@ -473,12 +564,13 @@ export function App() {
       {/* 2. Main Content Container */}
       <div className="main-content">
         <TopBar
-
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           user={user}
           onOpenAuth={() => handleOpenAuth('signin')}
           onLogout={handleLogout}
+          onOpenSettings={handleOpenSettings}
+          onOpenScanner={() => setIsScannerOpen(true)}
         />
 
         <main className="page-container">
@@ -499,9 +591,18 @@ export function App() {
                     >
                       <span>+ Add Record</span>
                     </button>
-                    <div className="date-filter-pill">
-                      <span>This Month ⌄</span>
-                    </div>
+                    <select
+                      className="select-pill"
+                      defaultValue="This Month"
+                      aria-label="Filter date range"
+                      style={{ height: '36px' }}
+                    >
+                      <option value="This Month">This Month</option>
+                      <option value="Last Month">Last Month</option>
+                      <option value="This Quarter">This Quarter</option>
+                      <option value="This Year">This Year</option>
+                      <option value="All Time">All Time</option>
+                    </select>
                   </div>
                 </div>
 
@@ -610,21 +711,32 @@ export function App() {
               </div>
             )}
 
-            {(currentTab === 'budgets' || currentTab === 'analytics' || currentTab === 'goals' || currentTab === 'statements' || currentTab === 'settings') && (
-              <div style={{ background: '#fff', padding: '2.5rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, textTransform: 'capitalize' }}>{currentTab} Overview</h3>
-                <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                  Manage your {currentTab} insights, automated categories, and statements here.
-                </p>
-                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                  <button className="select-pill" onClick={() => setCurrentTab('dashboard')}>
-                    ← Back to Dashboard
-                  </button>
-                  <button className="btn-submit-primary" style={{ width: 'auto', margin: 0 }} onClick={() => openAdd('expense')}>
-                    + Add New Entry
-                  </button>
-                </div>
+            {currentTab === 'budgets' && (
+              <section className="dashboard-card">
+                <div className="card-header"><h3>Monthly Category Budgets</h3></div>
+                <BudgetManager categories={Object.keys(categoryMap)} spending={expenseSpending} budgets={budgets} onSave={saveBudget} onDelete={deleteBudget} />
+              </section>
+            )}
+
+            {currentTab === 'analytics' && (
+              <div className="charts-grid">
+                <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
+                <IncomeExpenseBarChart transactions={transactions} />
               </div>
+            )}
+
+            {currentTab === 'settings' && (
+              <SettingsView
+                user={user}
+                token={token}
+                transactions={transactions}
+                onUpdateUser={(updatedUser) => {
+                  setUser(updatedUser);
+                  localStorage.setItem('user', JSON.stringify(updatedUser));
+                }}
+                onLogout={handleLogout}
+                onDeleteAccount={handleLogout}
+              />
             )}
           </main>
       </div>

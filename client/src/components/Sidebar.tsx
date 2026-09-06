@@ -1,7 +1,7 @@
 import React from 'react';
 import { FinatleLogo, NavIcons } from './Icons';
 
-export type TabType = 'dashboard' | 'transactions' | 'budgets' | 'analytics' | 'loans' | 'goals' | 'statements' | 'settings';
+export type TabType = 'dashboard' | 'transactions' | 'budgets' | 'analytics' | 'loans' | 'settings';
 
 interface SidebarProps {
   currentTab: TabType;
@@ -18,8 +18,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'budgets', label: 'Budgets', icon: NavIcons.Budgets },
     { id: 'analytics', label: 'Analytics', icon: NavIcons.Analytics },
     { id: 'loans', label: 'Loans & Split', icon: NavIcons.Loans },
-    { id: 'goals', label: 'Goals', icon: NavIcons.Goals },
-    { id: 'statements', label: 'Statements', icon: NavIcons.Statements },
     { id: 'settings', label: 'Settings', icon: NavIcons.Settings },
   ];
 

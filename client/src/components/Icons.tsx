@@ -190,22 +190,6 @@ export const NavIcons = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
-  Goals: ({ active = false }: { active?: boolean }) => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#047857' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  ),
-  Statements: ({ active = false }: { active?: boolean }) => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#047857' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
-  ),
   Settings: ({ active = false }: { active?: boolean }) => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#047857' : '#64748b'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
@@ -247,16 +231,130 @@ export const ZomatoBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
   </div>
 );
 
+export const FoodBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#D1FAE5', border: '1px solid #A7F3D0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#047857' }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8" />
+      <path d="M6 2v6" />
+      <path d="M10 2v6" />
+      <path d="M14 2v6" />
+      <path d="M18 2v6" />
+      <path d="M12 16v6" />
+    </svg>
+  </div>
+);
+
+export const ShoppingBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#DBEAFE', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+      <path d="M3 6h18" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </svg>
+  </div>
+);
+
+export const HousingBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#CCFBF1', border: '1px solid #99F6E4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F766E' }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  </div>
+);
+
+export const TravelBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#B45309' }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+    </svg>
+  </div>
+);
+
+export const UtilitiesBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#CFFAFE', border: '1px solid #A5F3FC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0E7490' }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  </div>
+);
+
+export const EntertainmentBadge: React.FC<{ size?: number }> = ({ size = 36 }) => (
+  <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#FFE4E6', border: '1px solid #FECDD3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#BE123C' }}>
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  </div>
+);
+
 export const CategoryBadge: React.FC<{ category?: string; size?: number }> = ({ category = '', size = 36 }) => {
-  const cat = category.toLowerCase();
-  if (cat.includes('starbuck') || cat.includes('coffee')) return <StarbucksBadge size={size} />;
-  if (cat.includes('amazon') || cat.includes('shopping')) return <AmazonBadge size={size} />;
-  if (cat.includes('salary') || cat.includes('income')) return <SalaryBadge size={size} />;
-  if (cat.includes('zomato') || cat.includes('food') || cat.includes('dining')) return <ZomatoBadge size={size} />;
+  const cat = category.toLowerCase().trim();
+
+  // Specific brand overrides
+  if (cat === 'zomato' || cat.startsWith('zomato ')) return <ZomatoBadge size={size} />;
+  if (cat === 'starbucks' || cat.startsWith('starbucks ') || cat === 'starbuck') return <StarbucksBadge size={size} />;
+  if (cat === 'amazon' || cat.startsWith('amazon ')) return <AmazonBadge size={size} />;
+
+  // Standard category mappings
+  if (cat.includes('food') || cat.includes('dining') || cat.includes('restaurant') || cat.includes('cafe')) return <FoodBadge size={size} />;
+  if (cat.includes('shopping') || cat.includes('grocery') || cat.includes('store') || cat.includes('mart')) return <ShoppingBadge size={size} />;
+  if (cat.includes('rent') || cat.includes('housing') || cat.includes('home') || cat.includes('house')) return <HousingBadge size={size} />;
+  if (cat.includes('travel') || cat.includes('transport') || cat.includes('flight') || cat.includes('cab') || cat.includes('uber') || cat.includes('fuel')) return <TravelBadge size={size} />;
+  if (cat.includes('utilit') || cat.includes('bill') || cat.includes('electric') || cat.includes('water') || cat.includes('wifi') || cat.includes('gas')) return <UtilitiesBadge size={size} />;
+  if (cat.includes('entertainment') || cat.includes('movie') || cat.includes('netflix') || cat.includes('music') || cat.includes('game')) return <EntertainmentBadge size={size} />;
+  if (cat.includes('salary') || cat.includes('income') || cat.includes('dividend') || cat.includes('freelance')) return <SalaryBadge size={size} />;
   
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: `${size * 0.4}px`, fontWeight: 600 }}>
-      {category ? category.charAt(0).toUpperCase() : '₹'}
+    <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: `${size * 0.4}px`, fontWeight: 700 }}>
+      {category ? category.charAt(0).toUpperCase() : '•'}
     </div>
   );
 };
+
+export const UserIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+export const PhoneIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+  </svg>
+);
+
+export const MailIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="20" height="16" x="2" y="4" rx="2" />
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </svg>
+);
+
+export const LockIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+export const ShieldIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+
+export const KeyIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="7.5" cy="15.5" r="5.5" />
+    <path d="m21 2-9.6 9.6" />
+    <path d="m15.5 7.5 3 3L22 7l-3-3" />
+  </svg>
+);
+
+export const CheckCircleIcon: React.FC<{ size?: number; className?: string }> = ({ size = 20, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);

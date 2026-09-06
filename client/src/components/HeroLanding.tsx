@@ -4,7 +4,6 @@ import {
   LeafSproutIcon,
   IncomeCardIcon,
   ExpenseCardIcon,
-  SavingsCardIcon,
   SettlementsCardIcon,
   UsersGroupIcon,
   ScanBillIcon,
@@ -97,15 +96,6 @@ export const HeroLanding: React.FC<HeroLandingProps> = ({
               </div>
               <h4>Lend & Borrow Tracker</h4>
               <p>Keep precise track of money you lent to colleagues, amounts you owe, and shared trip split expenses.</p>
-            </div>
-
-            {/* Card 4: Financial Goals */}
-            <div className="feature-card">
-              <div className="feature-icon-wrap" style={{ background: '#f0fdf4', color: '#10b981' }}>
-                <SavingsCardIcon size={28} />
-              </div>
-              <h4>Financial Goals & Savings</h4>
-              <p>Set savings targets for what matters to you and watch your net balance grow steadily month after month.</p>
             </div>
 
             {/* Card 5: AI Bill Scanner */}

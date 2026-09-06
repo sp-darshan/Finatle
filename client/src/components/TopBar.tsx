@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { SearchIcon, BellIcon, ChevronDownIcon } from './Icons';
+import React, { useState, useRef, useEffect } from 'react';
+import { SearchIcon, BellIcon, ChevronDownIcon, ScanBillIcon } from './Icons';
 
 interface TopBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   user: { name?: string | null; email?: string } | null;
   onOpenAuth: () => void;
+  onOpenSettings: () => void;
   onLogout: () => void;
+  onOpenScanner?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -14,9 +16,26 @@ export const TopBar: React.FC<TopBarProps> = ({
   onSearchChange,
   user,
   onOpenAuth,
+  onOpenSettings,
   onLogout,
+  onOpenScanner,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const getInitials = () => {
     if (!user) return 'US';
@@ -41,6 +60,18 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="top-actions">
+        {/* Scan Bill Quick Action */}
+        {onOpenScanner && (
+          <button
+            className="topbar-scan-btn"
+            onClick={onOpenScanner}
+            title="Scan Receipt with AI"
+          >
+            <ScanBillIcon size={16} />
+            <span>Scan Bill</span>
+          </button>
+        )}
+
         {/* Notification Bell */}
         <button className="icon-button" title="Notifications">
           <BellIcon size={18} />
@@ -48,9 +79,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         {/* User profile dropdown */}
-        <div style={{ position: 'relative' }}>
-          <div
-            className="user-profile-pill"
+        <div ref={dropdownRef} className="topbar-profile-container" style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className={`user-profile-pill ${showDropdown ? 'active' : ''}`}
             onClick={() => {
               if (user) {
                 setShowDropdown(!showDropdown);
@@ -61,43 +93,41 @@ export const TopBar: React.FC<TopBarProps> = ({
           >
             <div className="user-avatar">{getInitials()}</div>
             <span className="user-name">{displayName}</span>
-            <ChevronDownIcon size={14} />
-          </div>
-
-          {showDropdown && user && (
-            <div
+            <span
+              className="user-profile-chevron"
               style={{
-                position: 'absolute',
-                top: '120%',
-                right: 0,
-                background: '#fff',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-hover)',
-                padding: '0.5rem',
-                minWidth: '170px',
-                zIndex: 60,
+                display: 'inline-flex',
+                alignItems: 'center',
+                transform: showDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
               }}
             >
-              <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {user.email}
+              <ChevronDownIcon size={14} />
+            </span>
+          </button>
+
+          {showDropdown && user && (
+            <div className="topbar-profile-dropdown">
+              <div className="topbar-profile-header">
+                <div className="topbar-profile-name">{user.name || user.email?.split('@')[0] || 'User Profile'}</div>
+                <div className="topbar-profile-email">{user.email}</div>
               </div>
               <button
+                type="button"
+                className="topbar-dropdown-item"
+                onClick={() => {
+                  setShowDropdown(false);
+                  onOpenSettings();
+                }}
+              >
+                Settings
+              </button>
+              <button
+                type="button"
+                className="topbar-dropdown-item logout"
                 onClick={() => {
                   setShowDropdown(false);
                   onLogout();
-                }}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0.6rem',
-                  border: 'none',
-                  background: '#fef2f2',
-                  color: '#ef4444',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
                 }}
               >
                 Sign Out

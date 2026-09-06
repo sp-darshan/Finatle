@@ -16,6 +16,7 @@ model User {
   email     String   @unique
   password  String   // Hashed with salt
   name      String?
+  phone     String?  // User contact phone number
   age       Int?     // User age
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

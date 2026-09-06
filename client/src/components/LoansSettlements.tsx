@@ -12,6 +12,7 @@ export interface LoanItem {
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'PARTIAL';
   statusLabel?: string;
   date?: string;
+  dueDate?: string | null;
 }
 
 interface LoansSettlementsProps {
@@ -30,6 +31,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
   onEditLoan,
 }) => {
   const formatRupee = (val: number) => `₹${Math.round(val).toLocaleString('en-IN')}`;
+  const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
 
   return (
     <div className="dashboard-card">
@@ -81,11 +83,11 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
                   </div>
                   <div className="row-info">
                     <h4>{item.title}</h4>
-                    <p>
-                      {isPartial
-                        ? `₹${paid} paid • ₹${remaining} remaining`
-                        : item.subtext}
-                    </p>
+                    <p className="loan-description">{item.subtext}</p>
+                    <div className="loan-meta">
+                      <span>{isLent ? 'Lent' : 'Borrowed'}: {formatDate(item.date)}</span>
+                      <span>Due: {formatDate(item.dueDate || undefined)}</span>
+                    </div>
                   </div>
                 </div>
 
