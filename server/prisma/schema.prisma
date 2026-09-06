@@ -6,27 +6,100 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id        String   @id @default(uuid())
+  uid       String   @id @default(uuid())
   email     String   @unique
+  password  String   // Hashed with salt
   name      String?
+  age       Int?     // User age
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  items     Item[]
+  account   Account?
+  transactions Transaction[]
+  moneyLent MoneyLent[]
+  moneyBorrowed MoneyBorrowed[]
+
+  @@map("users")
 }
 
-model Item {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  amount      Float    @default(0.0)
-  category    String   @default("General")
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Account {
+  aid       String   @id @default(uuid())
+  uid       String   @unique
+  balance   Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [uid], references: [uid], onDelete: Cascade)
+
+  @@map("accounts")
 }
+
+model Transaction {
+  tid         String          @id @default(uuid())
+  uid         String
+  type        TransactionType
+  amount      Decimal         @db.Decimal(14, 2)
+  description String?
+  category    String?
+  occurredAt  DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [uid], references: [uid], onDelete: Cascade)
+
+  @@index([uid, occurredAt])
+  @@map("transactions")
+}
+
+model MoneyLent {
+  lid         String       @id @default(uuid())
+  uid         String
+  personName  String
+  amount      Decimal      @db.Decimal(14, 2)
+  paidAmount  Decimal      @default(0) @db.Decimal(14, 2)
+  description String?
+  lentAt      DateTime     @default(now())
+  dueAt       DateTime?
+  status      LoanStatus   @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [uid], references: [uid], onDelete: Cascade)
+
+  @@index([uid, status])
+  @@map("money_lent")
+}
+
+model MoneyBorrowed {
+  bid         String       @id @default(uuid())
+  uid         String
+  personName  String
+  amount      Decimal      @db.Decimal(14, 2)
+  paidAmount  Decimal      @default(0) @db.Decimal(14, 2)
+  description String?
+  borrowedAt  DateTime     @default(now())
+  dueAt       DateTime?
+  status      LoanStatus   @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [uid], references: [uid], onDelete: Cascade)
+
+  @@index([uid, status])
+  @@map("money_borrowed")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum LoanStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+}
+
+

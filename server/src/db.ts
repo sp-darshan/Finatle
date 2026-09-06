@@ -6,7 +6,7 @@ dotenv.config();
 
 // Direct PostgreSQL Connection Pool via 'pg'
 export const pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL,
 });
 
 // Prisma Client ORM Instance
@@ -15,7 +15,6 @@ export const prisma = new PrismaClient();
 // Helper to verify Database Connectivity
 export async function checkDatabaseConnection(): Promise<{ connected: boolean; message: string; details?: any }> {
   try {
-    // Attempt a lightweight query via pg pool
     const result = await pgPool.query('SELECT NOW() as current_time, current_database() as db_name');
     return {
       connected: true,

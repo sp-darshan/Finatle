@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#10B981"/>
+  <defs>
+    <linearGradient id="leafGrad" x1="120" y1="392" x2="392" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d1fae5"/>
+    </linearGradient>
+    <linearGradient id="shadowGrad" x1="200" y1="200" x2="380" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#047857" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#047857" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Main stylized leaf shape -->
+  <path d="M130 382 C130 260 210 130 382 130 C382 252 302 382 130 382 Z" fill="url(#leafGrad)"/>
+  <!-- Leaf spine and subtle details -->
+  <path d="M130 382 C210 330 280 260 382 130" stroke="#10B981" stroke-width="20" stroke-linecap="round"/>
+  <path d="M220 300 C250 290 280 270 300 240" stroke="#10B981" stroke-width="12" stroke-linecap="round"/>
+  <path d="M280 240 C310 230 335 210 350 185" stroke="#10B981" stroke-width="10" stroke-linecap="round"/>
+</svg>
