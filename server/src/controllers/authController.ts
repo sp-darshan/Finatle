@@ -84,7 +84,8 @@ export async function signUp(req: Request, res: Response) {
           createdAt: newUser.createdAt,
         },
       });
-    } catch (dbError) {
+    } catch (dbError: any) {
+      console.error('[Auth] Database sign-up query failed, using in-memory fallback:', dbError?.message || dbError);
       // Fallback in-memory user registration if DB is not yet migrated/connected
       const existingFallback = inMemoryUsers.find((u) => u.email === normalizedEmail);
       if (existingFallback) {
@@ -179,7 +180,8 @@ export async function signIn(req: Request, res: Response) {
           createdAt: user.createdAt,
         },
       });
-    } catch (dbError) {
+    } catch (dbError: any) {
+      console.error('[Auth] Database sign-in query failed, using in-memory fallback:', dbError?.message || dbError);
       // Fallback in-memory sign-in
       const user = inMemoryUsers.find((u) => u.email === normalizedEmail);
       if (!user) {
