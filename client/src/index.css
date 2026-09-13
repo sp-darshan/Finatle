@@ -1570,6 +1570,33 @@ button.select-pill {
   align-items: center;
 }
 
+.balance-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.12);
+}
+
+.balance-toggle-btn:hover {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #064e3b;
+  transform: translateY(-1px);
+}
+
+.balance-toggle-btn:active {
+  transform: translateY(0);
+}
+
 .mobile-balance-amount {
   font-size: 1.85rem;
   font-weight: 800;

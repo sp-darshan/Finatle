@@ -76,6 +76,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -329,8 +330,17 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
           {/* STEP 1: SCAN / UPLOAD AREA */}
           {!scannedResult && (
             <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+              {/* Gallery / File Picker */}
               <input
                 ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+              {/* Direct Camera Capture */}
+              <input
+                ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
@@ -342,27 +352,67 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                 style={{
                   border: '2px dashed #10b981',
                   borderRadius: 'var(--radius-lg)',
-                  padding: '2.25rem 1.25rem',
+                  padding: '1.75rem 1.25rem',
                   background: '#f0fdf4',
-                  cursor: 'pointer',
                   position: 'relative',
                   overflow: 'hidden',
                   transition: 'all 0.2s ease',
                 }}
-                onClick={() => fileInputRef.current?.click()}
               >
-                <div style={{ color: '#10b981', marginBottom: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.65rem' }}>
-                  <LuCamera size={36} />
-                  <LuUpload size={36} />
+                <div style={{ color: '#10b981', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', gap: '0.65rem' }}>
+                  <LuCamera size={32} />
+                  <LuUpload size={32} />
                 </div>
-                <h4 style={{ color: '#065f46', fontWeight: 800, fontSize: '1.1rem' }}>
-                  {scanning ? (scanStatus || 'Processing Image...') : 'Upload Receipt or Take Photo'}
+                <h4 style={{ color: '#065f46', fontWeight: 800, fontSize: '1.05rem' }}>
+                  {scanning ? (scanStatus || 'Processing Image...') : 'Scan Bill or Receipt'}
                 </h4>
-                <p style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.35rem' }}>
+                <p style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.25rem', marginBottom: '1.15rem' }}>
                   {scanning
                     ? 'Extracting merchant, line items, taxes & total amount'
-                    : 'Works with restaurant bills, supermarket receipts, fuel & invoices'}
+                    : 'Capture a live photo with your camera or upload an existing receipt from your gallery'}
                 </p>
+
+                {!scanning && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', maxWidth: '380px', margin: '0 auto' }}>
+                    <button
+                      type="button"
+                      className="btn-submit-primary"
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        background: '#059669',
+                        boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+                      }}
+                      onClick={() => cameraInputRef.current?.click()}
+                    >
+                      <LuCamera size={16} /> Take Photo
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn-submit-primary"
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        background: '#ffffff',
+                        color: '#065f46',
+                        border: '1.5px solid #10b981',
+                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <LuUpload size={16} /> Upload Photo
+                    </button>
+                  </div>
+                )}
 
                 {scanning && (
                   <div

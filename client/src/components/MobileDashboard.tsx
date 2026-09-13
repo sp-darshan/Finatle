@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   FinatleLogo,
   CalendarIcon,
-  EyeIcon,
-  EyeOffIcon,
   LeafSproutIcon,
   MinusIcon,
   PlusIcon,
@@ -29,6 +27,7 @@ import { useGreeting } from '../lib/greeting';
 
 interface MobileDashboardProps {
   balance: number;
+  actualBalance?: number;
   userName?: string;
   user?: { uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null;
   token?: string | null;
@@ -59,6 +58,7 @@ interface MobileDashboardProps {
 
 export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   balance = 0,
+  actualBalance,
   userName = 'Darshan',
   user,
   token,
@@ -85,7 +85,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   onSelectNav,
 }) => {
   const { greeting, timeString, dateString } = useGreeting();
-  const [showBalance, setShowBalance] = useState(true);
+  const [balanceView, setBalanceView] = useState<'net' | 'actual'>('net');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPWAInstalled, setIsPWAInstalled] = useState(false);
@@ -282,24 +282,27 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
             <p>{dateString} • {timeString}</p>
           </section>
 
-          {/* Total Balance Card */}
+          {/* Total / Actual Balance Card */}
           <div className="mobile-balance-card">
             <div className="mobile-balance-info">
               <div className="balance-title-row">
-                <span>Total Balance</span>
+                <span>{balanceView === 'net' ? 'Total Balance' : 'Actual Balance'}</span>
                 <button
-                  className="balance-eye-btn"
-                  onClick={() => setShowBalance(!showBalance)}
-                  title={showBalance ? 'Hide Balance' : 'Show Balance'}
+                  type="button"
+                  className="balance-toggle-btn"
+                  onClick={() => setBalanceView(balanceView === 'net' ? 'actual' : 'net')}
+                  title={balanceView === 'net' ? 'Switch to Actual Balance' : 'Switch to Total Balance'}
                 >
-                  {showBalance ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
+                  <span>{balanceView === 'net' ? 'Actual' : 'Total'}</span>
                 </button>
               </div>
               <div className="mobile-balance-amount">
-                {showBalance ? formatRupee(balance) : '••••••••'}
+                {formatRupee(balanceView === 'net' ? balance : (actualBalance ?? balance))}
               </div>
               <div className="mobile-balance-badge">
-                <span>Live verified net balance</span>
+                <span>
+                  {balanceView === 'net' ? 'Net savings from transactions' : 'Actual balance after loans & settlements'}
+                </span>
               </div>
             </div>
 

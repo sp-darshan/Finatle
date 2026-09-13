@@ -78,14 +78,9 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         <div className="metric-card-value">
           {formatRupee(savings)}
         </div>
-        <div className="metric-card-actual-balance">
-          Actual balance: {formatRupee(actualBalance)}
-        </div>
-        <div className={`metric-card-badge ${savings > 0 ? 'positive' : 'settlement'}`}>
+        <div className={`metric-card-badge ${actualBalance >= 0 ? 'positive' : 'expense'}`}>
           <span>
-            {savings > 0
-              ? 'Net saved from income'
-              : '₹0 saved'}
+            Actual balance: {formatRupee(actualBalance)}
           </span>
         </div>
       </div>

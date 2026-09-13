@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FinatleLogo } from './Icons';
-import { LuX } from 'react-icons/lu';
+import { LuX, LuEye, LuEyeOff } from 'react-icons/lu';
 import { apiFetch } from '../lib/api';
 
 interface AuthModalProps {
@@ -19,6 +19,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -144,14 +145,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           <div className="form-group">
             <label>Password</label>
-            <input
-              type="password"
-              className="form-control"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="form-control"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ paddingRight: '2.5rem', width: '100%' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <LuEyeOff size={18} /> : <LuEye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button

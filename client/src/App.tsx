@@ -932,6 +932,7 @@ export function App() {
         <div style={{ padding: 0, display: 'flex', justifyContent: 'center' }}>
           <MobileDashboard
             balance={netSavings}
+            actualBalance={actualBalance}
             userName={user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Friend'}
             user={user}
             token={token}
