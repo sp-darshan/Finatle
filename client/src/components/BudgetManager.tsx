@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CategoryPicker } from './CategoryPicker';
 import { CategoryBadge, TrashIcon, PencilEditIcon } from './Icons';
+import { LuTarget } from 'react-icons/lu';
 
 export interface BudgetLimit {
   category: string;
@@ -138,7 +139,9 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
 
       {!budgets.length ? (
         <div className="empty-data-state" style={{ padding: '2rem 1rem' }}>
-          <div className="empty-icon">🎯</div>
+          <div className="empty-icon amber">
+            <LuTarget size={24} />
+          </div>
           <h5>No category budgets set</h5>
           <p>Choose a category above and set a monthly spending cap to stay on track.</p>
         </div>

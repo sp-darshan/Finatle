@@ -18,8 +18,12 @@ import {
 import type { TransactionItem } from './RecentTransactions';
 import { ExpenseDonutChart, type CategoryExpense } from './ExpenseDonutChart';
 import type { LoanItem } from './LoansSettlements';
-import { BudgetManager, type BudgetLimit } from './BudgetManager';
+import {
+  BudgetManager,
+  type BudgetLimit,
+} from './BudgetManager';
 import { SettingsView } from './SettingsView';
+import { LuReceipt } from 'react-icons/lu';
 
 
 interface MobileDashboardProps {
@@ -362,18 +366,20 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
             {transactions.length === 0 ? (
               <div className="empty-data-state" style={{ background: '#f8fafc', borderRadius: 'var(--radius-lg)' }}>
-                <div className="empty-icon" style={{ fontSize: '1.5rem' }}>💳</div>
+                <div className="empty-icon blue">
+                  <LuReceipt size={24} />
+                </div>
                 <h5>No transactions yet</h5>
                 <p>Tap + Add Expense or + Add Income to record your first transaction.</p>
               </div>
             ) : (
               <div className="transactions-list">
                 {topTransactions.map((t) => {
-                  const isIncome = t.type === 'INCOME' || t.amount > 0;
+                  const isIncome = t.type === 'INCOME';
                   return (
                     <div className="transaction-row" key={t.id}>
                       <div className="row-left">
-                        <CategoryBadge category={t.name || t.category} size={36} />
+                        <CategoryBadge name={t.name} category={t.category} size={36} />
                         <div className="row-info">
                           <h4>{t.name}</h4>
                           <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
@@ -588,18 +594,20 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
 
           {displayedTransactions.length === 0 ? (
             <div className="empty-data-state">
-              <div className="empty-icon">💳</div>
+              <div className="empty-icon blue">
+                <LuReceipt size={24} />
+              </div>
               <h5>No transactions match</h5>
               <p>No transactions found for this filter.</p>
             </div>
           ) : (
             <div className="transactions-list">
               {displayedTransactions.map((t) => {
-                const isIncome = t.type === 'INCOME' || t.amount > 0;
+                const isIncome = t.type === 'INCOME';
                 return (
                   <div className="transaction-row" key={t.id}>
                     <div className="row-left">
-                      <CategoryBadge category={t.name || t.category} size={36} />
+                      <CategoryBadge name={t.name} category={t.category} size={36} />
                       <div className="row-info">
                         <h4>{t.name}</h4>
                         <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>

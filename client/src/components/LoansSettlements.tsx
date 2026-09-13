@@ -1,5 +1,6 @@
 import React from 'react';
 import { PencilEditIcon, UsersGroupIcon } from './Icons';
+import { LuHandshake } from 'react-icons/lu';
 
 export interface LoanItem {
   id: string;
@@ -47,7 +48,9 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
       <div className="loans-list">
         {loans.length === 0 ? (
           <div className="empty-data-state">
-            <div className="empty-icon">🤝</div>
+            <div className="empty-icon indigo">
+              <LuHandshake size={24} />
+            </div>
             <h5>No pending settlements</h5>
             <p>Track money you lent to someone, borrowed from friends, or split on group trips.</p>
             {onAddNew && (

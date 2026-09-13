@@ -1049,8 +1049,52 @@ button.select-pill {
 }
 
 .empty-data-state .empty-icon {
-  font-size: 2rem;
-  margin-bottom: 0.25rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease;
+}
+
+.empty-data-state .empty-icon:hover {
+  transform: scale(1.05);
+}
+
+.empty-data-state .empty-icon.green {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #059669;
+}
+
+.empty-data-state .empty-icon.blue {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.empty-data-state .empty-icon.purple {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #7c3aed;
+}
+
+.empty-data-state .empty-icon.indigo {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4f46e5;
+}
+
+.empty-data-state .empty-icon.amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #d97706;
 }
 
 .empty-data-state h5 {
@@ -1145,6 +1189,20 @@ button.select-pill {
   gap: 0.65rem !important;
   text-align: right;
   flex-shrink: 0;
+}
+
+.amount-positive {
+  color: #059669 !important; /* Emerald Green for Income */
+  font-weight: 800 !important;
+  font-size: 0.95rem;
+  letter-spacing: -0.2px;
+}
+
+.amount-negative {
+  color: #dc2626 !important; /* Crimson Red for Expense */
+  font-weight: 800 !important;
+  font-size: 0.95rem;
+  letter-spacing: -0.2px;
 }
 
 /* Row Right for Loans (Side-by-side price, status button & pencil icon) */

@@ -1,16 +1,37 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon } from './Icons';
+import {
+  LuUtensils,
+  LuShoppingBag,
+  LuPlane,
+  LuZap,
+  LuFilm,
+  LuTrendingUp,
+  LuFolder,
+  LuPlus,
+  LuDumbbell,
+  LuGraduationCap,
+  LuHeartPulse,
+} from 'react-icons/lu';
+import { FaHouse } from 'react-icons/fa6';
 
-const CATEGORY_OPTIONS = [
-  { name: 'Food & Dining', icon: '🍽', tone: 'green' },
-  { name: 'Shopping', icon: '🛍', tone: 'blue' },
-  { name: 'Rent & Housing', icon: '⌂', tone: 'teal' },
-  { name: 'Travel', icon: '✈', tone: 'amber' },
-  { name: 'Utilities', icon: '⚡', tone: 'cyan' },
-  { name: 'Entertainment', icon: '▶', tone: 'coral' },
-  { name: 'Salary', icon: '₹', tone: 'emerald' },
-  { name: 'General', icon: '•', tone: 'slate' },
-  { name: 'Other', icon: '+', tone: 'indigo' },
+const CATEGORY_OPTIONS: {
+  name: string;
+  icon: React.ComponentType<{ size?: number }>;
+  tone: string;
+}[] = [
+  { name: 'Food & Dining', icon: LuUtensils, tone: 'green' },
+  { name: 'Shopping', icon: LuShoppingBag, tone: 'blue' },
+  { name: 'Rent & Housing', icon: FaHouse, tone: 'teal' },
+  { name: 'Travel', icon: LuPlane, tone: 'amber' },
+  { name: 'Utilities', icon: LuZap, tone: 'cyan' },
+  { name: 'Entertainment', icon: LuFilm, tone: 'coral' },
+  { name: 'Salary', icon: LuTrendingUp, tone: 'emerald' },
+  { name: 'Health & Fitness', icon: LuDumbbell, tone: 'emerald' },
+  { name: 'Education', icon: LuGraduationCap, tone: 'indigo' },
+  { name: 'Medical', icon: LuHeartPulse, tone: 'coral' },
+  { name: 'General', icon: LuFolder, tone: 'slate' },
+  { name: 'Other', icon: LuPlus, tone: 'indigo' },
 ];
 
 interface CategoryPickerProps {
@@ -30,7 +51,10 @@ export const CategoryPicker: React.FC<CategoryPickerProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const available = options?.length
-    ? options.map((name) => ({ name, icon: name === 'Other' ? '+' : '•', tone: 'green' }))
+    ? options.map((name) => {
+        const found = CATEGORY_OPTIONS.find((c) => c.name.toLowerCase() === name.toLowerCase());
+        return found || { name, icon: name === 'Other' ? LuPlus : LuFolder, tone: 'green' };
+      })
     : CATEGORY_OPTIONS;
 
   const displayLabel = value === 'Other' && otherValue.trim()
@@ -71,20 +95,25 @@ export const CategoryPicker: React.FC<CategoryPickerProps> = ({
               <button type="button" className="modal-close-btn" onClick={() => setIsOpen(false)}>✕</button>
             </div>
             <div className="category-picker-grid">
-              {available.map((category) => (
-                <button
-                  type="button"
-                  key={category.name}
-                  className={`category-picker-option ${value === category.name ? 'selected' : ''}`}
-                  onClick={() => {
-                    onChange(category.name);
-                    if (category.name !== 'Other') setIsOpen(false);
-                  }}
-                >
-                  <span className={`category-picker-icon ${category.tone}`}>{category.icon}</span>
-                  <span>{category.name}</span>
-                </button>
-              ))}
+              {available.map((category) => {
+                const Icon = category.icon;
+                return (
+                  <button
+                    type="button"
+                    key={category.name}
+                    className={`category-picker-option ${value === category.name ? 'selected' : ''}`}
+                    onClick={() => {
+                      onChange(category.name);
+                      if (category.name !== 'Other') setIsOpen(false);
+                    }}
+                  >
+                    <span className={`category-picker-icon ${category.tone}`}>
+                      <Icon size={18} />
+                    </span>
+                    <span>{category.name}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {value === 'Other' && onOtherChange && (

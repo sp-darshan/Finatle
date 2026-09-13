@@ -1,5 +1,6 @@
 import React from 'react';
 import { CategoryBadge, PencilEditIcon } from './Icons';
+import { LuReceipt } from 'react-icons/lu';
 
 export interface TransactionItem {
   id: string;
@@ -41,7 +42,9 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       <div className="transactions-list">
         {transactions.length === 0 ? (
           <div className="empty-data-state">
-            <div className="empty-icon">💳</div>
+            <div className="empty-icon blue">
+              <LuReceipt size={24} />
+            </div>
             <h5>No transactions found</h5>
             <p>Your logged transactions from income and expenses will be listed here.</p>
             {onAddTransaction && (
@@ -56,11 +59,11 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           </div>
         ) : (
           transactions.map((t) => {
-            const isIncome = t.type === 'INCOME' || t.amount > 0;
+            const isIncome = t.type === 'INCOME';
             return (
               <div className="transaction-row" key={t.id}>
                 <div className="row-left">
-                  <CategoryBadge category={t.name || t.category} size={38} />
+                  <CategoryBadge name={t.name} category={t.category} size={38} />
                   <div className="row-info">
                     <h4>{t.name}</h4>
                     <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>

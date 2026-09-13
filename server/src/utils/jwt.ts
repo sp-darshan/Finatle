@@ -1,22 +1,15 @@
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
+import { ENV } from '../config/env';
+import { AuthTokenPayload } from '../types/common.types';
 
-dotenv.config();
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-do-not-use-in-prod';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-
-export interface AuthTokenPayload {
-  userId: string;
-  email: string;
-}
+export { AuthTokenPayload };
 
 /**
  * Signs a JWT token with user payload.
  */
 export function generateToken(payload: AuthTokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+  return jwt.sign(payload, ENV.JWT_SECRET, {
+    expiresIn: ENV.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   });
 }
 
@@ -25,7 +18,7 @@ export function generateToken(payload: AuthTokenPayload): string {
  */
 export function verifyToken(token: string): AuthTokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
+    return jwt.verify(token, ENV.JWT_SECRET) as AuthTokenPayload;
   } catch (error) {
     return null;
   }

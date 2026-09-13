@@ -1,35 +1,26 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware';
 import {
-  createMoneyBorrowed,
-  createMoneyLent,
-  createTransaction,
-  deleteLoan,
-  deleteTransaction,
   getAccountBalance,
   getFinanceSummary,
-  updateLoan,
-  updateLoanStatus,
-  updateTransaction,
 } from '../controllers/financeController';
+import transactionRoutes from './transactionRoutes';
+import loanRoutes from './loanRoutes';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
 
+// Protect all finance routes with authentication middleware
 router.use(authMiddleware as any);
-router.get('/account', getAccountBalance);
-router.get('/summary', getFinanceSummary);
-router.post('/transactions', createTransaction);
-router.put('/transactions/:transactionId', updateTransaction);
-router.patch('/transactions/:transactionId', updateTransaction);
-router.delete('/transactions/:transactionId', deleteTransaction);
-router.post('/lent', createMoneyLent);
-router.post('/borrowed', createMoneyBorrowed);
-router.post('/money-lent', createMoneyLent);
-router.post('/money-borrowed', createMoneyBorrowed);
-router.put('/loans/:loanId', updateLoan);
-router.patch('/loans/:loanId', updateLoan);
-router.delete('/loans/:loanId', deleteLoan);
-router.patch('/loans/:loanId/status', updateLoanStatus);
+
+// Account and summary endpoints
+router.get('/account', asyncHandler(getAccountBalance));
+router.get('/summary', asyncHandler(getFinanceSummary));
+
+// Mount transaction sub-routes
+router.use('/transactions', transactionRoutes);
+
+// Mount loan sub-routes
+router.use('/', loanRoutes);
 
 export default router;
-

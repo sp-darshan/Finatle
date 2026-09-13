@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FaChartSimple } from 'react-icons/fa6';
 import type { TransactionItem } from './RecentTransactions';
 
 interface IncomeExpenseBarChartProps {
@@ -56,7 +57,9 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = ({
 
       {totalActivity === 0 ? (
         <div className="empty-data-state">
-          <div className="empty-icon">📈</div>
+          <div className="empty-icon green">
+            <FaChartSimple size={24} />
+          </div>
           <h5>No monthly activity recorded</h5>
           <p>As you log incoming salary and daily expenses, your monthly cash flow comparison will appear here.</p>
         </div>

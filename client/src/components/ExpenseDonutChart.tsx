@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FaChartPie } from 'react-icons/fa6';
 
 export interface CategoryExpense {
   name: string;
@@ -57,7 +58,9 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
 
       {!hasData ? (
         <div className="empty-data-state">
-          <div className="empty-icon">📊</div>
+          <div className="empty-icon purple">
+            <FaChartPie size={24} />
+          </div>
           <h5>No expense records found</h5>
           <p>Add your first expense transaction to view category distribution and breakdown percentages.</p>
         </div>

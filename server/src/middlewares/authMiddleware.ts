@@ -1,9 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
-import { verifyToken, AuthTokenPayload } from '../utils/jwt';
+import { Response, NextFunction } from 'express';
+import { verifyToken } from '../utils/jwt';
+import { AuthenticatedRequest } from '../types/common.types';
 
-export interface AuthenticatedRequest extends Request {
-  user?: AuthTokenPayload;
-}
+export { AuthenticatedRequest };
 
 export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;

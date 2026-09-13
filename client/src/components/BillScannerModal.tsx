@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScanBillIcon } from './Icons';
+import { ScanBillIcon, CategoryBadge } from './Icons';
+import { LuCoffee, LuShoppingCart, LuFuel } from 'react-icons/lu';
 
 interface BillScannerModalProps {
   isOpen: boolean;
@@ -126,22 +127,25 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     className="select-pill"
                     onClick={() => handleSimulateScan('cafe')}
                     disabled={scanning}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    ☕ Cafe Receipt (₹320)
+                    <LuCoffee size={14} color="#059669" /> Cafe Receipt (₹320)
                   </button>
                   <button
                     className="select-pill"
                     onClick={() => handleSimulateScan('supermarket')}
                     disabled={scanning}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    🛒 Grocery (₹1,450)
+                    <LuShoppingCart size={14} color="#2563eb" /> Grocery (₹1,450)
                   </button>
                   <button
                     className="select-pill"
                     onClick={() => handleSimulateScan('fuel')}
                     disabled={scanning}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    ⛽ Fuel (₹2,000)
+                    <LuFuel size={14} color="#b45309" /> Fuel (₹2,000)
                   </button>
                 </div>
               </div>
@@ -151,11 +155,14 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
           {scannedResult && (
             <div style={{ background: '#f8fafc', borderRadius: 'var(--radius-lg)', padding: '1.25rem', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <div>
-                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800 }}>{scannedResult.merchant}</h4>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-emerald)', fontWeight: 700 }}>
-                    {scannedResult.category}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <CategoryBadge name={scannedResult.merchant} category={scannedResult.category} size={42} />
+                  <div>
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: 800 }}>{scannedResult.merchant}</h4>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-emerald)', fontWeight: 700 }}>
+                      {scannedResult.category}
+                    </span>
+                  </div>
                 </div>
                 <strong style={{ fontSize: '1.35rem', color: 'var(--text-primary)', fontWeight: 800 }}>
                   ₹{scannedResult.amount.toLocaleString('en-IN')}
