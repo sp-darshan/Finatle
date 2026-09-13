@@ -16,7 +16,7 @@ interface MetricCardsProps {
   onCardClick?: (type: 'income' | 'expenses' | 'savings' | 'settlements') => void;
 }
 
-export const MetricCards: React.FC<MetricCardsProps> = ({
+export const MetricCards: React.FC<MetricCardsProps> = React.memo(({
   income,
   expenses,
   savings,
@@ -104,4 +104,4 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
     </section>
   );
-};
+});

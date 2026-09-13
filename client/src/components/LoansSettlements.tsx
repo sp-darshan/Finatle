@@ -1,6 +1,6 @@
 import React from 'react';
 import { PencilEditIcon, UsersGroupIcon } from './Icons';
-import { LuHandshake } from 'react-icons/lu';
+import { LuHandshake, LuArrowRight } from 'react-icons/lu';
 
 export interface LoanItem {
   id: string;
@@ -14,25 +14,41 @@ export interface LoanItem {
   statusLabel?: string;
   date?: string;
   dueDate?: string | null;
+  borrowerEmail?: string | null;
+  reminderFrequencyDays?: number;
+  claimedPaid?: boolean;
+  claimedPaidAt?: string | null;
+  snoozeReminders?: boolean;
+  lastReminderSentAt?: string | null;
 }
 
 interface LoansSettlementsProps {
   loans: LoanItem[];
+  limit?: number;
   onViewAll?: () => void;
   onSettle?: (id: string, currentStatus: LoanItem['status']) => void;
   canSettle?: (loan: LoanItem) => boolean;
   onAddNew?: () => void;
   onEditLoan?: (loan: LoanItem) => void;
+  onReacknowledgeLoan?: (loanId: string) => void;
 }
 
-export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
+export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
   loans,
+  limit,
   onViewAll,
+  onSettle,
+  canSettle,
   onAddNew,
   onEditLoan,
+  onReacknowledgeLoan,
 }) => {
   const formatRupee = (val: number) => `₹${Math.round(val).toLocaleString('en-IN')}`;
   const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
+
+  const maxItems = limit !== undefined ? limit : (onViewAll ? 5 : undefined);
+  const displayedLoans = maxItems ? loans.slice(0, maxItems) : loans;
+  const remainingCount = maxItems ? Math.max(0, loans.length - maxItems) : 0;
 
   return (
     <div className="dashboard-card">
@@ -64,105 +80,204 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
             )}
           </div>
         ) : (
-          loans.map((item) => {
-            const isLent = item.kind === 'lent';
-            const isSplit = item.kind === 'split';
-            const isSettled = item.status === 'PAID';
-            const isPartial = item.status === 'PARTIAL';
-            const paid = item.paidAmount || 0;
-            const remaining = Math.max(0, item.amount - paid);
-            const compactTitle = isSplit
-              ? (item.personName || item.title || 'Group Split')
-              : isLent
-              ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
-              : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
+          <>
+            {displayedLoans.map((item) => {
+              const isLent = item.kind === 'lent';
+              const isSplit = item.kind === 'split';
+              const isSettled = item.status === 'PAID';
+              const isPartial = item.status === 'PARTIAL';
+              const isClaimed = Boolean(item.claimedPaid && !isSettled);
+              const paid = item.paidAmount || 0;
+              const remaining = Math.max(0, item.amount - paid);
+              const compactTitle = isSplit
+                ? (item.personName || item.title || 'Group Split')
+                : isLent
+                ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
+                : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
 
-            const cleanText = (val?: string) =>
-              val ? val.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : '';
-            const cleanedSubtext = cleanText(item.subtext);
+              const cleanText = (val?: string) =>
+                val ? val.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : '';
+              const cleanedSubtext = cleanText(item.subtext);
 
-            return (
-              <div className="loan-row" key={item.id}>
-                <div className="row-left">
-                  <div
-                    className={`loan-avatar ${item.kind}`}
-                    title={item.kind.toUpperCase()}
-                  >
-                    {isSplit ? (
-                      <UsersGroupIcon size={20} />
-                    ) : (
-                      <span>{item.personName.slice(0, 2).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="row-info">
-                    <h4>{cleanText(compactTitle)}</h4>
-                    {cleanedSubtext && <p className="loan-description">{cleanedSubtext}</p>}
-                    <div className="loan-meta">
-                      <span>{isLent ? 'Lent' : 'Borrowed'}: {formatDate(item.date)}</span>
-                      <span>Due: {formatDate(item.dueDate || undefined)}</span>
+              return (
+                <div
+                  className="loan-row"
+                  key={item.id}
+                  style={isClaimed ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
+                >
+                  <div className="row-left">
+                    <div
+                      className={`loan-avatar ${item.kind}`}
+                      title={item.kind.toUpperCase()}
+                    >
+                      {isSplit ? (
+                        <UsersGroupIcon size={18} />
+                      ) : (
+                        <span>{item.personName.slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="row-info">
+                      <h4>{cleanText(compactTitle)}</h4>
+                      {cleanedSubtext && <p className="loan-description">{cleanedSubtext}</p>}
+                      <div className="loan-meta">
+                        <span>{isLent ? 'Lent' : 'Borrowed'}: {formatDate(item.date)}</span>
+                        <span>Due: {formatDate(item.dueDate || undefined)}</span>
+                      </div>
+
+                      {isClaimed && (
+                        <div
+                          style={{
+                            marginTop: '0.35rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.72rem',
+                            color: '#065f46',
+                            background: '#d1fae5',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: 'var(--radius-sm)',
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✓ Friend reported paid
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                <div className="row-right-loan">
-                  <span
-                    className={
-                      isLent || isSplit ? 'amount-positive' : 'amount-negative'
-                    }
-                    style={{
-                      color:
-                        isLent || isSplit
-                          ? 'var(--text-emerald)'
-                          : 'var(--text-primary)',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {formatRupee(isPartial ? remaining : item.amount)}
-                  </span>
-
-                  <span
-                    className={`loan-status-btn ${
-                      isSettled
-                        ? 'settled'
-                        : isPartial
-                        ? 'partial'
-                        : isLent || isSplit
-                        ? 'to-receive'
-                        : 'to-pay'
-                    }`}
-                  >
-                    {isSettled
-                      ? 'Settled'
-                      : isPartial
-                      ? `Part (₹${paid})`
-                      : isLent
-                      ? 'To get'
-                      : isSplit
-                      ? 'Split'
-                      : 'To pay'}
-                  </span>
-
-                  {onEditLoan && (
-                    <button
-                      type="button"
-                      className="edit-pencil-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditLoan(item);
-                      }}
-                      title="Edit Loan"
+                  <div className="row-right-loan">
+                    <span
+                      className={
+                        isLent || isSplit ? 'amount-positive' : 'amount-negative'
+                      }
                     >
-                      <PencilEditIcon size={12} />
-                    </button>
-                  )}
+                      {formatRupee(isPartial ? remaining : item.amount)}
+                    </span>
+
+                    {onSettle ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <button
+                          type="button"
+                          className={`loan-status-btn ${
+                            isSettled
+                              ? 'settled'
+                              : isPartial
+                              ? 'partial'
+                              : isLent || isSplit
+                              ? 'to-receive'
+                              : 'to-pay'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSettle(item.id, item.status);
+                          }}
+                          disabled={!canSettle?.(item)}
+                          title={!canSettle?.(item) ? 'Insufficient funds or savings to settle' : isSettled ? 'Click to mark as pending' : isClaimed ? 'Confirm payment receipt' : 'Click to mark as settled'}
+                        >
+                          {isSettled
+                            ? 'Settled'
+                            : isClaimed
+                            ? 'Confirm Settle'
+                            : isPartial
+                            ? `Part (₹${paid})`
+                            : isLent
+                            ? 'Mark Settled'
+                            : isSplit
+                            ? 'Mark Settled'
+                            : 'Mark Paid'}
+                        </button>
+
+                        {isClaimed && onReacknowledgeLoan && (
+                          <button
+                            type="button"
+                            className="loan-status-btn"
+                            style={{
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              border: '1px solid #fca5a5',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReacknowledgeLoan(item.id);
+                            }}
+                            title="Dispute claim and resume email reminders"
+                          >
+                            Not Received
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span
+                        className={`loan-status-btn ${
+                          isSettled
+                            ? 'settled'
+                            : isPartial
+                            ? 'partial'
+                            : isLent || isSplit
+                            ? 'to-receive'
+                            : 'to-pay'
+                        }`}
+                      >
+                        {isSettled
+                          ? 'Settled'
+                          : isPartial
+                          ? `Part (₹${paid})`
+                          : isLent
+                          ? 'To get'
+                          : isSplit
+                          ? 'Split'
+                          : 'To pay'}
+                      </span>
+                    )}
+
+                    {onEditLoan && (
+                      <button
+                        type="button"
+                        className="edit-pencil-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditLoan(item);
+                        }}
+                        title="Edit Loan"
+                      >
+                        <PencilEditIcon size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+
+            {remainingCount > 0 && onViewAll && (
+              <button
+                type="button"
+                className="view-all-btn"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.65rem 1rem',
+                  marginTop: '0.5rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--settle-text)',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+                onClick={onViewAll}
+              >
+                <span>View More ({remainingCount} more)</span>
+                <LuArrowRight size={14} />
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
   );
-};
-
-
+});

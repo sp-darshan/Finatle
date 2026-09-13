@@ -18,6 +18,13 @@ DIRECT_URL=your_direct_postgres_connection_string
 JWT_SECRET=a_long_random_production_secret
 JWT_EXPIRES_IN=7d
 CLIENT_URL=https://your-app.vercel.app
+APP_URL=https://your-api.onrender.com
+GEMINI_API_KEY=your_gemini_api_key
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=notify.projects@gmail.com
+SMTP_PASS=your_16_char_google_app_password
+SMTP_FROM=Finatle Reminders <notify.projects@gmail.com>
 ```
 
 After deployment, verify `https://your-api.onrender.com/api/health` returns JSON with `status: "online"`.

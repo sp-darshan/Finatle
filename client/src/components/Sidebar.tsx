@@ -8,7 +8,7 @@ interface SidebarProps {
   onSelectTab: (tab: TabType) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(({
   currentTab,
   onSelectTab,
 }) => {
@@ -55,4 +55,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
     </aside>
   );
-};
+});

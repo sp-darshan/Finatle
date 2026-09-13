@@ -6,7 +6,7 @@ interface IncomeExpenseBarChartProps {
   transactions?: TransactionItem[];
 }
 
-export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = ({
+export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React.memo(({
   transactions = [],
 }) => {
   const [range, setRange] = useState('Last 6 Months');
@@ -119,4 +119,4 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = ({
       )}
     </div>
   );
-};
+});

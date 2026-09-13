@@ -1,6 +1,7 @@
 import { app } from './app';
 import { ENV } from './config/env';
 import { checkDatabaseConnection } from './config/db';
+import { ReminderSchedulerService } from './services/reminderSchedulerService';
 
 const PORT = ENV.PORT;
 
@@ -19,4 +20,7 @@ app.listen(PORT, async () => {
     console.log(`💡 ${dbConnection.message}`);
   }
   console.log(`==================================================\n`);
+
+  // Start automated due-date reminder background scheduler
+  ReminderSchedulerService.startScheduler();
 });

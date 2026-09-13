@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/db';
 import { CalculationService } from './calculationService';
@@ -5,6 +6,7 @@ import { CreateLoanDto, UpdateLoanDto, UpdateLoanStatusDto } from '../types/fina
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseAmount, sanitizeString } from '../utils/parsers';
 import { cacheService } from './cacheService';
+import { emailService } from './emailService';
 
 export class LoanService {
   /**
@@ -13,7 +15,7 @@ export class LoanService {
   static async createLoan(userId: string | undefined, dto: CreateLoanDto, kind: 'lent' | 'borrowed') {
     if (!userId) throw new UnauthorizedError();
 
-    const { personName, description, dueAt, paidAmount } = dto;
+    const { personName, description, dueAt, paidAmount, borrowerEmail, reminderFrequencyDays } = dto;
     const amount = parseAmount(dto.amount);
     const sanitizedPerson = sanitizeString(personName);
 
@@ -26,6 +28,10 @@ export class LoanService {
       : 0;
     const status = numericPaid >= amount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
 
+    const cleanEmail = borrowerEmail ? sanitizeString(borrowerEmail)?.toLowerCase() || null : null;
+    const cleanFreq = reminderFrequencyDays ? Math.max(1, Number(reminderFrequencyDays)) : 1;
+    const claimToken = kind === 'lent' && (cleanEmail || dueAt) ? crypto.randomUUID() : null;
+
     const data = {
       uid: userId,
       personName: sanitizedPerson,
@@ -34,6 +40,15 @@ export class LoanService {
       description: sanitizeString(description),
       dueAt: dueAt ? new Date(dueAt) : null,
       status: status as any,
+      ...(kind === 'lent'
+        ? {
+            borrowerEmail: cleanEmail,
+            reminderFrequencyDays: cleanFreq,
+            claimToken,
+            snoozeReminders: false,
+            claimedPaid: false,
+          }
+        : {}),
     };
 
     const state = await CalculationService.getFinancialState(userId);
@@ -47,7 +62,7 @@ export class LoanService {
     const balanceChange = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
     const result = await prisma.$transaction(async (tx) => {
       const loan = kind === 'lent'
-        ? await tx.moneyLent.create({ data })
+        ? await tx.moneyLent.create({ data: data as any })
         : await tx.moneyBorrowed.create({ data });
       const account = await tx.account.upsert({
         where: { uid: userId },
@@ -171,7 +186,7 @@ export class LoanService {
   static async updateLoan(userId: string | undefined, loanId: string, dto: UpdateLoanDto) {
     if (!userId) throw new UnauthorizedError();
 
-    const { personName, amount, description, dueAt, status, kind, paidAmount } = dto;
+    const { personName, amount, description, dueAt, status, kind, paidAmount, borrowerEmail, reminderFrequencyDays, snoozeReminders } = dto;
 
     const lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
     const borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
@@ -205,6 +220,11 @@ export class LoanService {
     const newPersonName = personName ? sanitizeString(personName) || existing.personName : existing.personName;
     const newDescription = description !== undefined ? sanitizeString(description) : existing.description;
     const newDueAt = dueAt !== undefined ? (dueAt ? new Date(dueAt) : null) : existing.dueAt;
+    const newBorrowerEmail = borrowerEmail !== undefined
+      ? (borrowerEmail ? sanitizeString(borrowerEmail)?.toLowerCase() || null : null)
+      : (lent ? (lent as any).borrowerEmail : null);
+    const newFreq = reminderFrequencyDays !== undefined ? Math.max(1, Number(reminderFrequencyDays)) : (lent ? (lent as any).reminderFrequencyDays || 1 : 1);
+    const newSnooze = snoozeReminders !== undefined ? Boolean(snoozeReminders) : (lent ? (lent as any).snoozeReminders : false);
 
     const oldEffect = existingKind === 'lent' ? oldPaid - Number(existing.amount) : Number(existing.amount) - oldPaid;
     const newEffect = targetKind === 'lent' ? newPaid - newAmount : newAmount - newPaid;
@@ -222,6 +242,7 @@ export class LoanService {
       let updatedLoan;
       if (existingKind === targetKind) {
         if (existingKind === 'lent') {
+          const claimToken = (lent as any).claimToken || (newBorrowerEmail ? crypto.randomUUID() : null);
           updatedLoan = await tx.moneyLent.update({
             where: { lid: loanId },
             data: {
@@ -231,6 +252,10 @@ export class LoanService {
               description: newDescription,
               dueAt: newDueAt,
               status: newStatus as any,
+              borrowerEmail: newBorrowerEmail,
+              reminderFrequencyDays: newFreq,
+              snoozeReminders: newSnooze,
+              claimToken,
             },
           });
         } else {
@@ -263,6 +288,7 @@ export class LoanService {
           });
         } else {
           await tx.moneyBorrowed.delete({ where: { bid: loanId } });
+          const claimToken = newBorrowerEmail ? crypto.randomUUID() : null;
           updatedLoan = await tx.moneyLent.create({
             data: {
               lid: loanId,
@@ -273,6 +299,10 @@ export class LoanService {
               description: newDescription,
               dueAt: newDueAt,
               status: newStatus as any,
+              borrowerEmail: newBorrowerEmail,
+              reminderFrequencyDays: newFreq,
+              snoozeReminders: newSnooze,
+              claimToken,
             },
           });
         }
@@ -333,5 +363,111 @@ export class LoanService {
     await cacheService.invalidateUserFinance(userId);
 
     return { message: 'Loan deleted successfully' };
+  }
+
+  /**
+   * Public Action: Friend marks payment as claimed paid via token in email
+   */
+  static async claimPaidByToken(token: string) {
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestError('Claim token is required.');
+    }
+
+    const loan = await prisma.moneyLent.findUnique({
+      where: { claimToken: token },
+      include: { user: true },
+    });
+
+    if (!loan) {
+      throw new NotFoundError('Payment request not found or link has expired.');
+    }
+
+    if (loan.status === 'PAID') {
+      return {
+        alreadyPaid: true,
+        friendName: loan.personName,
+        lenderName: loan.user?.name || 'Your Friend',
+        amount: Number(loan.amount),
+      };
+    }
+
+    // Mark as claimed paid and snooze reminders
+    const updated = await prisma.moneyLent.update({
+      where: { lid: loan.lid },
+      data: {
+        claimedPaid: true,
+        claimedPaidAt: new Date(),
+        snoozeReminders: true,
+      },
+    });
+
+    // Invalidate lender's cached finance summary
+    await cacheService.invalidateUserFinance(loan.uid);
+
+    // Notify lender via email
+    if (loan.user?.email) {
+      await emailService.sendLenderClaimNotification({
+        lenderEmail: loan.user.email,
+        lenderName: loan.user.name || loan.user.email.split('@')[0],
+        friendName: loan.personName,
+        amount: Number(loan.amount) - Number(loan.paidAmount || 0),
+        description: loan.description,
+      });
+    }
+
+    return {
+      success: true,
+      friendName: loan.personName,
+      lenderName: loan.user?.name || loan.user?.email?.split('@')[0] || 'Your Friend',
+      amount: Number(loan.amount),
+      description: loan.description,
+    };
+  }
+
+  /**
+   * Lender Action: Re-acknowledge that payment was NOT received (dispute claim & resume reminders)
+   */
+  static async reacknowledgePayment(userId: string | undefined, loanId: string) {
+    if (!userId) throw new UnauthorizedError();
+
+    const loan = await prisma.moneyLent.findFirst({
+      where: { lid: loanId, uid: userId },
+      include: { user: true },
+    });
+
+    if (!loan) {
+      throw new NotFoundError('Loan record not found.');
+    }
+
+    const updated = await prisma.moneyLent.update({
+      where: { lid: loanId },
+      data: {
+        claimedPaid: false,
+        claimedPaidAt: null,
+        snoozeReminders: false,
+        lastReminderSentAt: null,
+      },
+    });
+
+    await cacheService.invalidateUserFinance(userId);
+
+    // Send dispute notice email to friend if borrowerEmail is present
+    if (loan.borrowerEmail && loan.claimToken) {
+      const lenderName = loan.user?.name || loan.user?.email?.split('@')[0] || 'Friend';
+      await emailService.sendPaymentDisputeNotice({
+        toEmail: loan.borrowerEmail,
+        friendName: loan.personName,
+        lenderName,
+        amount: Number(loan.amount) - Number(loan.paidAmount || 0),
+        description: loan.description,
+        claimToken: loan.claimToken,
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Reminders resumed and payment notice sent to friend.',
+      loan: updated,
+    };
   }
 }

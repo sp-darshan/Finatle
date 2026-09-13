@@ -43,7 +43,7 @@ interface CategoryPickerProps {
   options?: string[];
 }
 
-export const CategoryPicker: React.FC<CategoryPickerProps> = ({
+export const CategoryPicker: React.FC<CategoryPickerProps> = React.memo(({
   value,
   onChange,
   otherValue = '',
@@ -157,4 +157,4 @@ export const CategoryPicker: React.FC<CategoryPickerProps> = ({
       )}
     </>
   );
-};
+});

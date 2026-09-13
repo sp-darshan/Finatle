@@ -22,6 +22,9 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const [amount, setAmount] = useState('');
   const [paidAmount, setPaidAmount] = useState('0');
   const [description, setDescription] = useState('');
+  const [dueAt, setDueAt] = useState('');
+  const [borrowerEmail, setBorrowerEmail] = useState('');
+  const [reminderFrequencyDays, setReminderFrequencyDays] = useState('3');
   const [status, setStatus] = useState<'PENDING' | 'PAID' | 'PARTIAL'>('PENDING');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,6 +37,9 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       setAmount(String(loan.amount || ''));
       setPaidAmount(String(loan.paidAmount !== undefined ? loan.paidAmount : (loan.status === 'PAID' ? loan.amount : 0)));
       setDescription(loan.subtext === 'Personal loan' ? '' : (loan.subtext || ''));
+      setDueAt(loan.dueDate ? new Date(loan.dueDate).toISOString().split('T')[0] : '');
+      setBorrowerEmail(loan.borrowerEmail || '');
+      setReminderFrequencyDays(String(loan.reminderFrequencyDays || 3));
       setStatus(loan.status as any || 'PENDING');
       setError('');
       setIsConfirmingDelete(false);
@@ -63,6 +69,8 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
 
     const numericPaid = isNaN(paidNum) ? 0 : Math.max(0, Math.min(numericAmount, paidNum));
     const computedStatus = numericPaid >= numericAmount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
+    const email = kind === 'lent' ? borrowerEmail.trim() : undefined;
+    const freq = kind === 'lent' && dueAt && email ? parseInt(reminderFrequencyDays) || 3 : undefined;
 
     const apiPayload = {
       kind,
@@ -70,6 +78,9 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       amount: numericAmount,
       paidAmount: numericPaid,
       description: description.trim(),
+      dueAt: dueAt || undefined,
+      borrowerEmail: email || undefined,
+      reminderFrequencyDays: freq,
       status: computedStatus,
     };
 
@@ -83,6 +94,9 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       paidAmount: numericPaid,
       status: computedStatus,
       statusLabel: computedStatus === 'PAID' ? 'Settled' : computedStatus === 'PARTIAL' ? `Part (₹${numericPaid})` : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+      dueDate: dueAt || undefined,
+      borrowerEmail: email || undefined,
+      reminderFrequencyDays: freq,
     };
 
     onSuccess({
@@ -249,6 +263,71 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+
+          {/* Due date for loans */}
+          <div className="form-group">
+            <label>Due Date (Optional)</label>
+            <input
+              type="date"
+              className="form-control"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+            />
+          </div>
+
+          {/* Automated Email Reminder for Lent */}
+          {kind === 'lent' && (
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-md)', padding: '0.75rem', marginBottom: '1rem' }}>
+              <div className="form-group" style={{ marginBottom: dueAt && borrowerEmail ? '0.5rem' : 0 }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>
+                  Friend's Email ID (For automated overdue reminders)
+                </label>
+                <input
+                  type="email"
+                  placeholder="friend@example.com (optional)"
+                  className="form-control"
+                  value={borrowerEmail}
+                  onChange={(e) => setBorrowerEmail(e.target.value)}
+                  style={{ fontSize: '0.82rem' }}
+                />
+              </div>
+
+              {dueAt && borrowerEmail && (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46' }}>
+                    Reminder Frequency After Due Date
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+                    {[
+                      { days: '1', label: 'Daily' },
+                      { days: '2', label: 'Every 2d' },
+                      { days: '3', label: 'Every 3d' },
+                      { days: '7', label: 'Weekly' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.days}
+                        type="button"
+                        className="select-pill"
+                        style={{
+                          flex: 1,
+                          justifyContent: 'center',
+                          fontSize: '0.75rem',
+                          padding: '0.3rem 0.4rem',
+                          background: reminderFrequencyDays === opt.days ? '#047857' : '#ffffff',
+                          color: reminderFrequencyDays === opt.days ? '#ffffff' : '#334155',
+                          borderColor: reminderFrequencyDays === opt.days ? '#047857' : '#cbd5e1',
+                          fontWeight: 700,
+                        }}
+                        onClick={() => setReminderFrequencyDays(opt.days)}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Status Selection */}
           <div className="form-group">

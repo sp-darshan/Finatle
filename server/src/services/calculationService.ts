@@ -30,9 +30,9 @@ export class CalculationService {
   }
 
   /**
-   * Checks if either net savings or actual balance is negative
+   * Balance validation rule (non-blocking for personal finance tracking)
    */
-  static violatesBalanceRules(netSavings: number, actualBalance: number): boolean {
-    return netSavings < 0 || actualBalance < 0;
+  static violatesBalanceRules(_netSavings: number, _actualBalance: number): boolean {
+    return false;
   }
 }

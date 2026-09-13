@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { HeroLanding } from './components/HeroLanding';
 import { Sidebar } from './components/Sidebar';
 import type { TabType } from './components/Sidebar';
@@ -48,72 +48,64 @@ const tabToMobileNav = (tab: TabType): string => {
 const mobileNavToTab = (nav: string): TabType => {
   if (nav === 'home') return 'dashboard';
   if (nav === 'insights') return 'analytics';
-  if (nav === 'transactions' || nav === 'budgets' || nav === 'loans' || nav === 'settings') return nav as TabType;
-  return 'dashboard';
+  return nav as TabType;
 };
 
 function getInitialTab(): TabType {
-  const fromUrl = parseTabFromUrl();
-  if (fromUrl) return fromUrl;
+  const urlTab = parseTabFromUrl();
+  if (urlTab) return urlTab;
 
-  const saved = typeof window !== 'undefined' ? localStorage.getItem('finatle_active_tab') : null;
-  if (saved && VALID_TABS.includes(saved as TabType)) {
-    return saved as TabType;
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('finatle_active_tab') as TabType | null;
+    if (saved && VALID_TABS.includes(saved)) {
+      return saved;
+    }
   }
 
   return 'dashboard';
+}
+
+function cleanSplitText(text?: string | null): string {
+  if (!text) return '';
+  return text.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim();
 }
 
 export function App() {
   const { greeting, timeString, dateString } = useGreeting();
   // Navigation & View state (persisted across refresh and URL back/forward)
   const [currentTab, setCurrentTab] = useState<TabType>(getInitialTab);
-  const [mobileNav, setMobileNav] = useState<string>(() => tabToMobileNav(getInitialTab()));
-  const [isMobileScreen, setIsMobileScreen] = useState(
-    typeof window !== 'undefined' ? window.innerWidth <= 768 : false
-  );
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Modals state
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+  const [mobileNav, setMobileNav] = useState<string>(tabToMobileNav(getInitialTab()));
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
   const [addRecordKind, setAddRecordKind] = useState<RecordKind>('expense');
   const [editingTransaction, setEditingTransaction] = useState<TransactionItem | null>(null);
   const [editingLoan, setEditingLoan] = useState<LoanItem | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isPWAOpen, setIsPWAOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileScreen, setIsMobileScreen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 768;
+  });
 
-  // Authentication State (initialized synchronously from localStorage to prevent flash on reload)
+  // User state
   const [user, setUser] = useState<{ uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null>(() => {
     if (typeof window === 'undefined') return null;
     const saved = localStorage.getItem('user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
-    return null;
   });
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('token');
   });
-  const [loadingUser, setLoadingUser] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return !localStorage.getItem('token');
-  });
+  const [loadingUser, setLoadingUser] = useState(true);
 
-  const cleanSplitText = (text?: string | null): string => {
-    if (!text) return '';
-    return text
-      .replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '')
-      .trim();
-  };
-
-  // Financial Data State (with local cache for 0ms initial render)
+  // Financial state strictly from DB
   const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -121,7 +113,7 @@ export function App() {
       const uid = u ? JSON.parse(u).uid : 'default';
       const cached = localStorage.getItem(`finatle_cache_tx_${uid}`);
       const raw: TransactionItem[] = cached ? JSON.parse(cached) : [];
-      return raw.map((t) => ({ ...t, name: cleanSplitText(t.name) || t.category || 'Transaction' }));
+      return raw.map((t) => ({ ...t, name: cleanSplitText(t.name) }));
     } catch {
       return [];
     }
@@ -142,10 +134,11 @@ export function App() {
   const [settlementError, setSettlementError] = useState('');
   const refreshRequestRef = useRef(0);
 
-  // Auto detect mobile window size
+  // Auto detect mobile window size efficiently
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileScreen(window.innerWidth <= 768);
+      const isMobile = window.innerWidth <= 768;
+      setIsMobileScreen((prev) => (prev !== isMobile ? isMobile : prev));
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -270,6 +263,12 @@ export function App() {
               paidAmount: paid,
               date: l.lentAt,
               dueDate: l.dueAt,
+              borrowerEmail: l.borrowerEmail,
+              reminderFrequencyDays: l.reminderFrequencyDays,
+              claimedPaid: l.claimedPaid,
+              claimedPaidAt: l.claimedPaidAt,
+              snoozeReminders: l.snoozeReminders,
+              lastReminderSentAt: l.lastReminderSentAt,
               status: l.status,
               statusLabel: l.status === 'PAID' ? 'Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
             });
@@ -338,22 +337,22 @@ export function App() {
     };
   }, [currentTab]);
 
-  const handleSelectTab = (tab: TabType) => {
+  const handleSelectTab = useCallback((tab: TabType) => {
     setCurrentTab(tab);
     setMobileNav(tabToMobileNav(tab));
-  };
+  }, []);
 
-  const handleSelectMobileNav = (nav: string) => {
+  const handleSelectMobileNav = useCallback((nav: string) => {
     setMobileNav(nav);
     setCurrentTab(mobileNavToTab(nav));
-  };
+  }, []);
 
-  const handleOpenSettings = () => {
+  const handleOpenSettings = useCallback(() => {
     setCurrentTab('settings');
     setMobileNav('settings');
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('finatle_active_tab');
@@ -367,9 +366,9 @@ export function App() {
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', window.location.pathname);
     }
-  };
+  }, []);
 
-  const saveBudget = (budget: BudgetLimit) => {
+  const saveBudget = useCallback((budget: BudgetLimit) => {
     setBudgets((previous) => {
       const filtered = previous.filter((item) => item.category.toLowerCase() !== budget.category.toLowerCase());
       const next = [...filtered, budget];
@@ -378,9 +377,9 @@ export function App() {
       localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
       return next;
     });
-  };
+  }, [user?.uid]);
 
-  const deleteBudget = (category: string) => {
+  const deleteBudget = useCallback((category: string) => {
     setBudgets((previous) => {
       const next = previous.filter((item) => item.category.toLowerCase() !== category.toLowerCase());
       const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
@@ -388,10 +387,10 @@ export function App() {
       localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
       return next;
     });
-  };
+  }, [user?.uid]);
 
 
-  const handleAddRecordSuccess = async (payload?: { kind: string; apiPayload?: any; optimisticData?: any; splitData?: any }) => {
+  const handleAddRecordSuccess = useCallback(async (payload?: { kind: string; apiPayload?: any; optimisticData?: any; splitData?: any }) => {
     if (!payload) {
       if (token) await fetchUserData(token);
       return;
@@ -456,32 +455,53 @@ export function App() {
         });
 
         if (token) {
-          lentEntries.forEach((entry: any) => {
-            apiFetch('/api/finance/lent', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify(entry.apiPayload),
-            })
-              .then(async (res) => {
-                if (res.ok) {
-                  const data = await res.json();
-                  const realId = data.lent?.lid || entry.optimisticData.id;
-                  setLoans((prev) => {
-                    const updated = prev.map((l) => (l.id === entry.optimisticData.id ? { ...l, id: realId } : l));
-                    localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
-                    return updated;
-                  });
-                }
+          Promise.all(
+            lentEntries.map((e: any) =>
+              apiFetch('/api/finance/lent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(e.apiPayload),
               })
-              .catch((err) => {
-                console.error('[Optimistic] Split lent creation failed:', err);
-                setLoans((prev) => {
-                  const updated = prev.filter((l) => l.id !== entry.optimisticData.id);
-                  localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
-                  return updated;
-                });
-              });
-          });
+                .then(async (res) => {
+                  if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || 'Failed to save lent record');
+                  }
+                  return res.json();
+                })
+                .then((data) => {
+                  if (data.loan) {
+                    const realLoan: LoanItem = {
+                      id: data.loan.id,
+                      kind: 'lent',
+                      personName: data.loan.personName,
+                      title: `You lent to ${data.loan.personName}`,
+                      subtext: data.loan.description || 'Split bill',
+                      amount: Number(data.loan.amount),
+                      paidAmount: Number(data.loan.paidAmount || 0),
+                      status: data.loan.status || 'PENDING',
+                      statusLabel: data.loan.status === 'PAID' ? 'Settled' : 'Yet to receive',
+                      date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : new Date().toISOString(),
+                      dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
+                      borrowerEmail: data.loan.borrowerEmail || undefined,
+                      reminderFrequencyDays: data.loan.reminderFrequencyDays || undefined,
+                    };
+                    setLoans((prev) => {
+                      const updated = prev.map((l) => (l.id === e.optimisticData.id ? realLoan : l));
+                      localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                      return updated;
+                    });
+                  }
+                })
+            )
+          )
+            .then(() => {
+              if (token) fetchUserData(token, false);
+            })
+            .catch((err) => {
+              console.error('[Optimistic] Split friends loan save error:', err);
+              if (token) fetchUserData(token, false);
+            });
         }
       }
       return;
@@ -494,34 +514,37 @@ export function App() {
         return updated;
       });
 
-      if (token) {
+      if (token && apiPayload) {
         apiFetch('/api/finance/transactions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify(apiPayload),
         })
           .then(async (res) => {
             if (res.ok) {
               const data = await res.json();
-              const realItem: TransactionItem = {
-                id: data.transaction?.tid || optimisticData.id,
-                name: data.transaction?.description || optimisticData.name,
-                category: data.transaction?.category || optimisticData.category,
-                date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : optimisticData.date,
-                amount: Number(data.transaction?.amount ?? optimisticData.amount),
-                type: data.transaction?.type || optimisticData.type,
-              };
-              setTransactions((prev) => {
-                const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
-                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
-                return updated;
-              });
-            } else {
-              throw new Error('Failed to save transaction');
+              if (data.transaction) {
+                const realItem: TransactionItem = {
+                  id: data.transaction.tid,
+                  name: cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction',
+                  category: data.transaction.category || 'General',
+                  date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                  amount: Number(data.transaction.amount),
+                  type: data.transaction.type,
+                };
+                setTransactions((prev) => {
+                  const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
+                  localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              }
             }
           })
           .catch((err) => {
-            console.error('[Optimistic] Transaction failed, reverting:', err);
+            console.error('[Optimistic] Add transaction failed, reverting:', err);
             setTransactions((prev) => {
               const updated = prev.filter((t) => t.id !== optimisticData.id);
               localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
@@ -531,34 +554,51 @@ export function App() {
           });
       }
     } else if ((kind === 'lent' || kind === 'borrowed') && optimisticData) {
-      const endpoint = kind === 'borrowed' ? '/api/finance/borrowed' : '/api/finance/lent';
       setLoans((prev) => {
         const updated = [optimisticData as LoanItem, ...prev];
         localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
         return updated;
       });
 
-      if (token) {
+      if (token && apiPayload) {
+        const endpoint = kind === 'borrowed' ? '/api/finance/borrowed' : '/api/finance/lent';
         apiFetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify(apiPayload),
         })
           .then(async (res) => {
             if (res.ok) {
               const data = await res.json();
-              const realId = (kind === 'borrowed' ? data.borrowed?.bid : data.lent?.lid) || optimisticData.id;
-              setLoans((prev) => {
-                const updated = prev.map((l) => (l.id === optimisticData.id ? { ...l, id: realId } : l));
-                localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
-                return updated;
-              });
-            } else {
-              throw new Error('Failed to save loan record');
+              if (data.loan) {
+                const realItem: LoanItem = {
+                  id: data.loan.id,
+                  kind,
+                  personName: data.loan.personName,
+                  title: kind === 'lent' ? `You lent to ${data.loan.personName}` : `You borrowed from ${data.loan.personName}`,
+                  subtext: data.loan.description || 'Personal loan',
+                  amount: Number(data.loan.amount),
+                  paidAmount: Number(data.loan.paidAmount || 0),
+                  status: data.loan.status || 'PENDING',
+                  statusLabel: data.loan.status === 'PAID' ? 'Settled' : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+                  date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : data.loan.borrowedAt ? new Date(data.loan.borrowedAt).toISOString() : new Date().toISOString(),
+                  dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
+                  borrowerEmail: data.loan.borrowerEmail || undefined,
+                  reminderFrequencyDays: data.loan.reminderFrequencyDays || undefined,
+                };
+                setLoans((prev) => {
+                  const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
+                  localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              }
             }
           })
           .catch((err) => {
-            console.error('[Optimistic] Loan creation failed, reverting:', err);
+            console.error('[Optimistic] Add loan failed, reverting:', err);
             setLoans((prev) => {
               const updated = prev.filter((l) => l.id !== optimisticData.id);
               localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
@@ -568,9 +608,9 @@ export function App() {
           });
       }
     }
-  };
+  }, [token, user?.uid]);
 
-  const handleTransactionSuccess = async (action?: { type: 'update' | 'delete'; data?: TransactionItem; originalId?: string }) => {
+  const handleTransactionSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: TransactionItem; originalId?: string }) => {
     if (!action) {
       if (token) await fetchUserData(token, false);
       return;
@@ -625,9 +665,9 @@ export function App() {
           });
       }
     }
-  };
+  }, [token, user?.uid, transactions]);
 
-  const handleLoanSuccess = async (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => {
+  const handleLoanSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => {
     if (!action) {
       if (token) await fetchUserData(token);
       return;
@@ -678,21 +718,32 @@ export function App() {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(action.apiPayload),
         })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || 'Failed to update loan');
+            }
+            if (token) fetchUserData(token, false);
+          })
           .catch((err) => {
             console.error('[Optimistic] Update loan failed, reverting:', err);
             setLoans(prevLoans);
             localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
-            setSettlementError('Failed to update loan. Reverted.');
+            setSettlementError(err?.message || 'Failed to update loan. Reverted.');
           });
       }
     }
-  };
+  }, [token, user?.uid, loans]);
 
-  const handleEditTransaction = (transaction: TransactionItem) => {
+  const handleEditTransaction = useCallback((transaction: TransactionItem) => {
     setEditingTransaction(transaction);
-  };
+  }, []);
 
-  const handleSettleLoan = async (loanId: string, currentStatus: LoanItem['status']) => {
+  const handleEditLoan = useCallback((loan: LoanItem) => {
+    setEditingLoan(loan);
+  }, []);
+
+  const handleSettleLoan = useCallback(async (loanId: string, currentStatus: LoanItem['status']) => {
     setSettlementError('');
     const isCurrentlyPaid = currentStatus === 'PAID';
     const nextStatus: LoanItem['status'] = isCurrentlyPaid ? 'PENDING' : 'PAID';
@@ -737,9 +788,41 @@ export function App() {
         setSettlementError(error.message || 'Unable to update settlement status.');
       }
     }
-  };
+  }, [token]);
 
-  const handleConfirmScannedBill = async (scanned: ScannedBillPayload) => {
+  const handleReacknowledgeLoan = useCallback(async (loanId: string) => {
+    if (!token) return;
+    try {
+      // Optimistically unsnooze and clear friend claimed paid status
+      setLoans((prev) =>
+        prev.map((item) =>
+          item.id === loanId
+            ? { ...item, claimedPaid: false, snoozeReminders: false }
+            : item
+        )
+      );
+
+      const response = await apiFetch(`/api/finance/lent/${loanId}/reacknowledge`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send follow-up reminder.');
+      }
+
+      await fetchUserData(token);
+    } catch (error: any) {
+      console.error('Re-acknowledge error:', error);
+      setSettlementError(error.message || 'Failed to re-acknowledge payment status.');
+      if (token) await fetchUserData(token);
+    }
+  }, [token]);
+
+  const handleConfirmScannedBill = useCallback(async (scanned: ScannedBillPayload) => {
     if (!token) return;
 
     try {
@@ -816,97 +899,185 @@ export function App() {
     } catch (err) {
       console.error('Failed to process scanned bill:', err);
     }
-  };
+  }, [token]);
 
-  // Filter transactions according to search input
-  const filteredTransactions = transactions.filter((t) => {
-    if (!searchQuery.trim()) return true;
+  // Filter transactions according to search input (memoized)
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return transactions;
     const query = searchQuery.toLowerCase();
-    return (
-      t.name.toLowerCase().includes(query) ||
-      t.category.toLowerCase().includes(query)
+    return transactions.filter(
+      (t) => t.name.toLowerCase().includes(query) || t.category.toLowerCase().includes(query)
     );
-  });
+  }, [transactions, searchQuery]);
 
-  const filteredLoans = loans.filter((l) => {
-    if (!searchQuery.trim()) return true;
+  const filteredLoans = useMemo(() => {
+    if (!searchQuery.trim()) return loans;
     const query = searchQuery.toLowerCase();
-    return (
-      l.title.toLowerCase().includes(query) ||
-      l.personName.toLowerCase().includes(query) ||
-      l.subtext.toLowerCase().includes(query)
+    return loans.filter(
+      (l) =>
+        l.title.toLowerCase().includes(query) ||
+        l.personName.toLowerCase().includes(query) ||
+        l.subtext.toLowerCase().includes(query)
     );
-  });
+  }, [loans, searchQuery]);
 
-  // Calculate real metrics strictly from DB records
-  const totalIncome = transactions
-    .filter((t) => t.type === 'INCOME')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
+  // Calculate real metrics strictly from DB records (memoized)
+  const {
+    totalIncome,
+    totalExpense,
+    netSavings,
+    actualBalance,
+    pendingSettlementsTotal,
+    settlementDetails,
+  } = useMemo(() => {
+    const inc = transactions
+      .filter((t) => t.type === 'INCOME')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  const totalExpense = transactions
-    .filter((t) => t.type === 'EXPENSE')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
+    const exp = transactions
+      .filter((t) => t.type === 'EXPENSE')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  // Unpaid lent money is out of savings. Borrowed money is tracked separately
-  // because it increases cash on hand without increasing earned savings.
-  const lentOutstanding = loans
-    .filter((l) => l.kind === 'lent')
-    .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0))), 0);
+    const lentOut = loans
+      .filter((l) => l.kind === 'lent')
+      .reduce(
+        (sum, l) =>
+          sum +
+          Math.max(
+            0,
+            Number(l.amount) -
+              Number(l.paidAmount !== undefined ? l.paidAmount : l.status === 'PAID' ? l.amount : 0)
+          ),
+        0
+      );
 
-  const borrowedOutstanding = loans
-    .filter((l) => l.kind === 'borrowed')
-    .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0))), 0);
+    const borrowedOut = loans
+      .filter((l) => l.kind === 'borrowed')
+      .reduce(
+        (sum, l) =>
+          sum +
+          Math.max(
+            0,
+            Number(l.amount) -
+              Number(l.paidAmount !== undefined ? l.paidAmount : l.status === 'PAID' ? l.amount : 0)
+          ),
+        0
+      );
 
-  const netSavings = Math.max(0, totalIncome - totalExpense - lentOutstanding);
-  const actualBalance = Math.max(0, totalIncome - totalExpense - lentOutstanding + borrowedOutstanding);
+    const savings = Math.max(0, inc - exp - lentOut);
+    const actBal = Math.max(0, inc - exp - lentOut + borrowedOut);
 
-  const canSettleLoan = (loan: LoanItem) =>
-    !(loan.kind === 'lent' && loan.status === 'PAID' && netSavings < loan.amount) &&
-    !(loan.kind === 'borrowed' && loan.status !== 'PAID' && actualBalance <= 0);
-
-  // Pending unpaid settlements total
-  const pendingSettlementsTotal = loans
-    .reduce((sum, l) => {
-      const paid = Number(l.paidAmount !== undefined ? l.paidAmount : (l.status === 'PAID' ? l.amount : 0));
+    const pendingTotal = loans.reduce((sum, l) => {
+      const paid = Number(
+        l.paidAmount !== undefined ? l.paidAmount : l.status === 'PAID' ? l.amount : 0
+      );
       return sum + Math.max(0, Number(l.amount) - paid);
     }, 0);
 
+    const pCount = loans.filter((l) => l.status !== 'PAID').length;
+    const lCount = loans.filter((l) => l.kind === 'lent' && l.status !== 'PAID').length;
+    const bCount = loans.filter((l) => l.kind === 'borrowed' && l.status !== 'PAID').length;
 
-  const pendingSettlementsCount = loans.filter((l) => l.status !== 'PAID').length;
-  const lentCount = loans.filter((l) => l.kind === 'lent' && l.status !== 'PAID').length;
-  const borrowedCount = loans.filter((l) => l.kind === 'borrowed' && l.status !== 'PAID').length;
+    const details =
+      pCount > 0
+        ? `${pCount} records • ${bCount} you owe • ${lCount} owes you`
+        : '0 pending settlements';
 
-  const settlementDetails =
-    pendingSettlementsCount > 0
-      ? `${pendingSettlementsCount} records • ${borrowedCount} you owe • ${lentCount} owes you`
-      : '0 pending settlements';
+    return {
+      totalIncome: inc,
+      totalExpense: exp,
+      lentOutstanding: lentOut,
+      borrowedOutstanding: borrowedOut,
+      netSavings: savings,
+      actualBalance: actBal,
+      pendingSettlementsTotal: pendingTotal,
+      pendingSettlementsCount: pCount,
+      lentCount: lCount,
+      borrowedCount: bCount,
+      settlementDetails: details,
+    };
+  }, [transactions, loans]);
 
-  // Compute category breakdown strictly from real DB expenses
-  const categoryMap: Record<string, number> = {};
-  transactions
-    .filter((t) => t.type === 'EXPENSE')
-    .forEach((t) => {
-      const cat = t.category || 'General';
-      categoryMap[cat] = (categoryMap[cat] || 0) + Number(t.amount);
-    });
+  const canSettleLoan = useCallback(
+    (loan: LoanItem) =>
+      !(loan.kind === 'lent' && loan.status === 'PAID' && netSavings < loan.amount) &&
+      !(loan.kind === 'borrowed' && loan.status !== 'PAID' && actualBalance <= 0),
+    [netSavings, actualBalance]
+  );
 
-  const expenseCategories: CategoryExpense[] = Object.entries(categoryMap).map(([name, amount]) => ({
-    name,
-    amount,
-    percentage: totalExpense > 0 ? Math.round((amount / totalExpense) * 10000) / 100 : 0,
-    color: '',
-  }));
-  const expenseSpending = Object.fromEntries(Object.entries(categoryMap));
+  // Compute category breakdown strictly from real DB expenses (memoized)
+  const { categoryMap, expenseCategories, expenseSpending } = useMemo(() => {
+    const map: Record<string, number> = {};
+    transactions
+      .filter((t) => t.type === 'EXPENSE')
+      .forEach((t) => {
+        const cat = t.category || 'General';
+        map[cat] = (map[cat] || 0) + Number(t.amount);
+      });
 
-  const openAdd = (kind: RecordKind = 'expense') => {
+    const cats: CategoryExpense[] = Object.entries(map).map(([name, amount]) => ({
+      name,
+      amount,
+      percentage: totalExpense > 0 ? Math.round((amount / totalExpense) * 10000) / 100 : 0,
+      color: '',
+    }));
+
+    return {
+      categoryMap: map,
+      expenseCategories: cats,
+      expenseSpending: map,
+    };
+  }, [transactions, totalExpense]);
+
+  const openAdd = useCallback((kind: RecordKind = 'expense') => {
     setAddRecordKind(kind);
     setIsAddRecordOpen(true);
-  };
+  }, []);
 
-  const handleOpenAuth = (mode: 'signin' | 'signup' = 'signup') => {
+  const handleCloseAdd = useCallback(() => {
+    setIsAddRecordOpen(false);
+  }, []);
+
+  const handleOpenAuth = useCallback((mode: 'signin' | 'signup' = 'signup') => {
     setAuthMode(mode);
     setIsAuthOpen(true);
-  };
+  }, []);
+
+  const handleCloseAuth = useCallback(() => {
+    setIsAuthOpen(false);
+  }, []);
+
+  const handleOpenScanner = useCallback(() => {
+    setIsScannerOpen(true);
+  }, []);
+
+  const handleCloseScanner = useCallback(() => {
+    setIsScannerOpen(false);
+  }, []);
+
+  const handleOpenPWA = useCallback(() => {
+    setIsPWAOpen(true);
+  }, []);
+
+  const handleClosePWA = useCallback(() => {
+    setIsPWAOpen(false);
+  }, []);
+
+  const handleOpenLoansTab = useCallback(() => {
+    handleSelectTab('loans');
+  }, [handleSelectTab]);
+
+  const handleOpenTransactionsTab = useCallback(() => {
+    handleSelectTab('transactions');
+  }, [handleSelectTab]);
+
+  const handleCloseEditTransaction = useCallback(() => {
+    setEditingTransaction(null);
+  }, []);
+
+  const handleCloseEditLoan = useCallback(() => {
+    setEditingLoan(null);
+  }, []);
 
   // 1. If user is not authenticated and not loading, show the Hero Landing Page!
   if (!user && !loadingUser) {
@@ -918,7 +1089,7 @@ export function App() {
         <AuthModal
           isOpen={isAuthOpen}
           initialMode={authMode}
-          onClose={() => setIsAuthOpen(false)}
+          onClose={handleCloseAuth}
           onAuthSuccess={handleAuthSuccess}
         />
       </>
@@ -945,21 +1116,22 @@ export function App() {
             loans={filteredLoans}
             totalExpense={totalExpense}
             expenseCategories={expenseCategories}
-            onOpenAddModal={(k) => openAdd((k as RecordKind) || 'expense')}
-            onOpenScanner={() => setIsScannerOpen(true)}
-            onOpenLoans={() => handleSelectTab('loans')}
-            onOpenAllTransactions={() => handleSelectTab('transactions')}
+            onOpenAddModal={openAdd}
+            onOpenScanner={handleOpenScanner}
+            onOpenLoans={handleOpenLoansTab}
+            onOpenAllTransactions={handleOpenTransactionsTab}
             budgets={budgets}
             spending={expenseSpending}
             onSaveBudget={saveBudget}
             onDeleteBudget={deleteBudget}
             onLogout={handleLogout}
             onOpenSettings={handleOpenSettings}
-            onOpenPWA={() => setIsPWAOpen(true)}
+            onOpenPWA={handleOpenPWA}
             onEditTransaction={handleEditTransaction}
-            onEditLoan={(loan) => setEditingLoan(loan)}
+            onEditLoan={handleEditLoan}
             onSettleLoan={handleSettleLoan}
             canSettleLoan={canSettleLoan}
+            onReacknowledgeLoan={handleReacknowledgeLoan}
             currentNav={mobileNav}
             onSelectNav={handleSelectMobileNav}
           />
@@ -969,13 +1141,13 @@ export function App() {
         <AuthModal
           isOpen={isAuthOpen}
           initialMode={authMode}
-          onClose={() => setIsAuthOpen(false)}
+          onClose={handleCloseAuth}
           onAuthSuccess={handleAuthSuccess}
         />
 
         <AddRecordModal
           isOpen={isAddRecordOpen}
-          onClose={() => setIsAddRecordOpen(false)}
+          onClose={handleCloseAdd}
           initialKind={addRecordKind}
           token={token}
           onSuccess={handleAddRecordSuccess}
@@ -983,7 +1155,7 @@ export function App() {
 
         <EditTransactionModal
           isOpen={!!editingTransaction}
-          onClose={() => setEditingTransaction(null)}
+          onClose={handleCloseEditTransaction}
           transaction={editingTransaction}
           token={token}
           onSuccess={handleTransactionSuccess}
@@ -991,7 +1163,7 @@ export function App() {
 
         <EditLoanModal
           isOpen={!!editingLoan}
-          onClose={() => setEditingLoan(null)}
+          onClose={handleCloseEditLoan}
           loan={editingLoan}
           token={token}
           onSuccess={handleLoanSuccess}
@@ -999,14 +1171,14 @@ export function App() {
 
         <BillScannerModal
           isOpen={isScannerOpen}
-          onClose={() => setIsScannerOpen(false)}
+          onClose={handleCloseScanner}
           token={token}
           onConfirmBill={handleConfirmScannedBill}
         />
 
         <PWAInstallPrompt
           isOpen={isPWAOpen}
-          onClose={() => setIsPWAOpen(false)}
+          onClose={handleClosePWA}
         />
       </div>
     );
@@ -1093,17 +1265,20 @@ export function App() {
                 <div className="bottom-grid">
                   <RecentTransactions
                     transactions={filteredTransactions}
+                    limit={5}
                     onViewAll={() => setCurrentTab('transactions')}
                     onAddTransaction={() => openAdd('expense')}
                     onEditTransaction={handleEditTransaction}
                   />
                   <LoansSettlements
                     loans={filteredLoans}
+                    limit={5}
                     onViewAll={() => setCurrentTab('loans')}
                     onSettle={handleSettleLoan}
                     canSettle={canSettleLoan}
                     onAddNew={() => openAdd('lent')}
                     onEditLoan={(loan) => setEditingLoan(loan)}
+                    onReacknowledgeLoan={handleReacknowledgeLoan}
                   />
                 </div>
               </>
@@ -1169,6 +1344,7 @@ export function App() {
                   canSettle={canSettleLoan}
                   onAddNew={() => openAdd('lent')}
                   onEditLoan={(loan) => setEditingLoan(loan)}
+                  onReacknowledgeLoan={handleReacknowledgeLoan}
                 />
               </div>
             )}
@@ -1208,13 +1384,13 @@ export function App() {
       <AuthModal
         isOpen={isAuthOpen}
         initialMode={authMode}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={handleCloseAuth}
         onAuthSuccess={handleAuthSuccess}
       />
 
       <AddRecordModal
         isOpen={isAddRecordOpen}
-        onClose={() => setIsAddRecordOpen(false)}
+        onClose={handleCloseAdd}
         initialKind={addRecordKind}
         token={token}
         onSuccess={handleAddRecordSuccess}
@@ -1222,7 +1398,7 @@ export function App() {
 
       <EditTransactionModal
         isOpen={!!editingTransaction}
-        onClose={() => setEditingTransaction(null)}
+        onClose={handleCloseEditTransaction}
         transaction={editingTransaction}
         token={token}
         onSuccess={handleTransactionSuccess}
@@ -1230,7 +1406,7 @@ export function App() {
 
       <EditLoanModal
         isOpen={!!editingLoan}
-        onClose={() => setEditingLoan(null)}
+        onClose={handleCloseEditLoan}
         loan={editingLoan}
         token={token}
         onSuccess={handleLoanSuccess}
@@ -1238,14 +1414,14 @@ export function App() {
 
       <BillScannerModal
         isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
+        onClose={handleCloseScanner}
         token={token}
         onConfirmBill={handleConfirmScannedBill}
       />
 
       <PWAInstallPrompt
         isOpen={isPWAOpen}
-        onClose={() => setIsPWAOpen(false)}
+        onClose={handleClosePWA}
       />
     </div>
   );

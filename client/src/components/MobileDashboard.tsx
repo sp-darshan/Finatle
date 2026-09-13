@@ -21,7 +21,7 @@ import {
   type BudgetLimit,
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
-import { LuReceipt, LuX } from 'react-icons/lu';
+import { LuReceipt, LuX, LuCheck, LuRotateCcw, LuPlus } from 'react-icons/lu';
 import { useGreeting } from '../lib/greeting';
 
 
@@ -52,11 +52,12 @@ interface MobileDashboardProps {
   onEditLoan?: (loan: LoanItem) => void;
   onSettleLoan?: (id: string, status: LoanItem['status']) => void;
   canSettleLoan?: (loan: LoanItem) => boolean;
+  onReacknowledgeLoan?: (loanId: string) => void;
   currentNav: string;
   onSelectNav: (nav: string) => void;
 }
 
-export const MobileDashboard: React.FC<MobileDashboardProps> = ({
+export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   balance = 0,
   actualBalance,
   userName = 'Darshan',
@@ -81,6 +82,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   onOpenPWA,
   onEditTransaction,
   onEditLoan,
+  onSettleLoan,
+  canSettleLoan,
+  onReacknowledgeLoan,
   currentNav,
   onSelectNav,
 }) => {
@@ -119,20 +123,40 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
     return isNeg ? `-₹${abs}` : `₹${abs}`;
   };
 
-
-  const topTransactions = transactions.slice(0, 4);
-  const pendingLoans = loans.slice(0, 3);
-
+  const topTransactions = React.useMemo(() => transactions.slice(0, 5), [transactions]);
+  const pendingLoans = React.useMemo(() => loans.slice(0, 5), [loans]);
 
   const [filterType, setFilterType] = useState<'ALL' | 'EXPENSE' | 'INCOME'>('ALL');
   const [mobileSearch, setMobileSearch] = useState('');
 
-  const displayedTransactions = transactions.filter((t) => {
-    if (filterType !== 'ALL' && t.type !== filterType) return false;
-    if (!mobileSearch.trim()) return true;
-    const q = mobileSearch.toLowerCase();
-    return t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q);
-  });
+  const displayedTransactions = React.useMemo(() => {
+    return transactions.filter((t) => {
+      if (filterType !== 'ALL' && t.type !== filterType) return false;
+      if (!mobileSearch.trim()) return true;
+      const q = mobileSearch.toLowerCase();
+      return t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q);
+    });
+  }, [transactions, filterType, mobileSearch]);
+
+  const [loanFilterType, setLoanFilterType] = useState<'ALL' | 'LENT' | 'BORROWED' | 'SPLIT' | 'PENDING' | 'SETTLED'>('ALL');
+  const [mobileLoanSearch, setMobileLoanSearch] = useState('');
+
+  const displayedLoans = React.useMemo(() => {
+    return loans.filter((l) => {
+      if (loanFilterType === 'LENT' && l.kind !== 'lent') return false;
+      if (loanFilterType === 'BORROWED' && l.kind !== 'borrowed') return false;
+      if (loanFilterType === 'SPLIT' && l.kind !== 'split') return false;
+      if (loanFilterType === 'PENDING' && l.status === 'PAID') return false;
+      if (loanFilterType === 'SETTLED' && l.status !== 'PAID') return false;
+      if (!mobileLoanSearch.trim()) return true;
+      const q = mobileLoanSearch.toLowerCase();
+      return (
+        (l.personName && l.personName.toLowerCase().includes(q)) ||
+        (l.title && l.title.toLowerCase().includes(q)) ||
+        (l.subtext && l.subtext.toLowerCase().includes(q))
+      );
+    });
+  }, [loans, loanFilterType, mobileLoanSearch]);
 
   return (
     <div className="mobile-app-shell">
@@ -213,13 +237,13 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                 <span>Transactions</span>
               </button>
               <button
-                className="nav-item"
+                className={`nav-item ${currentNav === 'loans' ? 'active' : ''}`}
                 onClick={() => {
-                  onOpenLoans();
+                  onSelectNav('loans');
                   setIsDrawerOpen(false);
                 }}
               >
-                <NavIcons.Loans />
+                <NavIcons.Loans active={currentNav === 'loans'} />
                 <span>Loans & Split</span>
               </button>
               <button
@@ -412,6 +436,33 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                     </div>
                   );
                 })}
+                {transactions.length > 5 && (
+                  <button
+                    type="button"
+                    className="view-more-footer-btn"
+                    onClick={onOpenAllTransactions || (() => onSelectNav('transactions'))}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      marginTop: '0.5rem',
+                      background: 'rgba(59, 130, 246, 0.06)',
+                      border: '1px dashed rgba(59, 130, 246, 0.3)',
+                      borderRadius: 'var(--radius-md, 12px)',
+                      color: '#2563eb',
+                      fontWeight: 600,
+                      fontSize: '0.86rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span>View More ({transactions.length - 5} remaining)</span>
+                    <span style={{ fontSize: '1rem' }}>&rarr;</span>
+                  </button>
+                )}
               </div>
             )}
           </section>
@@ -462,6 +513,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                   const isSplit = item.kind === 'split';
                   const isSettled = item.status === 'PAID';
                   const isPartial = item.status === 'PARTIAL';
+                  const isClaimed = Boolean(item.claimedPaid && !isSettled);
                   const paid = item.paidAmount || 0;
                   const remaining = Math.max(0, item.amount - paid);
                   const formatLoanDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Not set';
@@ -477,7 +529,11 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                   const cleanedSubtext = cleanText(item.subtext);
 
                   return (
-                    <div className="loan-row" key={item.id}>
+                    <div
+                      className="loan-row"
+                      key={item.id}
+                      style={isClaimed ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
+                    >
                       <div className="row-left">
                         <div className={`loan-avatar ${item.kind}`}>
                           {isSplit ? (
@@ -493,10 +549,29 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                             <span>{isLent ? 'Lent' : 'Borrowed'}: {formatLoanDate(item.date)}</span>
                             <span>Due: {formatLoanDate(item.dueDate)}</span>
                           </div>
+
+                          {isClaimed && (
+                            <div
+                              style={{
+                                marginTop: '0.35rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.72rem',
+                                color: '#065f46',
+                                background: '#d1fae5',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: 'var(--radius-sm)',
+                                fontWeight: 700,
+                              }}
+                            >
+                              ✓ Friend reported paid
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <div className="row-right-loan">
+                      <div className="row-right-loan" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
                         <span
                           className={
                             isLent || isSplit ? 'amount-positive' : 'amount-negative'
@@ -512,27 +587,82 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                           {formatRupee(isPartial ? remaining : item.amount)}
                         </span>
 
-                        <span
-                          className={`loan-status-btn ${
-                            isSettled
-                              ? 'settled'
+                        {isClaimed ? (
+                          <div style={{ display: 'flex', gap: '0.3rem' }}>
+                            {onSettleLoan && (
+                              <button
+                                type="button"
+                                style={{
+                                  background: '#10b981',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '0.2rem 0.45rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSettleLoan(item.id, item.status);
+                                }}
+                                title="Confirm payment and settle loan"
+                              >
+                                <LuCheck size={12} /> Confirm
+                              </button>
+                            )}
+                            {onReacknowledgeLoan && (
+                              <button
+                                type="button"
+                                style={{
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fca5a5',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '0.2rem 0.45rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onReacknowledgeLoan(item.id);
+                                }}
+                                title="Friend did not pay: resume reminders"
+                              >
+                                <LuRotateCcw size={11} /> Not Received
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span
+                            className={`loan-status-btn ${
+                              isSettled
+                                ? 'settled'
+                                : isPartial
+                                ? 'partial'
+                                : isLent || isSplit
+                                ? 'to-receive'
+                                : 'to-pay'
+                            }`}
+                          >
+                            {isSettled
+                              ? 'Settled'
                               : isPartial
-                              ? 'partial'
-                              : isLent || isSplit
-                              ? 'to-receive'
-                              : 'to-pay'
-                          }`}
-                        >
-                          {isSettled
-                            ? 'Settled'
-                            : isPartial
-                            ? `Part (₹${paid})`
-                            : isLent
-                            ? 'To get'
-                            : isSplit
-                            ? 'Split'
-                            : 'To pay'}
-                        </span>
+                              ? `Part (₹${paid})`
+                              : isLent
+                              ? 'To get'
+                              : isSplit
+                              ? 'Split'
+                              : 'To pay'}
+                          </span>
+                        )}
 
                         {onEditLoan && (
                           <button
@@ -551,6 +681,33 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                     </div>
                   );
                 })}
+                {loans.length > 5 && (
+                  <button
+                    type="button"
+                    className="view-more-footer-btn"
+                    onClick={onOpenLoans}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      marginTop: '0.5rem',
+                      background: 'rgba(99, 102, 241, 0.06)',
+                      border: '1px dashed rgba(99, 102, 241, 0.3)',
+                      borderRadius: 'var(--radius-md, 12px)',
+                      color: 'var(--settle-indigo, #6366f1)',
+                      fontWeight: 600,
+                      fontSize: '0.86rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span>View More ({loans.length - 5} remaining)</span>
+                    <span style={{ fontSize: '1rem' }}>&rarr;</span>
+                  </button>
+                )}
               </div>
             )}
           </section>
@@ -564,11 +721,22 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
           <div className="mobile-sec-header">
             <h4>Transactions</h4>
             <button
+              type="button"
               className="btn-submit-primary"
-              style={{ width: 'auto', margin: 0, padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}
+              style={{
+                width: 'auto',
+                margin: 0,
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.82rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontWeight: 700,
+              }}
               onClick={() => onOpenAddModal('expense')}
             >
-              + Add
+              <LuPlus size={15} strokeWidth={2.8} />
+              <span>Add</span>
             </button>
           </div>
 
@@ -656,6 +824,379 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         </section>
       )}
 
+      {/* VIEW: ALL LOANS & SPLITS */}
+      {currentNav === 'loans' && (
+        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+          <div className="mobile-sec-header" style={{ marginBottom: '0.65rem' }}>
+            <h4 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Loans & Group Splits</h4>
+          </div>
+
+          {/* Quick Action Buttons: 3-column equal grid with proper spacing */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.85rem' }}>
+            <button
+              type="button"
+              className="btn-submit-primary"
+              style={{
+                width: '100%',
+                margin: 0,
+                padding: '0.62rem 0.35rem',
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                borderRadius: 'var(--radius-md, 12px)',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
+              }}
+              onClick={() => onOpenAddModal('lent')}
+            >
+              <LuPlus size={15} strokeWidth={2.8} />
+              <span>Lent</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-submit-primary"
+              style={{
+                width: '100%',
+                margin: 0,
+                padding: '0.62rem 0.35rem',
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                borderRadius: 'var(--radius-md, 12px)',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 2px 5px rgba(239, 68, 68, 0.25)',
+              }}
+              onClick={() => onOpenAddModal('borrowed')}
+            >
+              <LuPlus size={15} strokeWidth={2.8} />
+              <span>Borrow</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-submit-primary"
+              style={{
+                width: '100%',
+                margin: 0,
+                padding: '0.62rem 0.35rem',
+                fontSize: '0.84rem',
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                borderRadius: 'var(--radius-md, 12px)',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 2px 5px rgba(16, 185, 129, 0.25)',
+              }}
+              onClick={() => onOpenAddModal('split')}
+            >
+              <LuPlus size={15} strokeWidth={2.8} />
+              <span>Split</span>
+            </button>
+          </div>
+
+          {/* Search input with clear button */}
+          <div style={{ position: 'relative', marginBottom: '0.8rem' }}>
+            <input
+              type="text"
+              placeholder="Search loans, people, splits..."
+              className="form-control"
+              value={mobileLoanSearch}
+              onChange={(e) => setMobileLoanSearch(e.target.value)}
+              style={{
+                width: '100%',
+                fontSize: '0.86rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-md, 12px)',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                background: '#ffffff',
+              }}
+            />
+            {mobileLoanSearch && (
+              <button
+                type="button"
+                onClick={() => setMobileLoanSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: '0.65rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 20,
+                  height: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  color: '#64748b',
+                }}
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Horizontally scrollable chip filter pills */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.45rem',
+              overflowX: 'auto',
+              paddingBottom: '0.35rem',
+              marginBottom: '1rem',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {[
+              { id: 'ALL', label: 'All' },
+              { id: 'LENT', label: 'Lent' },
+              { id: 'BORROWED', label: 'Borrowed' },
+              { id: 'SPLIT', label: 'Split' },
+              { id: 'PENDING', label: 'Pending' },
+              { id: 'SETTLED', label: 'Settled' },
+            ].map((tab) => {
+              const isActive = loanFilterType === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setLoanFilterType(tab.id as any)}
+                  style={{
+                    flex: '0 0 auto',
+                    padding: '0.42rem 0.85rem',
+                    fontSize: '0.78rem',
+                    fontWeight: isActive ? 700 : 600,
+                    borderRadius: '9999px',
+                    border: isActive ? '1px solid var(--primary, #047857)' : '1px solid #e2e8f0',
+                    background: isActive ? 'var(--primary-50, #f0fdf4)' : '#ffffff',
+                    color: isActive ? 'var(--primary-dark, #047857)' : 'var(--text-secondary, #64748b)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: isActive ? '0 1px 3px rgba(4, 120, 87, 0.12)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {displayedLoans.length === 0 ? (
+            <div className="empty-data-state">
+              <div className="empty-icon indigo">
+                <UsersGroupIcon size={24} />
+              </div>
+              <h5>No loans or splits found</h5>
+              <p>No settlements match your current search or filter criteria.</p>
+              <button
+                className="select-pill"
+                style={{ marginTop: '0.5rem', background: 'var(--settle-50)', color: 'var(--settle-text)', borderColor: 'var(--settle-indigo)' }}
+                onClick={() => onOpenAddModal('lent')}
+              >
+                + Add Loan or Split
+              </button>
+            </div>
+          ) : (
+            <div className="loans-list">
+              {displayedLoans.map((item) => {
+                const isLent = item.kind === 'lent';
+                const isSplit = item.kind === 'split';
+                const isSettled = item.status === 'PAID';
+                const isPartial = item.status === 'PARTIAL';
+                const isClaimed = Boolean(item.claimedPaid && !isSettled);
+                const paid = item.paidAmount || 0;
+                const remaining = Math.max(0, item.amount - paid);
+                const formatLoanDate = (value?: string | null) =>
+                  value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Not set';
+
+                const compactTitle = isSplit
+                  ? (item.personName || item.title || 'Group Split')
+                  : isLent
+                  ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
+                  : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
+
+                const cleanText = (val?: string) =>
+                  val ? val.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : '';
+                const cleanedSubtext = cleanText(item.subtext);
+
+                return (
+                  <div
+                    className="loan-row"
+                    key={item.id}
+                    style={isClaimed ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
+                  >
+                    <div className="row-left">
+                      <div className={`loan-avatar ${item.kind}`}>
+                        {isSplit ? (
+                          <UsersGroupIcon size={18} />
+                        ) : (
+                          <span>{item.personName.slice(0, 2).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="row-info">
+                        <h4>{cleanText(compactTitle)}</h4>
+                        {cleanedSubtext && <p className="loan-description">{cleanedSubtext}</p>}
+                        <div className="loan-meta">
+                          <span>{isLent ? 'Lent' : 'Borrowed'}: {formatLoanDate(item.date)}</span>
+                          <span>Due: {formatLoanDate(item.dueDate)}</span>
+                        </div>
+
+                        {isClaimed && (
+                          <div
+                            style={{
+                              marginTop: '0.35rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.72rem',
+                              color: '#065f46',
+                              background: '#d1fae5',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: 'var(--radius-sm)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            ✓ Friend reported paid
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="row-right-loan" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                      <span
+                        className={isLent || isSplit ? 'amount-positive' : 'amount-negative'}
+                        style={{
+                          color: isLent || isSplit ? 'var(--text-emerald)' : 'var(--text-primary)',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {formatRupee(isPartial ? remaining : item.amount)}
+                      </span>
+
+                      {isClaimed ? (
+                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                          {onSettleLoan && (
+                            <button
+                              type="button"
+                              style={{
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '0.2rem 0.45rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSettleLoan(item.id, item.status);
+                              }}
+                              title="Confirm payment and settle loan"
+                            >
+                              <LuCheck size={12} /> Confirm
+                            </button>
+                          )}
+                          {onReacknowledgeLoan && (
+                            <button
+                              type="button"
+                              style={{
+                                background: '#fee2e2',
+                                color: '#dc2626',
+                                border: '1px solid #fca5a5',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '0.2rem 0.45rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onReacknowledgeLoan(item.id);
+                              }}
+                              title="Friend did not pay: resume reminders"
+                            >
+                              <LuRotateCcw size={11} /> Not Received
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`loan-status-btn ${
+                            isSettled
+                              ? 'settled'
+                              : isPartial
+                              ? 'partial'
+                              : isLent || isSplit
+                              ? 'to-receive'
+                              : 'to-pay'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSettleLoan) onSettleLoan(item.id, item.status);
+                          }}
+                          disabled={canSettleLoan ? !canSettleLoan(item) : false}
+                          style={{ cursor: 'pointer', border: 'none' }}
+                        >
+                          {isSettled
+                            ? 'Settled'
+                            : isPartial
+                            ? `Part (₹${paid})`
+                            : isLent
+                            ? 'To get'
+                            : isSplit
+                            ? 'Split'
+                            : 'To pay'}
+                        </button>
+                      )}
+
+                      {onEditLoan && (
+                        <button
+                          type="button"
+                          className="edit-pencil-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditLoan(item);
+                          }}
+                          title="Edit Loan"
+                        >
+                          <PencilEditIcon size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* VIEW 3: INSIGHTS */}
       {currentNav === 'insights' && (
         <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
@@ -717,6 +1258,14 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         </button>
 
         <button
+          className={`bottom-nav-item ${currentNav === 'loans' ? 'active' : ''}`}
+          onClick={() => onSelectNav('loans')}
+        >
+          <NavIcons.Loans active={currentNav === 'loans'} />
+          <span>Loans</span>
+        </button>
+
+        <button
           className={`bottom-nav-item ${currentNav === 'insights' ? 'active' : ''}`}
           onClick={() => onSelectNav('insights')}
         >
@@ -735,5 +1284,5 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
       </nav>
     </div>
   );
-};
+});
 

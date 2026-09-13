@@ -56,18 +56,25 @@ model Transaction {
 }
 
 model MoneyLent {
-  lid         String       @id @default(uuid())
-  uid         String
-  personName  String
-  amount      Decimal      @db.Decimal(14, 2)
-  paidAmount  Decimal      @default(0) @db.Decimal(14, 2)
-  description String?
-  lentAt      DateTime     @default(now())
-  dueAt       DateTime?
-  status      LoanStatus   @default(PENDING)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  user        User         @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  lid                   String       @id @default(uuid())
+  uid                   String
+  personName            String
+  amount                Decimal      @db.Decimal(14, 2)
+  paidAmount            Decimal      @default(0) @db.Decimal(14, 2)
+  description           String?
+  lentAt                DateTime     @default(now())
+  dueAt                 DateTime?
+  borrowerEmail         String?
+  reminderFrequencyDays Int          @default(1)
+  lastReminderSentAt    DateTime?
+  claimedPaid           Boolean      @default(false)
+  claimedPaidAt         DateTime?
+  snoozeReminders       Boolean      @default(false)
+  claimToken            String?      @unique
+  status                LoanStatus   @default(PENDING)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  user                  User         @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
   @@index([uid, status])
   @@map("money_lent")

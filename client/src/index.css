@@ -850,12 +850,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  will-change: transform;
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
+}
+
+.metric-card:active {
+  transform: scale(0.98);
 }
 
 .metric-card-top {
@@ -1638,12 +1643,17 @@ button.select-pill {
   align-items: center;
   gap: 0.45rem;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.08s ease;
+  will-change: transform;
 }
 
-.quick-action-btn:hover, .quick-action-btn:active {
+.quick-action-btn:hover {
   background: #f1f5f9;
-  transform: scale(0.98);
+}
+
+.quick-action-btn:active {
+  background: #e2e8f0;
+  transform: scale(0.93);
 }
 
 .quick-action-icon {
@@ -2584,7 +2594,7 @@ button.select-pill {
   background: #ffffff;
   border-top: 1px solid var(--border-color);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   padding: 0.5rem 0.25rem 0.75rem 0.25rem;
   z-index: 50;
 }
@@ -2609,18 +2619,35 @@ button.select-pill {
 }
 
 /* Modals & Dialogs */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   padding: 1rem;
-  animation: fadeIn 0.15s ease-out;
+  animation: fadeIn 0.12s ease-out;
+  will-change: opacity;
 }
 
 .modal-card {
@@ -2633,7 +2660,9 @@ button.select-pill {
   overflow-y: auto;
   border: 1px solid var(--border-color);
   padding: 1.75rem;
-  animation: modalScaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalScaleUp 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 .modal-header {
@@ -2886,15 +2915,19 @@ button.select-pill {
 .modal-tabs {
   display: flex;
   background: #f1f5f9;
-  padding: 0.3rem;
+  padding: 0.25rem;
   border-radius: var(--radius-md);
-  gap: 0.25rem;
+  gap: 0.2rem;
   margin-bottom: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .modal-tab-btn {
-  flex: 1;
-  padding: 0.5rem;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.5rem 0.25rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -2903,6 +2936,10 @@ button.select-pill {
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
 }
 
 .modal-tab-btn.active {
@@ -3043,6 +3080,36 @@ button.select-pill {
   }
   .metrics-grid {
     grid-template-columns: 1fr;
+  }
+
+  .modal-overlay {
+    padding: 0.65rem;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(15, 23, 42, 0.55);
+    animation: fadeIn 0.08s ease-out;
+  }
+
+  .modal-card {
+    padding: 1.25rem 0.95rem;
+    border-radius: var(--radius-lg);
+    max-width: 100%;
+    animation: modalScaleUp 0.09s cubic-bezier(0.15, 1, 0.3, 1);
+    transform: translateZ(0);
+    will-change: transform, opacity;
+  }
+
+  .modal-tabs {
+    padding: 0.2rem;
+    gap: 0.15rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .modal-tab-btn {
+    font-size: 0.72rem;
+    padding: 0.45rem 0.15rem;
+    letter-spacing: -0.02em;
+    font-weight: 700;
   }
 
   .mobile-section {

@@ -65,7 +65,7 @@ export const getCategoryColor = (name?: string, index = 0): string => {
   return OPPOSITE_PALETTE[index % OPPOSITE_PALETTE.length];
 };
 
-export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
+export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
   totalExpense = 0,
   categories = [],
 }) => {
@@ -187,4 +187,4 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
       )}
     </div>
   );
-};
+});

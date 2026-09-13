@@ -11,7 +11,7 @@ interface TopBarProps {
   onOpenScanner?: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({
+export const TopBar: React.FC<TopBarProps> = React.memo(({
   searchQuery,
   onSearchChange,
   user,
@@ -138,4 +138,4 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
     </header>
   );
-};
+});
