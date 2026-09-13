@@ -78,9 +78,11 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
                 strokeWidth="22"
               />
               {categories.map((cat, idx) => {
-                const strokeDasharray = `${(cat.percentage / 100) * circumference} ${circumference}`;
+                const rawLength = (cat.percentage / 100) * circumference;
+                const arcLength = cat.percentage > 0 ? Math.max(8, rawLength) : 0;
+                const strokeDasharray = `${arcLength} ${circumference}`;
                 const strokeDashoffset = -cumulativeOffset;
-                cumulativeOffset += (cat.percentage / 100) * circumference;
+                cumulativeOffset += rawLength;
 
                 return (
                   <circle
@@ -93,7 +95,7 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
                     strokeWidth="22"
                     strokeDasharray={strokeDasharray}
                     strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
+                    strokeLinecap={categories.length === 1 ? 'round' : 'butt'}
                     style={{ transition: 'stroke-dasharray 0.5s ease' }}
                   />
                 );
@@ -118,7 +120,9 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
                   ></span>
                   <span>{item.name}</span>
                 </div>
-                <span className="legend-pct">{item.percentage}%</span>
+                <span className="legend-pct">
+                  {Number.isInteger(item.percentage) ? `${item.percentage}%` : `${item.percentage.toFixed(2)}%`}
+                </span>
               </div>
             ))}
           </div>

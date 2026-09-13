@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { TransactionItem } from './RecentTransactions';
 import { apiFetch } from '../lib/api';
@@ -23,9 +23,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Food & Dining');
-    const [otherCategory, setOtherCategory] = useState('');
+  const [otherCategory, setOtherCategory] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -34,8 +36,9 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setAmount(String(transaction.amount));
       setDescription(transaction.name || '');
       setCategory(transaction.category || 'Food & Dining');
-        setOtherCategory(transaction.category && !['Food & Dining', 'Shopping', 'Rent & Housing', 'Travel', 'Utilities', 'Entertainment', 'Salary', 'General'].includes(transaction.category) ? transaction.category : '');
+      setOtherCategory(transaction.category && !['Food & Dining', 'Shopping', 'Rent & Housing', 'Travel', 'Utilities', 'Entertainment', 'Salary', 'General'].includes(transaction.category) ? transaction.category : '');
       setError('');
+      setIsConfirmingDelete(false);
     }
   }, [transaction, isOpen]);
 
@@ -84,7 +87,16 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this transaction?')) return;
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = setTimeout(() => {
+        setIsConfirmingDelete(false);
+      }, 4000);
+      return;
+    }
+
+    if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
     setDeleting(true);
     setError('');
 
@@ -108,6 +120,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setError(err.message || 'Error deleting transaction');
     } finally {
       setDeleting(false);
+      setIsConfirmingDelete(false);
     }
   };
 
@@ -187,8 +200,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               type="button"
               style={{
                 padding: '0.75rem 1rem',
-                background: '#fee2e2',
-                color: '#dc2626',
+                background: isConfirmingDelete ? '#dc2626' : '#fee2e2',
+                color: isConfirmingDelete ? '#ffffff' : '#dc2626',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
                 fontWeight: 700,
@@ -196,12 +209,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
+                transition: 'all 0.2s ease',
               }}
               onClick={handleDelete}
               disabled={deleting || saving}
             >
               <TrashIcon size={16} />
-              <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+              <span>{deleting ? 'Deleting...' : isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
             </button>
 
             <button

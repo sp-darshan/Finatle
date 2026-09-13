@@ -24,6 +24,7 @@ import {
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
 import { LuReceipt } from 'react-icons/lu';
+import { useGreeting } from '../lib/greeting';
 
 
 interface MobileDashboardProps {
@@ -83,6 +84,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
   currentNav,
   onSelectNav,
 }) => {
+  const { greeting, timeString, dateString } = useGreeting();
   const [showBalance, setShowBalance] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -275,8 +277,8 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
         <>
           {/* Greeting */}
           <section className="mobile-greeting-sec">
-            <h3>Good Day,<br />{userName}!</h3>
-            <p>Small steps. Big financial freedom.</p>
+            <h3>{greeting},<br />{userName}!</h3>
+            <p>{dateString} • {timeString}</p>
           </section>
 
           {/* Total Balance Card */}
@@ -459,6 +461,12 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                   const remaining = Math.max(0, item.amount - paid);
                   const formatLoanDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Not set';
 
+                  const compactTitle = isSplit
+                    ? (item.personName || item.title || 'Group Split')
+                    : isLent
+                    ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
+                    : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
+
                   return (
                     <div className="loan-row" key={item.id}>
                       <div className="row-left">
@@ -470,7 +478,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                           )}
                         </div>
                         <div className="row-info">
-                          <h4>{item.title}</h4>
+                          <h4>{compactTitle}</h4>
                           <p className="loan-description">{item.subtext}</p>
                           <div className="loan-meta">
                             <span>{isLent ? 'Lent' : 'Borrowed'}: {formatLoanDate(item.date)}</span>

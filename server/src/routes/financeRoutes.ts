@@ -3,6 +3,7 @@ import { authMiddleware } from '../middlewares/authMiddleware';
 import {
   getAccountBalance,
   getFinanceSummary,
+  scanBill,
 } from '../controllers/financeController';
 import transactionRoutes from './transactionRoutes';
 import loanRoutes from './loanRoutes';
@@ -16,6 +17,9 @@ router.use(authMiddleware as any);
 // Account and summary endpoints
 router.get('/account', asyncHandler(getAccountBalance));
 router.get('/summary', asyncHandler(getFinanceSummary));
+
+// Bill and receipt AI scanner endpoint
+router.post('/scan-bill', asyncHandler(scanBill));
 
 // Mount transaction sub-routes
 router.use('/transactions', transactionRoutes);

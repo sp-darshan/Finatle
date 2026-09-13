@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { LoanItem } from './LoansSettlements';
 import { apiFetch } from '../lib/api';
@@ -27,6 +27,8 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const [status, setStatus] = useState<'PENDING' | 'PAID' | 'PARTIAL'>('PENDING');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       setDescription(loan.subtext === 'Personal loan' ? '' : (loan.subtext || ''));
       setStatus(loan.status as any || 'PENDING');
       setError('');
+      setIsConfirmingDelete(false);
     }
   }, [loan, isOpen]);
 
@@ -111,7 +114,16 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
 
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this loan/split entry?')) return;
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = setTimeout(() => {
+        setIsConfirmingDelete(false);
+      }, 4000);
+      return;
+    }
+
+    if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
     setDeleting(true);
     setError('');
 
@@ -135,6 +147,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       setError(err.message || 'Error deleting loan');
     } finally {
       setDeleting(false);
+      setIsConfirmingDelete(false);
     }
   };
 
@@ -329,8 +342,8 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
               type="button"
               style={{
                 padding: '0.75rem 1rem',
-                background: '#fee2e2',
-                color: '#dc2626',
+                background: isConfirmingDelete ? '#dc2626' : '#fee2e2',
+                color: isConfirmingDelete ? '#ffffff' : '#dc2626',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
                 fontWeight: 700,
@@ -338,12 +351,13 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
+                transition: 'all 0.2s ease',
               }}
               onClick={handleDelete}
               disabled={deleting || saving}
             >
               <TrashIcon size={16} />
-              <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+              <span>{deleting ? 'Deleting...' : isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
             </button>
 
             <button

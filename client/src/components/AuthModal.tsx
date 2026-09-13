@@ -144,6 +144,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               type="password"
               className="form-control"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

@@ -71,6 +71,12 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
             const isPartial = item.status === 'PARTIAL';
             const paid = item.paidAmount || 0;
             const remaining = Math.max(0, item.amount - paid);
+            const compactTitle = isSplit
+              ? (item.personName || item.title || 'Group Split')
+              : isLent
+              ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
+              : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
+
             return (
               <div className="loan-row" key={item.id}>
                 <div className="row-left">
@@ -85,7 +91,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
                     )}
                   </div>
                   <div className="row-info">
-                    <h4>{item.title}</h4>
+                    <h4>{compactTitle}</h4>
                     <p className="loan-description">{item.subtext}</p>
                     <div className="loan-meta">
                       <span>{isLent ? 'Lent' : 'Borrowed'}: {formatDate(item.date)}</span>
@@ -124,13 +130,12 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
                     {isSettled
                       ? '✓ Settled'
                       : isPartial
-                      ? `Part Paid (₹${paid})`
-                      : item.statusLabel ||
-                        (isLent
-                          ? 'Yet to receive'
-                          : isSplit
-                          ? "You'll get"
-                          : 'Yet to pay')}
+                      ? `Part (₹${paid})`
+                      : isLent
+                      ? 'To get'
+                      : isSplit
+                      ? 'Split'
+                      : 'To pay'}
                   </span>
 
                   {onEditLoan && (

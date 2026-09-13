@@ -10,4 +10,5 @@ export const ENV = {
   DIRECT_URL: process.env.DIRECT_URL || process.env.DATABASE_URL || '',
   JWT_SECRET: process.env.JWT_SECRET || 'fallback-secret-key-do-not-use-in-prod',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
 };

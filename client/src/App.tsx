@@ -17,14 +17,17 @@ import type { RecordKind } from './components/AddRecordModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { EditLoanModal } from './components/EditLoanModal';
 import { BillScannerModal } from './components/BillScannerModal';
+import type { ScannedBillPayload } from './components/BillScannerModal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { AuthModal } from './components/AuthModal';
 import { BudgetManager } from './components/BudgetManager';
 import type { BudgetLimit } from './components/BudgetManager';
 import { SettingsView } from './components/SettingsView';
 import { apiFetch } from './lib/api';
+import { useGreeting } from './lib/greeting';
 
 export function App() {
+  const { greeting, timeString, dateString } = useGreeting();
   // Navigation & View state
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [mobileNav, setMobileNav] = useState('home');
@@ -337,6 +340,85 @@ export function App() {
     }
   };
 
+  const handleConfirmScannedBill = async (scanned: ScannedBillPayload) => {
+    if (!token) return;
+
+    try {
+      if (scanned.mode === 'SPLIT' && scanned.splitDetails) {
+        // 1. Create personal expense transaction for user's share (if > 0)
+        if (scanned.splitDetails.userShare > 0) {
+          await apiFetch('/api/finance/transactions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              type: 'EXPENSE',
+              amount: scanned.splitDetails.userShare,
+              description: `${scanned.name} (My Share)`,
+              category: scanned.category,
+            }),
+          });
+        }
+
+        // 2. Create Lent loan records for each individual person (or group)
+        if (scanned.splitDetails.lentEntries && scanned.splitDetails.lentEntries.length > 0) {
+          await Promise.all(
+            scanned.splitDetails.lentEntries.map((entry) =>
+              apiFetch('/api/finance/lent', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  personName: entry.personName,
+                  amount: entry.amount,
+                  description: entry.description || `${scanned.name} split`,
+                  lentAt: scanned.date,
+                }),
+              })
+            )
+          );
+        } else if (scanned.splitDetails.lentAmount > 0) {
+          await apiFetch('/api/finance/lent', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              personName: scanned.splitDetails.personName,
+              amount: scanned.splitDetails.lentAmount,
+              description: scanned.splitDetails.description,
+              lentAt: scanned.date,
+            }),
+          });
+        }
+      } else {
+        // Direct EXPENSE or INCOME transaction
+        await apiFetch('/api/finance/transactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            type: scanned.mode,
+            amount: scanned.amount,
+            description: scanned.name,
+            category: scanned.category,
+          }),
+        });
+      }
+
+      await fetchUserData(token);
+    } catch (err) {
+      console.error('Failed to process scanned bill:', err);
+    }
+  };
+
   // Filter transactions according to search input
   const filteredTransactions = transactions.filter((t) => {
     if (!searchQuery.trim()) return true;
@@ -412,7 +494,7 @@ export function App() {
   const expenseCategories: CategoryExpense[] = Object.entries(categoryMap).map(([name, amount]) => ({
     name,
     amount,
-    percentage: totalExpense > 0 ? Math.round((amount / totalExpense) * 100) : 0,
+    percentage: totalExpense > 0 ? Math.round((amount / totalExpense) * 10000) / 100 : 0,
     color: '',
   }));
   const expenseSpending = Object.fromEntries(Object.entries(categoryMap));
@@ -518,28 +600,8 @@ export function App() {
         <BillScannerModal
           isOpen={isScannerOpen}
           onClose={() => setIsScannerOpen(false)}
-          onAddScannedExpense={async (scanned) => {
-            if (token) {
-              try {
-                await apiFetch('/api/finance/transactions', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                  },
-                  body: JSON.stringify({
-                    type: 'EXPENSE',
-                    amount: scanned.amount,
-                    description: scanned.name,
-                    category: scanned.category,
-                  }),
-                });
-                fetchUserData(token);
-              } catch {
-                // ignore
-              }
-            }
-          }}
+          token={token}
+          onConfirmBill={handleConfirmScannedBill}
         />
 
         <PWAInstallPrompt
@@ -578,8 +640,8 @@ export function App() {
             <>
               <div className="dashboard-header-row">
                 <div className="header-titles">
-                  <h2>Dashboard</h2>
-                  <p>Financial summary for {user?.name ? user.name : user?.email || 'your account'}</p>
+                  <h2>{greeting}, {user?.name ? user.name.split(' ')[0] : user?.email ? user.email.split('@')[0] : 'there'}!</h2>
+                  <p>{dateString} • {timeString} • Financial summary for {user?.name ? user.name : user?.email || 'your account'}</p>
                 </div>
 
 
@@ -777,28 +839,8 @@ export function App() {
       <BillScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onAddScannedExpense={async (scanned) => {
-          if (token) {
-            try {
-                await apiFetch('/api/finance/transactions', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  type: 'EXPENSE',
-                  amount: scanned.amount,
-                  description: scanned.name,
-                  category: scanned.category,
-                }),
-              });
-              fetchUserData(token);
-            } catch {
-              // ignore
-            }
-          }
-        }}
+        token={token}
+        onConfirmBill={handleConfirmScannedBill}
       />
 
       <PWAInstallPrompt
