@@ -379,12 +379,13 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
               <div className="transactions-list">
                 {topTransactions.map((t) => {
                   const isIncome = t.type === 'INCOME';
+                  const cleanName = t.name ? t.name.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : t.name;
                   return (
                     <div className="transaction-row" key={t.id}>
                       <div className="row-left">
-                        <CategoryBadge name={t.name} category={t.category} size={36} />
+                        <CategoryBadge name={cleanName} category={t.category} size={36} />
                         <div className="row-info">
-                          <h4>{t.name}</h4>
+                          <h4>{cleanName}</h4>
                           <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
                         </div>
                       </div>
@@ -468,6 +469,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                     ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
                     : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
 
+                  const cleanText = (val?: string) =>
+                    val ? val.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : '';
+                  const cleanedSubtext = cleanText(item.subtext);
+
                   return (
                     <div className="loan-row" key={item.id}>
                       <div className="row-left">
@@ -479,8 +484,8 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                           )}
                         </div>
                         <div className="row-info">
-                          <h4>{compactTitle}</h4>
-                          <p className="loan-description">{item.subtext}</p>
+                          <h4>{cleanText(compactTitle)}</h4>
+                          {cleanedSubtext && <p className="loan-description">{cleanedSubtext}</p>}
                           <div className="loan-meta">
                             <span>{isLent ? 'Lent' : 'Borrowed'}: {formatLoanDate(item.date)}</span>
                             <span>Due: {formatLoanDate(item.dueDate)}</span>
@@ -613,12 +618,13 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
             <div className="transactions-list">
               {displayedTransactions.map((t) => {
                 const isIncome = t.type === 'INCOME';
+                const cleanName = t.name ? t.name.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : t.name;
                 return (
                   <div className="transaction-row" key={t.id}>
                     <div className="row-left">
-                      <CategoryBadge name={t.name} category={t.category} size={36} />
+                      <CategoryBadge name={cleanName} category={t.category} size={36} />
                       <div className="row-info">
-                        <h4>{t.name}</h4>
+                        <h4>{cleanName}</h4>
                         <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
                       </div>
                     </div>

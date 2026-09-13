@@ -3,6 +3,7 @@ import { inMemoryUsers } from './authService';
 import { UpdateProfileDto } from '../types/auth.types';
 import { NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseOptionalAge, sanitizeString } from '../utils/parsers';
+import { cacheService } from './cacheService';
 
 export class UserService {
   /**
@@ -93,6 +94,8 @@ export class UserService {
         },
       });
 
+      await cacheService.invalidateUserFinance(userId);
+
       return {
         message: 'Profile updated successfully.',
         user: updated,
@@ -107,6 +110,8 @@ export class UserService {
       if (sanitizedName !== undefined) fallbackUser.name = sanitizedName;
       if (sanitizedPhone !== undefined) fallbackUser.phone = sanitizedPhone;
       if (parsedAge !== undefined && parsedAge !== -1) fallbackUser.age = parsedAge;
+
+      await cacheService.invalidateUserFinance(userId);
 
       return {
         message: 'Profile updated successfully.',
@@ -138,26 +143,27 @@ export class UserService {
         await tx.moneyBorrowed.deleteMany({ where: { uid: userId } });
         return tx.user.delete({
           where: { uid: userId },
-          select: { uid: true },
+          select: { uid: true, email: true },
         });
       });
 
+      await cacheService.invalidateUserFinance(userId);
+
       return {
-        success: true,
-        message: 'User and all related financial records were deleted.',
-        uid: deletedUser.uid,
+        message: 'User account and all financial records have been completely deleted.',
+        user: deletedUser,
       };
-    } catch (dbError) {
-      const userIndex = inMemoryUsers.findIndex((user) => user.uid === userId);
+    } catch (dbError: any) {
+      const userIndex = inMemoryUsers.findIndex((u) => u.uid === userId);
       if (userIndex === -1) {
         throw new NotFoundError('User Not Found');
       }
 
-      inMemoryUsers.splice(userIndex, 1);
+      const [deleted] = inMemoryUsers.splice(userIndex, 1);
+      await cacheService.invalidateUserFinance(userId);
       return {
-        success: true,
-        message: 'User and all related in-memory financial records were deleted.',
-        uid: userId,
+        message: 'User account deleted successfully.',
+        user: { uid: deleted.uid, email: deleted.email },
       };
     }
   }

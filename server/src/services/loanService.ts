@@ -4,6 +4,7 @@ import { CalculationService } from './calculationService';
 import { CreateLoanDto, UpdateLoanDto, UpdateLoanStatusDto } from '../types/finance.types';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseAmount, sanitizeString } from '../utils/parsers';
+import { cacheService } from './cacheService';
 
 export class LoanService {
   /**
@@ -56,6 +57,8 @@ export class LoanService {
       return { loan, account };
     });
 
+    await cacheService.invalidateUserFinance(userId);
+
     return result;
   }
 
@@ -107,6 +110,9 @@ export class LoanService {
         });
         return { loan, account };
       });
+
+      await cacheService.invalidateUserFinance(userId);
+
       return result;
     }
 
@@ -150,6 +156,9 @@ export class LoanService {
         });
         return { loan, account };
       });
+
+      await cacheService.invalidateUserFinance(userId);
+
       return result;
     }
 
@@ -278,6 +287,8 @@ export class LoanService {
       return { loan: updatedLoan, account };
     });
 
+    await cacheService.invalidateUserFinance(userId);
+
     return result;
   }
 
@@ -318,6 +329,8 @@ export class LoanService {
         data: { balance: { increment: new Prisma.Decimal(balanceDelta) } },
       });
     });
+
+    await cacheService.invalidateUserFinance(userId);
 
     return { message: 'Loan deleted successfully' };
   }

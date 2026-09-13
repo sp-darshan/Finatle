@@ -2,22 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LuX, LuCheck } from 'react-icons/lu';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { LoanItem } from './LoansSettlements';
-import { apiFetch } from '../lib/api';
-
 
 interface EditLoanModalProps {
   isOpen: boolean;
   onClose: () => void;
   loan: LoanItem | null;
-  token: string | null;
-  onSuccess: () => void | Promise<void>;
+  token?: string | null;
+  onSuccess: (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => void | Promise<void>;
 }
 
 export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   isOpen,
   onClose,
   loan,
-  token,
   onSuccess,
 }) => {
   const [kind, setKind] = useState<'lent' | 'borrowed'>('lent');
@@ -26,8 +23,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const [paidAmount, setPaidAmount] = useState('0');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'PENDING' | 'PAID' | 'PARTIAL'>('PENDING');
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState('');
@@ -51,56 +46,52 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const paidNum = parseFloat(paidAmount) || 0;
   const remainingNum = Math.max(0, totalNum - paidNum);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSaving(true);
 
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
       setError('Please enter a valid amount greater than 0');
-      setSaving(false);
       return;
     }
 
     if (!personName.trim()) {
       setError('Please enter the person or group name');
-      setSaving(false);
       return;
     }
 
     const numericPaid = isNaN(paidNum) ? 0 : Math.max(0, Math.min(numericAmount, paidNum));
     const computedStatus = numericPaid >= numericAmount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
 
-    try {
-      if (token) {
-        const res = await apiFetch(`/api/finance/loans/${loan.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            kind,
-            personName: personName.trim(),
-            amount: numericAmount,
-            paidAmount: numericPaid,
-            description: description.trim(),
-            status: computedStatus,
-          }),
-        });
+    const apiPayload = {
+      kind,
+      personName: personName.trim(),
+      amount: numericAmount,
+      paidAmount: numericPaid,
+      description: description.trim(),
+      status: computedStatus,
+    };
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to update loan record');
-      }
+    const optimisticData: LoanItem = {
+      ...loan,
+      kind,
+      personName: personName.trim(),
+      title: kind === 'lent' ? `You lent to ${personName.trim()}` : `You borrowed from ${personName.trim()}`,
+      subtext: description.trim() || 'Personal loan',
+      amount: numericAmount,
+      paidAmount: numericPaid,
+      status: computedStatus,
+      statusLabel: computedStatus === 'PAID' ? 'Settled' : computedStatus === 'PARTIAL' ? `Part (₹${numericPaid})` : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+    };
 
-      await onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Error updating loan record');
-    } finally {
-      setSaving(false);
-    }
+    onSuccess({
+      type: 'update',
+      data: optimisticData,
+      originalId: loan.id,
+      apiPayload,
+    });
+    onClose();
   };
 
   const handleSetPaidPreset = (fraction: number) => {
@@ -114,7 +105,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   };
 
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!isConfirmingDelete) {
       setIsConfirmingDelete(true);
       if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
@@ -125,31 +116,12 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
     }
 
     if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
-    setDeleting(true);
-    setError('');
 
-    try {
-      if (token) {
-        const res = await apiFetch(`/api/finance/loans/${loan.id}`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || 'Failed to delete loan');
-        }
-      }
-
-      await onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Error deleting loan');
-    } finally {
-      setDeleting(false);
-      setIsConfirmingDelete(false);
-    }
+    onSuccess({
+      type: 'delete',
+      originalId: loan.id,
+    });
+    onClose();
   };
 
   return (
@@ -360,19 +332,17 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                 transition: 'all 0.2s ease',
               }}
               onClick={handleDelete}
-              disabled={deleting || saving}
             >
               <TrashIcon size={16} />
-              <span>{deleting ? 'Deleting...' : isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
+              <span>{isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
             </button>
 
             <button
               type="submit"
               className="btn-submit-primary"
               style={{ flex: 1, margin: 0 }}
-              disabled={saving || deleting}
             >
-              {saving ? 'Updating...' : 'Save Changes'}
+              Save Changes
             </button>
           </div>
         </form>

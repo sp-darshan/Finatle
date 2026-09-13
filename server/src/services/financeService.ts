@@ -1,26 +1,41 @@
 import { prisma } from '../config/db';
 import { UnauthorizedError } from '../errors/AppError';
+import { cacheService } from './cacheService';
 
 export class FinanceService {
   /**
-   * Fetch complete financial summary (account, latest transactions, loans)
+   * Fetch complete financial summary (account, latest transactions, loans) with caching
    */
   static async getFinanceSummary(userId?: string) {
     if (!userId) throw new UnauthorizedError();
 
+    const cacheKey = `finance:${userId}:summary`;
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const [account, transactions, moneyLent, moneyBorrowed] = await Promise.all([
       prisma.account.findUnique({ where: { uid: userId } }),
-      prisma.transaction.findMany({ where: { uid: userId }, orderBy: { occurredAt: 'desc' }, take: 50 }),
+      prisma.transaction.findMany({ where: { uid: userId }, orderBy: { occurredAt: 'desc' }, take: 100 }),
       prisma.moneyLent.findMany({ where: { uid: userId }, orderBy: { lentAt: 'desc' } }),
       prisma.moneyBorrowed.findMany({ where: { uid: userId }, orderBy: { borrowedAt: 'desc' } }),
     ]);
 
-    return {
+    const cleanText = (text?: string | null) =>
+      text ? text.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : text;
+
+    const result = {
       account: account || { balance: 0 },
-      transactions,
-      moneyLent,
-      moneyBorrowed,
+      transactions: transactions.map((t) => ({ ...t, description: cleanText(t.description) })),
+      moneyLent: moneyLent.map((l) => ({ ...l, description: cleanText(l.description) })),
+      moneyBorrowed: moneyBorrowed.map((b) => ({ ...b, description: cleanText(b.description) })),
     };
+
+    // Store in cache with 30s TTL
+    await cacheService.set(cacheKey, result, 30 * 1000);
+
+    return result;
   }
 
   /**

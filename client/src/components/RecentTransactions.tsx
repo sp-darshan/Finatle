@@ -60,12 +60,13 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         ) : (
           transactions.map((t) => {
             const isIncome = t.type === 'INCOME';
+            const cleanName = t.name ? t.name.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : t.name;
             return (
               <div className="transaction-row" key={t.id}>
                 <div className="row-left">
-                  <CategoryBadge name={t.name} category={t.category} size={38} />
+                  <CategoryBadge name={cleanName} category={t.category} size={38} />
                   <div className="row-info">
-                    <h4>{t.name}</h4>
+                    <h4>{cleanName}</h4>
                     <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
                   </div>
                 </div>

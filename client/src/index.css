@@ -924,6 +924,9 @@ body {
   border-radius: var(--radius-lg);
   padding: 1.35rem;
   box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .card-header {
@@ -978,9 +981,21 @@ button.select-pill {
 /* Donut Chart Component */
 .donut-container {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .donut-container {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    gap: 1.75rem;
+  }
 }
 
 .donut-svg-wrap {
@@ -988,6 +1003,9 @@ button.select-pill {
   width: 170px;
   height: 170px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .donut-center-text {
@@ -1016,34 +1034,80 @@ button.select-pill {
 .donut-legend {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.5rem;
+  width: 100%;
   flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .donut-legend-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-secondary);
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  box-sizing: border-box;
+  min-width: 0;
+  gap: 0.75rem;
+  transition: background var(--transition-fast);
+}
+
+.donut-legend-item:hover {
+  background: #f1f5f9;
 }
 
 .legend-left {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+.legend-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.82rem;
 }
 
 .legend-color-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-right {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+  text-align: right;
+  margin-left: auto;
+}
+
+.legend-amount {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .legend-pct {
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-primary);
+  font-size: 0.82rem;
+  min-width: 44px;
+  text-align: right;
 }
 
 /* Bar Chart Component */

@@ -77,6 +77,10 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
               ? (item.personName ? `To ${item.personName}` : item.title.replace(/^You lent to /i, 'To '))
               : (item.personName ? `From ${item.personName}` : item.title.replace(/^You borrowed from /i, 'From '));
 
+            const cleanText = (val?: string) =>
+              val ? val.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : '';
+            const cleanedSubtext = cleanText(item.subtext);
+
             return (
               <div className="loan-row" key={item.id}>
                 <div className="row-left">
@@ -91,8 +95,8 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
                     )}
                   </div>
                   <div className="row-info">
-                    <h4>{compactTitle}</h4>
-                    <p className="loan-description">{item.subtext}</p>
+                    <h4>{cleanText(compactTitle)}</h4>
+                    {cleanedSubtext && <p className="loan-description">{cleanedSubtext}</p>}
                     <div className="loan-meta">
                       <span>{isLent ? 'Lent' : 'Borrowed'}: {formatDate(item.date)}</span>
                       <span>Due: {formatDate(item.dueDate || undefined)}</span>

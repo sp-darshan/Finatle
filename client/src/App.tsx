@@ -106,9 +106,38 @@ export function App() {
     return !localStorage.getItem('token');
   });
 
-  // Financial Data State (Strictly loaded from DB only)
-  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
-  const [loans, setLoans] = useState<LoanItem[]>([]);
+  const cleanSplitText = (text?: string | null): string => {
+    if (!text) return '';
+    return text
+      .replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '')
+      .trim();
+  };
+
+  // Financial Data State (with local cache for 0ms initial render)
+  const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const u = localStorage.getItem('user');
+      const uid = u ? JSON.parse(u).uid : 'default';
+      const cached = localStorage.getItem(`finatle_cache_tx_${uid}`);
+      const raw: TransactionItem[] = cached ? JSON.parse(cached) : [];
+      return raw.map((t) => ({ ...t, name: cleanSplitText(t.name) || t.category || 'Transaction' }));
+    } catch {
+      return [];
+    }
+  });
+  const [loans, setLoans] = useState<LoanItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const u = localStorage.getItem('user');
+      const uid = u ? JSON.parse(u).uid : 'default';
+      const cached = localStorage.getItem(`finatle_cache_loans_${uid}`);
+      const raw: LoanItem[] = cached ? JSON.parse(cached) : [];
+      return raw.map((l) => ({ ...l, title: cleanSplitText(l.title), subtext: cleanSplitText(l.subtext) }));
+    } catch {
+      return [];
+    }
+  });
   const [budgets, setBudgets] = useState<BudgetLimit[]>([]);
   const [settlementError, setSettlementError] = useState('');
   const refreshRequestRef = useRef(0);
@@ -122,26 +151,35 @@ export function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Synchronize mobileNav when currentTab changes (e.g. via deep link or desktop click)
   useEffect(() => {
-    const userId = user?.uid || (() => {
+    setMobileNav(tabToMobileNav(currentTab));
+  }, [currentTab]);
+
+  // Synchronize currentTab on popstate / hash change
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const newTab = getInitialTab();
+      setCurrentTab(newTab);
+      setMobileNav(tabToMobileNav(newTab));
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  // Load budgets from localStorage for active user
+  useEffect(() => {
+    const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
+    const saved = localStorage.getItem(storageKey) || localStorage.getItem('finatle_budgets_local');
+    if (saved) {
       try {
-        const u = localStorage.getItem('user');
-        return u ? JSON.parse(u).uid : null;
+        setBudgets(JSON.parse(saved));
       } catch {
-        return null;
-      }
-    })();
-    const storageKey = userId ? `finatle_budgets_${userId}` : 'finatle_budgets_local';
-    const savedBudgets = localStorage.getItem(storageKey) || localStorage.getItem('finatle_budgets_local');
-    if (savedBudgets) {
-      try {
-        const parsed = JSON.parse(savedBudgets);
-        if (Array.isArray(parsed)) {
-          setBudgets(parsed);
-          return;
-        }
-      } catch {
-        // ignore
+        setBudgets([]);
       }
     }
   }, [user?.uid]);
@@ -198,17 +236,20 @@ export function App() {
         const data = await summaryRes.json();
         if (refreshRequest !== refreshRequestRef.current) return;
         
+        const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+
         // Transactions strictly from DB
         if (data.transactions && Array.isArray(data.transactions)) {
           const mapped: TransactionItem[] = data.transactions.map((t: any) => ({
             id: t.tid,
-            name: t.description || t.category || 'Transaction',
+            name: cleanSplitText(t.description) || t.category || 'Transaction',
             category: t.category || 'General',
             date: new Date(t.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             amount: Number(t.amount),
             type: t.type,
           }));
           setTransactions(mapped);
+          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(mapped));
         } else {
           setTransactions([]);
         }
@@ -224,7 +265,7 @@ export function App() {
               kind: 'lent',
               personName: l.personName,
               title: `You lent to ${l.personName}`,
-              subtext: l.description || 'Personal expense',
+              subtext: cleanSplitText(l.description) || 'Personal expense',
               amount,
               paidAmount: paid,
               date: l.lentAt,
@@ -243,7 +284,7 @@ export function App() {
               kind: 'borrowed',
               personName: b.personName,
               title: `You borrowed from ${b.personName}`,
-              subtext: b.description || 'Personal loan',
+              subtext: cleanSplitText(b.description) || 'Personal loan',
               amount,
               paidAmount: paid,
               date: b.borrowedAt,
@@ -253,10 +294,13 @@ export function App() {
             });
           });
         }
-        if (refreshLoans) setLoans(mappedLoans);
+        if (refreshLoans) {
+          setLoans(mappedLoans);
+          localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(mappedLoans));
+        }
       }
     } catch {
-      // Backend unavailable or empty
+      // Backend unavailable or offline - cached state remains active
     }
   };
 
@@ -347,15 +391,300 @@ export function App() {
   };
 
 
-  const handleAddRecordSuccess = async () => {
-    if (token) {
-      await fetchUserData(token);
+  const handleAddRecordSuccess = async (payload?: { kind: string; apiPayload?: any; optimisticData?: any; splitData?: any }) => {
+    if (!payload) {
+      if (token) await fetchUserData(token);
+      return;
+    }
+
+    const { kind, apiPayload, optimisticData, splitData } = payload;
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+
+    if (kind === 'split' && splitData) {
+      const { userShareTransaction, lentEntries } = splitData;
+
+      // 1. If user has a personal share, record it as a transaction optimistically
+      if (userShareTransaction) {
+        setTransactions((prev) => {
+          const updated = [userShareTransaction.optimisticData as TransactionItem, ...prev];
+          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        if (token) {
+          apiFetch('/api/finance/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(userShareTransaction.apiPayload),
+          })
+            .then(async (res) => {
+              if (res.ok) {
+                const data = await res.json();
+                const realItem: TransactionItem = {
+                  id: data.transaction?.tid || userShareTransaction.optimisticData.id,
+                  name: data.transaction?.description || userShareTransaction.optimisticData.name,
+                  category: data.transaction?.category || userShareTransaction.optimisticData.category,
+                  date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : userShareTransaction.optimisticData.date,
+                  amount: Number(data.transaction?.amount ?? userShareTransaction.optimisticData.amount),
+                  type: data.transaction?.type || userShareTransaction.optimisticData.type,
+                };
+                setTransactions((prev) => {
+                  const updated = prev.map((t) => (t.id === userShareTransaction.optimisticData.id ? realItem : t));
+                  localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              }
+            })
+            .catch((err) => {
+              console.error('[Optimistic] Split user share transaction failed:', err);
+              setTransactions((prev) => {
+                const updated = prev.filter((t) => t.id !== userShareTransaction.optimisticData.id);
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            });
+        }
+      }
+
+      // 2. Add each individual friend lent entry optimistically to loans
+      if (lentEntries && Array.isArray(lentEntries) && lentEntries.length > 0) {
+        const optimisticLoans = lentEntries.map((e: any) => e.optimisticData as LoanItem);
+        setLoans((prev) => {
+          const updated = [...optimisticLoans, ...prev];
+          localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        if (token) {
+          lentEntries.forEach((entry: any) => {
+            apiFetch('/api/finance/lent', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify(entry.apiPayload),
+            })
+              .then(async (res) => {
+                if (res.ok) {
+                  const data = await res.json();
+                  const realId = data.lent?.lid || entry.optimisticData.id;
+                  setLoans((prev) => {
+                    const updated = prev.map((l) => (l.id === entry.optimisticData.id ? { ...l, id: realId } : l));
+                    localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                    return updated;
+                  });
+                }
+              })
+              .catch((err) => {
+                console.error('[Optimistic] Split lent creation failed:', err);
+                setLoans((prev) => {
+                  const updated = prev.filter((l) => l.id !== entry.optimisticData.id);
+                  localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              });
+          });
+        }
+      }
+      return;
+    }
+
+    if (kind === 'transaction' && optimisticData) {
+      setTransactions((prev) => {
+        const updated = [optimisticData as TransactionItem, ...prev];
+        localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token) {
+        apiFetch('/api/finance/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(apiPayload),
+        })
+          .then(async (res) => {
+            if (res.ok) {
+              const data = await res.json();
+              const realItem: TransactionItem = {
+                id: data.transaction?.tid || optimisticData.id,
+                name: data.transaction?.description || optimisticData.name,
+                category: data.transaction?.category || optimisticData.category,
+                date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : optimisticData.date,
+                amount: Number(data.transaction?.amount ?? optimisticData.amount),
+                type: data.transaction?.type || optimisticData.type,
+              };
+              setTransactions((prev) => {
+                const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            } else {
+              throw new Error('Failed to save transaction');
+            }
+          })
+          .catch((err) => {
+            console.error('[Optimistic] Transaction failed, reverting:', err);
+            setTransactions((prev) => {
+              const updated = prev.filter((t) => t.id !== optimisticData.id);
+              localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+              return updated;
+            });
+            setSettlementError('Unable to save transaction. Reverted.');
+          });
+      }
+    } else if ((kind === 'lent' || kind === 'borrowed') && optimisticData) {
+      const endpoint = kind === 'borrowed' ? '/api/finance/borrowed' : '/api/finance/lent';
+      setLoans((prev) => {
+        const updated = [optimisticData as LoanItem, ...prev];
+        localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token) {
+        apiFetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(apiPayload),
+        })
+          .then(async (res) => {
+            if (res.ok) {
+              const data = await res.json();
+              const realId = (kind === 'borrowed' ? data.borrowed?.bid : data.lent?.lid) || optimisticData.id;
+              setLoans((prev) => {
+                const updated = prev.map((l) => (l.id === optimisticData.id ? { ...l, id: realId } : l));
+                localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            } else {
+              throw new Error('Failed to save loan record');
+            }
+          })
+          .catch((err) => {
+            console.error('[Optimistic] Loan creation failed, reverting:', err);
+            setLoans((prev) => {
+              const updated = prev.filter((l) => l.id !== optimisticData.id);
+              localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+              return updated;
+            });
+            setSettlementError('Unable to save loan. Reverted.');
+          });
+      }
     }
   };
 
-  const handleTransactionSuccess = async () => {
-    if (token) {
-      await fetchUserData(token, false);
+  const handleTransactionSuccess = async (action?: { type: 'update' | 'delete'; data?: TransactionItem; originalId?: string }) => {
+    if (!action) {
+      if (token) await fetchUserData(token, false);
+      return;
+    }
+
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+    const prevTransactions = transactions;
+
+    if (action.type === 'delete' && action.originalId) {
+      setTransactions((prev) => {
+        const updated = prev.filter((t) => t.id !== action.originalId);
+        localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token) {
+        apiFetch(`/api/finance/transactions/${action.originalId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .catch((err) => {
+            console.error('[Optimistic] Delete transaction failed, reverting:', err);
+            setTransactions(prevTransactions);
+            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
+            setSettlementError('Failed to delete transaction. Reverted.');
+          });
+      }
+    } else if (action.type === 'update' && action.data && action.originalId) {
+      const updatedData = action.data;
+      setTransactions((prev) => {
+        const updated = prev.map((t) => (t.id === action.originalId ? updatedData : t));
+        localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token) {
+        apiFetch(`/api/finance/transactions/${action.originalId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: updatedData.type,
+            amount: updatedData.amount,
+            description: updatedData.name,
+            category: updatedData.category,
+          }),
+        })
+          .catch((err) => {
+            console.error('[Optimistic] Update transaction failed, reverting:', err);
+            setTransactions(prevTransactions);
+            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
+            setSettlementError('Failed to update transaction. Reverted.');
+          });
+      }
+    }
+  };
+
+  const handleLoanSuccess = async (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => {
+    if (!action) {
+      if (token) await fetchUserData(token);
+      return;
+    }
+
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+    const prevLoans = loans;
+
+    if (action.type === 'delete' && action.originalId) {
+      const targetLoan = prevLoans.find((l) => l.id === action.originalId);
+      setLoans((prev) => {
+        const updated = prev.filter((l) => l.id !== action.originalId);
+        localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token && targetLoan) {
+        const endpoint = targetLoan.kind === 'borrowed'
+          ? `/api/finance/borrowed/${action.originalId}`
+          : `/api/finance/lent/${action.originalId}`;
+
+        apiFetch(endpoint, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .catch((err) => {
+            console.error('[Optimistic] Delete loan failed, reverting:', err);
+            setLoans(prevLoans);
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
+            setSettlementError('Failed to delete loan. Reverted.');
+          });
+      }
+    } else if (action.type === 'update' && action.data && action.originalId) {
+      const updatedData = action.data;
+      setLoans((prev) => {
+        const updated = prev.map((l) => (l.id === action.originalId ? updatedData : l));
+        localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token && action.apiPayload) {
+        const endpoint = updatedData.kind === 'borrowed'
+          ? `/api/finance/borrowed/${action.originalId}`
+          : `/api/finance/lent/${action.originalId}`;
+
+        apiFetch(endpoint, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(action.apiPayload),
+        })
+          .catch((err) => {
+            console.error('[Optimistic] Update loan failed, reverting:', err);
+            setLoans(prevLoans);
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
+            setSettlementError('Failed to update loan. Reverted.');
+          });
+      }
     }
   };
 
@@ -426,7 +755,7 @@ export function App() {
             body: JSON.stringify({
               type: 'EXPENSE',
               amount: scanned.splitDetails.userShare,
-              description: `${scanned.name} (My Share)`,
+              description: scanned.name,
               category: scanned.category,
             }),
           });
@@ -664,7 +993,7 @@ export function App() {
           onClose={() => setEditingLoan(null)}
           loan={editingLoan}
           token={token}
-          onSuccess={handleAddRecordSuccess}
+          onSuccess={handleLoanSuccess}
         />
 
         <BillScannerModal
@@ -903,7 +1232,7 @@ export function App() {
         onClose={() => setEditingLoan(null)}
         loan={editingLoan}
         token={token}
-        onSuccess={handleAddRecordSuccess}
+        onSuccess={handleLoanSuccess}
       />
 
       <BillScannerModal

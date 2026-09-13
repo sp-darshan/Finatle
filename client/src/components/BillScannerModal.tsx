@@ -251,7 +251,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
               userShare: computedUserShare,
               lentAmount: computedLentAmount,
               personName: validPeople.map((p) => p.personName).join(', '),
-              description: `${merchantName.trim()} (Custom split with ${validPeople.length} friends)`,
+              description: merchantName.trim(),
               lentEntries: validPeople,
             },
           });
@@ -267,7 +267,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
               userShare: computedUserShare,
               lentAmount: computedLentAmount,
               personName: groupOrPersonName.trim() || 'Friends',
-              description: `${merchantName.trim()} (${peopleCount} people split • ₹${perPersonOwed}/person)`,
+              description: merchantName.trim(),
             },
           });
         }

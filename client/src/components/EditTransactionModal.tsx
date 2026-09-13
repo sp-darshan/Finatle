@@ -2,22 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import { LuX } from 'react-icons/lu';
 import type { TransactionItem } from './RecentTransactions';
-import { apiFetch } from '../lib/api';
 import { CategoryPicker } from './CategoryPicker';
 
 interface EditTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   transaction: TransactionItem | null;
-  token: string | null;
-  onSuccess: () => void | Promise<void>;
+  token?: string | null;
+  onSuccess: (action?: { type: 'update' | 'delete'; data?: TransactionItem; originalId?: string }) => void | Promise<void>;
 }
 
 export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   isOpen,
   onClose,
   transaction,
-  token,
   onSuccess,
 }) => {
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
@@ -25,8 +23,6 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Food & Dining');
   const [otherCategory, setOtherCategory] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,12 +49,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
   if (!isOpen || !transaction) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) {
-      setError('You must be logged in.');
-      return;
-    }
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -66,42 +58,27 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       return;
     }
 
-    setSaving(true);
-    setError(null);
+    const resolvedCategory = category === 'Other' && otherCategory.trim()
+      ? otherCategory.trim()
+      : category;
 
-    try {
-      const resolvedCategory = category === 'Other' && otherCategory.trim()
-        ? otherCategory.trim()
-        : category;
+    const updatedItem: TransactionItem = {
+      ...transaction,
+      type,
+      amount: parsedAmount,
+      name: description || (type === 'INCOME' ? 'Income' : resolvedCategory),
+      category: resolvedCategory,
+    };
 
-      const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          type,
-          amount: parsedAmount,
-          description: description || (type === 'INCOME' ? 'Income' : resolvedCategory),
-          category: resolvedCategory,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to update transaction.');
-      await onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while updating.');
-    } finally {
-      setSaving(false);
-    }
+    onSuccess({
+      type: 'update',
+      data: updatedItem,
+      originalId: transaction.id,
+    });
+    onClose();
   };
 
-  const handleDelete = async () => {
-    if (!token) return;
-
+  const handleDelete = () => {
     if (!isConfirmingDelete) {
       setIsConfirmingDelete(true);
       if (deleteTimerRef.current) {
@@ -117,27 +94,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       clearTimeout(deleteTimerRef.current);
     }
 
-    setDeleting(true);
-    setError(null);
-
-    try {
-      const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to delete transaction.');
-      await onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while deleting.');
-    } finally {
-      setDeleting(false);
-      setIsConfirmingDelete(false);
-    }
+    onSuccess({
+      type: 'delete',
+      originalId: transaction.id,
+    });
+    onClose();
   };
 
   return (
@@ -230,19 +191,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 transition: 'all 0.2s ease',
               }}
               onClick={handleDelete}
-              disabled={deleting || saving}
             >
               <TrashIcon size={16} />
-              <span>{deleting ? 'Deleting...' : isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
+              <span>{isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
             </button>
 
             <button
               type="submit"
               className="btn-submit-primary"
               style={{ flex: 1, margin: 0 }}
-              disabled={saving || deleting}
             >
-              {saving ? 'Updating...' : 'Save Changes'}
+              Save Changes
             </button>
           </div>
         </form>

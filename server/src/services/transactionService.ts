@@ -4,6 +4,7 @@ import { CalculationService } from './calculationService';
 import { CreateTransactionDto, UpdateTransactionDto } from '../types/finance.types';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseAmount, sanitizeString } from '../utils/parsers';
+import { cacheService } from './cacheService';
 
 export class TransactionService {
   /**
@@ -46,6 +47,8 @@ export class TransactionService {
       });
       return { transaction, account: updatedAccount };
     });
+
+    await cacheService.invalidateUserFinance(userId);
 
     return result;
   }
@@ -110,6 +113,8 @@ export class TransactionService {
       return { transaction, account };
     });
 
+    await cacheService.invalidateUserFinance(userId);
+
     return result;
   }
 
@@ -140,6 +145,8 @@ export class TransactionService {
         data: { balance: { increment: new Prisma.Decimal(reverseImpact) } },
       });
     });
+
+    await cacheService.invalidateUserFinance(userId);
 
     return { message: 'Transaction deleted successfully' };
   }

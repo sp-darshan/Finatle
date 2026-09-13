@@ -13,19 +13,56 @@ interface ExpenseDonutChartProps {
   categories?: CategoryExpense[];
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  'Food & Dining': '#10B981',
+export const CATEGORY_COLORS: Record<string, string> = {
+  'Food & Dining': '#10B981', // Emerald Green (160°)
   'Food': '#10B981',
-  'Shopping': '#FB923C',
-  'Rent & Housing': '#F59E0B',
-  'Housing': '#F59E0B',
-  'Travel': '#A855F7',
-  'Transport': '#A855F7',
-  'Utilities': '#06B6D4',
-  'Entertainment': '#EC4899',
-  'Salary': '#059669',
-  'General': '#94A3B8',
-  'Others': '#94A3B8',
+  'Shopping': '#F97316', // Tangerine Orange (25°) - opposite blue/green
+  'Rent & Housing': '#EC4899', // Hot Pink / Rose (330°)
+  'Housing': '#EC4899',
+  'Travel': '#8B5CF6', // Electric Purple (260°) - opposite yellow
+  'Transport': '#8B5CF6',
+  'Utilities': '#06B6D4', // Electric Cyan (190°) - opposite red
+  'Entertainment': '#EAB308', // Sun Amber (45°) - opposite purple
+  'Health & Fitness': '#14B8A6', // Teal (175°)
+  'Gym': '#14B8A6',
+  'Education': '#3B82F6', // Royal Blue (220°)
+  'Medical': '#EF4444', // Crimson Red (0°)
+  'Salary': '#059669', // Dark Mint
+  'General': '#64748B', // Cool Slate
+  'Other': '#6366F1', // Indigo
+  'Others': '#6366F1',
+};
+
+// High-contrast alternating opposite color wheel palette
+export const OPPOSITE_PALETTE = [
+  '#10B981', // Emerald Green
+  '#F97316', // Tangerine Orange
+  '#8B5CF6', // Vivid Purple
+  '#EC4899', // Hot Pink
+  '#06B6D4', // Electric Cyan
+  '#EAB308', // Sun Amber
+  '#3B82F6', // Royal Blue
+  '#EF4444', // Crimson Red
+  '#14B8A6', // Teal
+  '#D946EF', // Fuchsia
+  '#84CC16', // Lime Green
+  '#6366F1', // Indigo
+];
+
+export const getCategoryColor = (name?: string, index = 0): string => {
+  if (name) {
+    const trimmed = name.trim();
+    if (CATEGORY_COLORS[trimmed]) {
+      return CATEGORY_COLORS[trimmed];
+    }
+    const matchKey = Object.keys(CATEGORY_COLORS).find(
+      (k) => k.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (matchKey) {
+      return CATEGORY_COLORS[matchKey];
+    }
+  }
+  return OPPOSITE_PALETTE[index % OPPOSITE_PALETTE.length];
 };
 
 export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
@@ -39,6 +76,21 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
   let cumulativeOffset = 0;
 
   const hasData = totalExpense > 0 && categories.length > 0;
+
+  // Assign distinct, contrasting opposite colors to every category
+  const usedColors = new Set<string>();
+  const resolvedCategories = categories.map((cat, idx) => {
+    let color = cat.color || getCategoryColor(cat.name, idx);
+    if (usedColors.has(color)) {
+      const fallback = OPPOSITE_PALETTE.find((c) => !usedColors.has(c)) || OPPOSITE_PALETTE[idx % OPPOSITE_PALETTE.length];
+      color = fallback;
+    }
+    usedColors.add(color);
+    return {
+      ...cat,
+      resolvedColor: color,
+    };
+  });
 
   return (
     <div className="dashboard-card">
@@ -77,7 +129,7 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
                 stroke="#f1f5f9"
                 strokeWidth="22"
               />
-              {categories.map((cat, idx) => {
+              {resolvedCategories.map((cat, idx) => {
                 const rawLength = (cat.percentage / 100) * circumference;
                 const arcLength = cat.percentage > 0 ? Math.max(8, rawLength) : 0;
                 const strokeDasharray = `${arcLength} ${circumference}`;
@@ -91,11 +143,11 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
                     cy="85"
                     r={radius}
                     fill="transparent"
-                    stroke={cat.color || CATEGORY_COLORS[cat.name] || '#94A3B8'}
+                    stroke={cat.resolvedColor}
                     strokeWidth="22"
                     strokeDasharray={strokeDasharray}
                     strokeDashoffset={strokeDashoffset}
-                    strokeLinecap={categories.length === 1 ? 'round' : 'butt'}
+                    strokeLinecap={resolvedCategories.length === 1 ? 'round' : 'butt'}
                     style={{ transition: 'stroke-dasharray 0.5s ease' }}
                   />
                 );
@@ -111,18 +163,23 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = ({
 
           {/* Legend */}
           <div className="donut-legend">
-            {categories.map((item, idx) => (
+            {resolvedCategories.map((item, idx) => (
               <div className="donut-legend-item" key={idx}>
                 <div className="legend-left">
                   <span
                     className="legend-color-dot"
-                    style={{ backgroundColor: item.color || CATEGORY_COLORS[item.name] || '#94A3B8' }}
+                    style={{ backgroundColor: item.resolvedColor }}
                   ></span>
-                  <span>{item.name}</span>
+                  <span className="legend-name" title={item.name}>{item.name}</span>
                 </div>
-                <span className="legend-pct">
-                  {Number.isInteger(item.percentage) ? `${item.percentage}%` : `${item.percentage.toFixed(2)}%`}
-                </span>
+                <div className="legend-right">
+                  {item.amount > 0 && (
+                    <span className="legend-amount">₹{Math.round(item.amount).toLocaleString('en-IN')}</span>
+                  )}
+                  <span className="legend-pct">
+                    {Number.isInteger(item.percentage) ? `${item.percentage}%` : `${item.percentage.toFixed(1)}%`}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
