@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LuX, LuCheck } from 'react-icons/lu';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { LoanItem } from './LoansSettlements';
 import { apiFetch } from '../lib/api';
@@ -159,7 +160,9 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
             <PencilEditIcon size={22} />
             <h3>Edit Loan / Settlement</h3>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+            <LuX size={18} />
+          </button>
         </div>
 
         {/* Kind tabs */}
@@ -322,10 +325,13 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                   color: status === 'PAID' ? '#047857' : '#64748b',
                   borderColor: status === 'PAID' ? '#6ee7b7' : '#e2e8f0',
                   fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
                 }}
                 onClick={() => handleSetPaidPreset(1)}
               >
-                ✓ Fully Settled
+                <LuCheck size={14} /> Fully Settled
               </button>
             </div>
           </div>

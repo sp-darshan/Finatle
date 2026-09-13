@@ -8,6 +8,7 @@ import {
   UsersGroupIcon,
   ScanBillIcon,
 } from './Icons';
+import { LuArrowRight } from 'react-icons/lu';
 
 interface HeroLandingProps {
   onOpenAuth: (mode?: 'signin' | 'signup') => void;
@@ -58,7 +59,8 @@ export const HeroLanding: React.FC<HeroLandingProps> = ({
 
           <div className="hero-cta-group">
             <button className="landing-btn-primary large" onClick={() => onOpenAuth('signup')}>
-              Create Free Account →
+              <span>Create Free Account</span>
+              <LuArrowRight size={18} />
             </button>
           </div>
         </section>
@@ -113,7 +115,7 @@ export const HeroLanding: React.FC<HeroLandingProps> = ({
                 <SettlementsCardIcon size={28} />
               </div>
               <h4>Available on Web & Mobile</h4>
-              <p>Install directly as an app on your smartphone or desktop via PWA with fast offline access.</p>
+              <p>Install directly as an app on your smartphone or desktop with fast offline access.</p>
             </div>
           </div>
         </section>
@@ -122,7 +124,7 @@ export const HeroLanding: React.FC<HeroLandingProps> = ({
         <section className="cta-banner">
           <div className="cta-banner-content">
             <h2>Ready to bring clarity to your finances?</h2>
-            <p>Sign up in under 30 seconds. Powered by PostgreSQL database security.</p>
+            <p>Take control of your wealth. Track, manage, and understand your finances in one secure place.</p>
             <button className="landing-btn-primary large" onClick={() => onOpenAuth('signup')}>
               Get Started Now
             </button>

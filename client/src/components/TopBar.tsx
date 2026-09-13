@@ -65,7 +65,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             className="topbar-scan-btn"
             onClick={onOpenScanner}
-            title="Scan Receipt with AI"
+            title="Scan Receipt"
           >
             <ScanBillIcon size={16} />
             <span>Scan Bill</span>

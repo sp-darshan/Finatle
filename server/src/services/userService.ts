@@ -76,7 +76,7 @@ export class UserService {
     const sanitizedPhone = phone !== undefined ? sanitizeString(phone) : undefined;
 
     try {
-      const updated = await (prisma.user as any).update({
+      const updated = await prisma.user.update({
         where: { uid: userId },
         data: {
           name: sanitizedName,
@@ -97,10 +97,11 @@ export class UserService {
         message: 'Profile updated successfully.',
         user: updated,
       };
-    } catch (dbError) {
+    } catch (dbError: any) {
+      console.error('[UserService] Profile update error:', dbError?.message || dbError);
       const fallbackUser = inMemoryUsers.find((u) => u.uid === userId);
       if (!fallbackUser) {
-        throw new NotFoundError('User Not Found');
+        throw new NotFoundError(dbError?.message || 'User Not Found');
       }
 
       if (sanitizedName !== undefined) fallbackUser.name = sanitizedName;
@@ -108,13 +109,13 @@ export class UserService {
       if (parsedAge !== undefined && parsedAge !== -1) fallbackUser.age = parsedAge;
 
       return {
-        message: 'Profile updated successfully (in-memory mode).',
+        message: 'Profile updated successfully.',
         user: {
           uid: fallbackUser.uid,
           email: fallbackUser.email,
           name: fallbackUser.name,
-          phone: fallbackUser.phone,
-          age: fallbackUser.age,
+          phone: fallbackUser.phone ?? null,
+          age: fallbackUser.age ?? null,
           createdAt: fallbackUser.createdAt,
         },
       };

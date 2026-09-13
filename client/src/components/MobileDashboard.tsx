@@ -23,7 +23,7 @@ import {
   type BudgetLimit,
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
-import { LuReceipt } from 'react-icons/lu';
+import { LuReceipt, LuX } from 'react-icons/lu';
 import { useGreeting } from '../lib/greeting';
 
 
@@ -183,10 +183,11 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Finatle</h3>
               </div>
               <button
-                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontWeight: 700 }}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-secondary)' }}
                 onClick={() => setIsDrawerOpen(false)}
+                aria-label="Close menu"
               >
-                ✕
+                <LuX size={18} />
               </button>
             </div>
 
@@ -515,7 +516,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = ({
                           }`}
                         >
                           {isSettled
-                            ? '✓ Settled'
+                            ? 'Settled'
                             : isPartial
                             ? `Part (₹${paid})`
                             : isLent

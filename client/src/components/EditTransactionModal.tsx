@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PencilEditIcon, TrashIcon } from './Icons';
+import { LuX } from 'react-icons/lu';
 import type { TransactionItem } from './RecentTransactions';
 import { apiFetch } from '../lib/api';
 import { CategoryPicker } from './CategoryPicker';
@@ -27,97 +28,112 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [error, setError] = useState('');
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (transaction) {
       setType(transaction.type);
       setAmount(String(transaction.amount));
-      setDescription(transaction.name || '');
+      setDescription(transaction.name);
       setCategory(transaction.category || 'Food & Dining');
-      setOtherCategory(transaction.category && !['Food & Dining', 'Shopping', 'Rent & Housing', 'Travel', 'Utilities', 'Entertainment', 'Salary', 'General'].includes(transaction.category) ? transaction.category : '');
-      setError('');
+      setOtherCategory('');
+      setError(null);
       setIsConfirmingDelete(false);
     }
   }, [transaction, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!isOpen || !transaction) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSaving(true);
-
-    const numericAmount = parseFloat(amount);
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a valid amount greater than 0');
-      setSaving(false);
+    if (!token) {
+      setError('You must be logged in.');
       return;
     }
 
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError('Please enter a valid amount greater than zero.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
     try {
-      if (token) {
-        const selectedCategory = category === 'Other' ? otherCategory.trim() || 'Other' : category;
-        const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            type,
-            amount: numericAmount,
-            description: description.trim(),
-            category: selectedCategory,
-          }),
-        });
+      const resolvedCategory = category === 'Other' && otherCategory.trim()
+        ? otherCategory.trim()
+        : category;
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to update transaction');
-      }
+      const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type,
+          amount: parsedAmount,
+          description: description || (type === 'INCOME' ? 'Income' : resolvedCategory),
+          category: resolvedCategory,
+        }),
+      });
 
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to update transaction.');
       await onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Error updating transaction');
+      setError(err.message || 'An error occurred while updating.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!token) return;
+
     if (!isConfirmingDelete) {
       setIsConfirmingDelete(true);
-      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
-      deleteTimeoutRef.current = setTimeout(() => {
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current);
+      }
+      deleteTimerRef.current = setTimeout(() => {
         setIsConfirmingDelete(false);
-      }, 4000);
+      }, 3500);
       return;
     }
 
-    if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+    }
+
     setDeleting(true);
-    setError('');
+    setError(null);
 
     try {
-      if (token) {
-        const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || 'Failed to delete transaction');
-        }
-      }
+      const res = await apiFetch(`/api/finance/transactions/${transaction.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to delete transaction.');
       await onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Error deleting transaction');
+      setError(err.message || 'An error occurred while deleting.');
     } finally {
       setDeleting(false);
       setIsConfirmingDelete(false);
@@ -132,7 +148,9 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             <PencilEditIcon size={22} />
             <h3>Edit Transaction</h3>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose}>
+            <LuX size={18} />
+          </button>
         </div>
 
         {/* Type toggle */}

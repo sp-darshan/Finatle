@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   TrashIcon,
 } from './Icons';
+import { LuCircleAlert, LuInfo, LuFileSpreadsheet, LuFileJson, LuX, LuCheck } from 'react-icons/lu';
 import { apiFetch } from '../lib/api';
 import type { TransactionItem } from './RecentTransactions';
 
@@ -111,6 +112,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         }
 
         if (data.user) {
+          setName(data.user.name || '');
+          setPhone(data.user.phone || '');
+          setAge(data.user.age ? String(data.user.age) : '');
           onUpdateUser({
             ...user,
             ...data.user,
@@ -118,14 +122,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         }
       } else {
         // Guest mode fallback
-        if (user) {
-          onUpdateUser({
-            ...user,
-            name: name.trim(),
-            phone: phone.trim(),
-            age: age ? parseInt(age, 10) : null,
-          });
-        }
+        const updatedLocal = {
+          ...user,
+          name: name.trim() || null,
+          phone: phone.trim() || null,
+          age: age ? parseInt(age, 10) : null,
+        } as SettingsUser;
+        setName(updatedLocal.name || '');
+        setPhone(updatedLocal.phone || '');
+        setAge(updatedLocal.age ? String(updatedLocal.age) : '');
+        onUpdateUser(updatedLocal);
       }
 
       setProfileMessage({ text: 'Profile details saved successfully!', type: 'success' });
@@ -335,7 +341,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <p className="settings-hero-email">
               <MailIcon size={14} />
               <span>{user?.email || 'Not signed in'}</span>
-              <span className="settings-verified-badge">✓ Verified</span>
+              <span className="settings-verified-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                <LuCheck size={12} /> Verified
+              </span>
             </p>
           </div>
         </div>
@@ -416,13 +424,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </div>
               <small style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Email address is linked to your PostgreSQL account credentials and cannot be modified.
+                Email address is linked to your account credentials and cannot be modified.
               </small>
             </div>
 
             {profileMessage && (
               <div className={`settings-alert-banner ${profileMessage.type}`}>
-                {profileMessage.type === 'success' ? <CheckCircleIcon size={16} /> : '⚠️'}
+                {profileMessage.type === 'success' ? <CheckCircleIcon size={16} /> : <LuCircleAlert size={16} />}
                 <span>{profileMessage.text}</span>
               </div>
             )}
@@ -520,8 +528,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     autoFocus
                   />
                   {devOtpHint && (
-                    <div className="settings-dev-otp-badge">
-                      <span>💡 Dev OTP Code: <strong>{devOtpHint}</strong></span>
+                    <div className="settings-dev-otp-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <LuInfo size={13} />
+                      <span>Dev OTP Code: <strong>{devOtpHint}</strong></span>
                     </div>
                   )}
                 </div>
@@ -530,7 +539,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {securityMessage && (
               <div className={`settings-alert-banner ${securityMessage.type}`}>
-                {securityMessage.type === 'success' ? <CheckCircleIcon size={16} /> : '⚠️'}
+                {securityMessage.type === 'success' ? <CheckCircleIcon size={16} /> : <LuCircleAlert size={16} />}
                 <span>{securityMessage.text}</span>
               </div>
             )}
@@ -624,11 +633,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <p>Export all recorded transactions, incomes, and loan settlements in standard formats</p>
               </div>
               <div className="settings-export-actions">
-                <button type="button" className="settings-export-btn" onClick={handleExportCSV}>
-                  📄 Export CSV
+                <button type="button" className="settings-export-btn" onClick={handleExportCSV} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <LuFileSpreadsheet size={15} />
+                  <span>Export CSV</span>
                 </button>
-                <button type="button" className="settings-export-btn" onClick={handleExportJSON}>
-                  💾 Backup JSON
+                <button type="button" className="settings-export-btn" onClick={handleExportJSON} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <LuFileJson size={15} />
+                  <span>Backup JSON</span>
                 </button>
               </div>
             </div>
@@ -643,14 +654,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
             <div>
               <h3 style={{ color: '#dc2626' }}>Danger Zone</h3>
-              <p>Irreversible actions related to your account credentials and database records</p>
+              <p>Irreversible actions related to your account and stored records</p>
             </div>
           </div>
 
           <div className="settings-danger-row">
             <div>
-              <strong>Delete Account & Clear Database Data</strong>
-              <p>Permanently remove your account profile, all logged transactions, budgets, and loans from PostgreSQL.</p>
+              <strong>Delete Account & Clear All Data</strong>
+              <p>Permanently remove your account profile, all logged transactions, budgets, and loans.</p>
             </div>
             <button
               type="button"
@@ -672,7 +683,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <TrashIcon size={22} />
                 <h3 style={{ color: '#dc2626' }}>Delete Account?</h3>
               </div>
-              <button className="modal-close-btn" onClick={() => setShowDeleteModal(false)}>✕</button>
+              <button className="modal-close-btn" onClick={() => setShowDeleteModal(false)}>
+                <LuX size={18} />
+              </button>
             </div>
 
             <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0.5rem 0 1.25rem' }}>

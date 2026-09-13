@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CategoryPicker } from './CategoryPicker';
 import { CategoryBadge, TrashIcon, PencilEditIcon } from './Icons';
-import { LuTarget } from 'react-icons/lu';
+import { LuTarget, LuCircleAlert } from 'react-icons/lu';
 
 export interface BudgetLimit {
   category: string;
@@ -194,7 +194,13 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
 
                 <div className="budget-item-footer">
                   <small style={{ fontWeight: 600, color: exceeded ? '#dc2626' : 'var(--text-secondary)' }}>
-                    {exceeded ? '⚠️ Monthly limit exceeded' : `₹${Math.round(remaining).toLocaleString('en-IN')} remaining`}
+                    {exceeded ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <LuCircleAlert size={14} /> Monthly limit exceeded
+                      </span>
+                    ) : (
+                      `₹${Math.round(remaining).toLocaleString('en-IN')} remaining`
+                    )}
                   </small>
                   
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

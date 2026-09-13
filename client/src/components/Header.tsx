@@ -1,4 +1,5 @@
 import React from 'react';
+import { LuUser, LuLock, LuRefreshCw } from 'react-icons/lu';
 
 interface HeaderProps {
   serverOnline: boolean;
@@ -32,31 +33,32 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="logo-badge">Fn</div>
         <div>
           <h2>
-            Finatle <span className="gradient-text">Stack</span>
+            Finatle <span className="gradient-text">Finance</span>
           </h2>
-          <p className="title-desc">React 18 + Node.js/Express + Supabase (PostgreSQL)</p>
+          <p className="title-desc">Personal Finance & Record Management Hub</p>
         </div>
       </div>
 
       <div className="status-bar">
         <div className="badge">
           <span className={`badge-dot ${serverOnline ? 'active' : 'error'}`}></span>
-          <span>Express API: {serverOnline ? 'Online (:5000)' : 'Offline'}</span>
+          <span>Core Service: {serverOnline ? 'Online' : 'Offline'}</span>
         </div>
 
         <div className="badge">
           <span className={`badge-dot ${dbStatus?.connected ? 'active' : 'warning'}`}></span>
           <span>
-            PostgreSQL / Supabase:{' '}
+            Storage:{' '}
             {dbStatus?.connected
-              ? `Connected (${dbStatus.details?.database || 'DB'})`
-              : 'Pending Config'}
+              ? 'Connected'
+              : 'Connecting...'}
           </span>
         </div>
 
         {user ? (
-          <div className="badge" style={{ borderColor: 'rgba(139, 92, 246, 0.4)' }}>
-            <span>👤 {user.name || user.email} {user.age ? `(Age: ${user.age})` : ''}</span>
+          <div className="badge" style={{ borderColor: 'rgba(139, 92, 246, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <LuUser size={14} />
+            <span>{user.name || user.email} {user.age ? `(Age: ${user.age})` : ''}</span>
             <button
               onClick={onLogout}
               style={{
@@ -76,16 +78,19 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             className="btn btn-primary"
             onClick={onOpenAuth}
-            style={{ padding: '0.4rem 1rem', fontSize: '0.825rem' }}
+            style={{ padding: '0.4rem 1rem', fontSize: '0.825rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
           >
-            🔐 Sign In / Sign Up
+            <LuLock size={14} />
+            <span>Sign In / Sign Up</span>
           </button>
         )}
 
-        <button className="badge" onClick={onRefresh} style={{ cursor: 'pointer' }}>
-          🔄 Refresh
+        <button className="badge" onClick={onRefresh} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+          <LuRefreshCw size={13} />
+          <span>Refresh</span>
         </button>
       </div>
     </header>
   );
 };
+

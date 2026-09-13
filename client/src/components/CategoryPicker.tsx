@@ -12,6 +12,7 @@ import {
   LuDumbbell,
   LuGraduationCap,
   LuHeartPulse,
+  LuX,
 } from 'react-icons/lu';
 import { FaHouse } from 'react-icons/fa6';
 
@@ -92,7 +93,9 @@ export const CategoryPicker: React.FC<CategoryPickerProps> = ({
                 <p className="eyebrow">Organize your money</p>
                 <h3>Select a category</h3>
               </div>
-              <button type="button" className="modal-close-btn" onClick={() => setIsOpen(false)}>✕</button>
+              <button type="button" className="modal-close-btn" onClick={() => setIsOpen(false)} aria-label="Close category picker">
+                <LuX size={18} />
+              </button>
             </div>
             <div className="category-picker-grid">
               {available.map((category) => {

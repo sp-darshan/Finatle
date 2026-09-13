@@ -61,12 +61,13 @@ export class AuthService {
       const token = generateToken({ userId: newUser.uid, email: newUser.email });
 
       return {
-        message: 'User registered successfully in PostgreSQL database.',
+        message: 'User registered successfully in database.',
         token,
         user: {
           uid: newUser.uid,
           email: newUser.email,
           name: newUser.name,
+          phone: newUser.phone ?? null,
           age: newUser.age,
           account: newUser.account,
           createdAt: newUser.createdAt,
@@ -89,6 +90,7 @@ export class AuthService {
         email: normalizedEmail,
         password: hashedPassword,
         name: sanitizedName,
+        phone: null,
         age: parsedAge,
         createdAt: new Date().toISOString(),
         account: { balance: 0 },
@@ -98,12 +100,13 @@ export class AuthService {
       const token = generateToken({ userId: fallbackUser.uid, email: fallbackUser.email });
 
       return {
-        message: 'User registered successfully (in-memory fallback mode). Connect Supabase/PostgreSQL to persist permanently.',
+        message: 'User registered successfully.',
         token,
         user: {
           uid: fallbackUser.uid,
           email: fallbackUser.email,
           name: fallbackUser.name,
+          phone: fallbackUser.phone ?? null,
           age: fallbackUser.age,
           account: fallbackUser.account,
           createdAt: fallbackUser.createdAt,
@@ -149,6 +152,7 @@ export class AuthService {
           uid: user.uid,
           email: user.email,
           name: user.name,
+          phone: user.phone ?? null,
           age: user.age,
           createdAt: user.createdAt,
         },
@@ -162,7 +166,7 @@ export class AuthService {
       
       const user = inMemoryUsers.find((u) => u.email === normalizedEmail);
       if (!user) {
-        throw new UnauthorizedError('Invalid email or password (in-memory).');
+        throw new UnauthorizedError('Invalid email or password.');
       }
 
       const isMatch = await comparePassword(password, user.password);
@@ -173,12 +177,13 @@ export class AuthService {
       const token = generateToken({ userId: user.uid, email: user.email });
 
       return {
-        message: 'Signed in successfully (in-memory mode).',
+        message: 'Signed in successfully.',
         token,
         user: {
           uid: user.uid,
           email: user.email,
           name: user.name,
+          phone: user.phone ?? null,
           age: user.age,
           createdAt: user.createdAt,
         },

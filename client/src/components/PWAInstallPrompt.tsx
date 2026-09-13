@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FinatleLogo, DownloadAppIcon } from './Icons';
+import { LuCheck, LuInfo, LuX } from 'react-icons/lu';
 
 interface PWAInstallPromptProps {
   isOpen: boolean;
@@ -76,7 +77,9 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
               </p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose}>
+            <LuX size={18} />
+          </button>
         </div>
 
         <div style={{ padding: '0.5rem 0 1.25rem 0' }}>
@@ -90,7 +93,9 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
                 color: '#047857',
               }}
             >
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎉</div>
+              <div style={{ display: 'inline-flex', padding: '0.75rem', background: '#d1fae5', borderRadius: '50%', color: '#059669', marginBottom: '0.75rem' }}>
+                <LuCheck size={28} />
+              </div>
               <h4 style={{ fontWeight: 800 }}>Finatle is Installed!</h4>
               <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
                 You can launch Finatle anytime directly from your smartphone home screen.
@@ -113,10 +118,10 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
                 }}
               >
                 <li>
-                  Tap the <strong>Share</strong> button in Safari's bottom toolbar (the square with an arrow ⎋).
+                  Tap the <strong>Share</strong> button in Safari's bottom toolbar.
                 </li>
                 <li>
-                  Scroll down and tap <strong>Add to Home Screen ⊞</strong>.
+                  Scroll down and tap <strong>Add to Home Screen</strong>.
                 </li>
                 <li>
                   Tap <strong>Add</strong> in the top right corner.
@@ -130,9 +135,13 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
                   padding: '0.75rem',
                   fontSize: '0.78rem',
                   color: 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
                 }}
               >
-                💡 Once added, Finatle launches full-screen just like a native app.
+                <LuInfo size={14} />
+                <span>Once added, Finatle launches full-screen just like a native app.</span>
               </div>
             </div>
           ) : (

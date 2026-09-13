@@ -26,11 +26,49 @@ import { SettingsView } from './components/SettingsView';
 import { apiFetch } from './lib/api';
 import { useGreeting } from './lib/greeting';
 
+const VALID_TABS: TabType[] = ['dashboard', 'transactions', 'budgets', 'analytics', 'loans', 'settings'];
+
+function parseTabFromUrl(): TabType | null {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  if (VALID_TABS.includes(hash as TabType)) return hash as TabType;
+
+  const path = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
+  if (VALID_TABS.includes(path as TabType)) return path as TabType;
+
+  return null;
+}
+
+const tabToMobileNav = (tab: TabType): string => {
+  if (tab === 'dashboard') return 'home';
+  if (tab === 'analytics') return 'insights';
+  return tab;
+};
+
+const mobileNavToTab = (nav: string): TabType => {
+  if (nav === 'home') return 'dashboard';
+  if (nav === 'insights') return 'analytics';
+  if (nav === 'transactions' || nav === 'budgets' || nav === 'loans' || nav === 'settings') return nav as TabType;
+  return 'dashboard';
+};
+
+function getInitialTab(): TabType {
+  const fromUrl = parseTabFromUrl();
+  if (fromUrl) return fromUrl;
+
+  const saved = typeof window !== 'undefined' ? localStorage.getItem('finatle_active_tab') : null;
+  if (saved && VALID_TABS.includes(saved as TabType)) {
+    return saved as TabType;
+  }
+
+  return 'dashboard';
+}
+
 export function App() {
   const { greeting, timeString, dateString } = useGreeting();
-  // Navigation & View state
-  const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
-  const [mobileNav, setMobileNav] = useState('home');
+  // Navigation & View state (persisted across refresh and URL back/forward)
+  const [currentTab, setCurrentTab] = useState<TabType>(getInitialTab);
+  const [mobileNav, setMobileNav] = useState<string>(() => tabToMobileNav(getInitialTab()));
   const [isMobileScreen, setIsMobileScreen] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   );
@@ -46,10 +84,27 @@ export function App() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isPWAOpen, setIsPWAOpen] = useState(false);
 
-  // Authentication State
-  const [user, setUser] = useState<{ uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [loadingUser, setLoadingUser] = useState<boolean>(true);
+  // Authentication State (initialized synchronously from localStorage to prevent flash on reload)
+  const [user, setUser] = useState<{ uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = localStorage.getItem('user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('token');
+  });
+  const [loadingUser, setLoadingUser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return !localStorage.getItem('token');
+  });
 
   // Financial Data State (Strictly loaded from DB only)
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
@@ -94,41 +149,39 @@ export function App() {
   // Restore and verify the stored session with the backend.
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-
     if (!savedToken) {
       setLoadingUser(false);
       return;
     }
 
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setToken(savedToken);
-      } catch {
-        // ignore
-      }
-    }
+    // Immediately trigger financial data fetch for cached session
+    fetchUserData(savedToken);
 
     apiFetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${savedToken}` },
     })
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error('Invalid token');
-      })
-      .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          fetchUserData(savedToken);
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
+          return;
+        }
+
+        // ONLY log out if backend explicitly rejects token as 401 or 403
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('finatle_active_tab');
+          setUser(null);
+          setToken(null);
         }
       })
-      .catch(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-        setToken(null);
+      .catch((err) => {
+        // Network errors or aborted requests during rapid reloads should NOT wipe cached session
+        console.warn('[Session] Background session verification notice:', err);
       })
       .finally(() => {
         setLoadingUser(false);
@@ -177,7 +230,7 @@ export function App() {
               date: l.lentAt,
               dueDate: l.dueAt,
               status: l.status,
-              statusLabel: l.status === 'PAID' ? '✓ Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
+              statusLabel: l.status === 'PAID' ? 'Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
             });
           });
         }
@@ -196,7 +249,7 @@ export function App() {
               date: b.borrowedAt,
               dueDate: b.dueAt,
               status: b.status,
-              statusLabel: b.status === 'PAID' ? '✓ Settled' : b.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to pay',
+              statusLabel: b.status === 'PAID' ? 'Settled' : b.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to pay',
             });
           });
         }
@@ -215,18 +268,31 @@ export function App() {
     fetchUserData(authToken);
   };
 
-  const tabToMobileNav = (tab: TabType): string => {
-    if (tab === 'dashboard') return 'home';
-    if (tab === 'analytics') return 'insights';
-    return tab;
-  };
+  // Keep URL hash and localStorage in sync with active tab
+  useEffect(() => {
+    localStorage.setItem('finatle_active_tab', currentTab);
+    const expectedHash = `#/${currentTab}`;
+    if (window.location.hash !== expectedHash) {
+      window.history.replaceState(null, '', expectedHash);
+    }
+  }, [currentTab]);
 
-  const mobileNavToTab = (nav: string): TabType => {
-    if (nav === 'home') return 'dashboard';
-    if (nav === 'insights') return 'analytics';
-    if (nav === 'transactions' || nav === 'budgets' || nav === 'loans' || nav === 'settings') return nav as TabType;
-    return 'dashboard';
-  };
+  // Listen for browser back / forward buttons
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const tab = parseTabFromUrl();
+      if (tab && tab !== currentTab) {
+        setCurrentTab(tab);
+        setMobileNav(tabToMobileNav(tab));
+      }
+    };
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, [currentTab]);
 
   const handleSelectTab = (tab: TabType) => {
     setCurrentTab(tab);
@@ -246,6 +312,7 @@ export function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('finatle_active_tab');
     setUser(null);
     setToken(null);
     setTransactions([]);
@@ -253,6 +320,9 @@ export function App() {
     setBudgets([]);
     setCurrentTab('dashboard');
     setMobileNav('home');
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
   };
 
   const saveBudget = (budget: BudgetLimit) => {
@@ -304,7 +374,7 @@ export function App() {
             ...item,
             status: nextStatus,
             paidAmount: isCurrentlyPaid ? 0 : item.amount,
-            statusLabel: nextStatus === 'PAID' ? '✓ Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+            statusLabel: nextStatus === 'PAID' ? 'Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
           }
         : item)
     );
@@ -331,7 +401,7 @@ export function App() {
                 ...item,
                 status: currentStatus,
                 paidAmount: currentStatus === 'PAID' ? item.amount : 0,
-                statusLabel: currentStatus === 'PAID' ? '✓ Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+                statusLabel: currentStatus === 'PAID' ? 'Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
               }
             : item)
         );

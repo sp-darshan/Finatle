@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FinatleLogo } from './Icons';
+import { LuX } from 'react-icons/lu';
 import { apiFetch } from '../lib/api';
 
 interface AuthModalProps {
@@ -78,7 +79,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose}>
+            <LuX size={18} />
+          </button>
         </div>
 
         {error && (

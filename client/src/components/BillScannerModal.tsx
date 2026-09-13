@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ScanBillIcon, CategoryBadge, UsersGroupIcon, MinusIcon, PlusIcon } from './Icons';
-import { LuUpload, LuCamera, LuCheck, LuPlus, LuTrash2, LuUser } from 'react-icons/lu';
+import { LuUpload, LuCamera, LuCheck, LuPlus, LuTrash2, LuUser, LuX, LuUsers, LuPenLine } from 'react-icons/lu';
 import { CategoryPicker } from './CategoryPicker';
 import { apiFetch } from '../lib/api';
 
@@ -124,13 +124,13 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     ]);
   };
 
-  // Scan via Uploaded Image / Camera Photo using Google Gemini LLM Vision
+  // Scan via Uploaded Image / Camera Photo
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setScanning(true);
-    setScanStatus('AI analyzing receipt with vision...');
+    setScanStatus('Analyzing receipt...');
     setError(null);
 
     const reader = new FileReader();
@@ -157,7 +157,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
         const json = await res.json();
 
         if (!res.ok) {
-          throw new Error(json.message || json.error || 'Gemini extraction failed.');
+          throw new Error(json.message || json.error || 'Receipt extraction failed.');
         }
 
         const resultData = json.data || json;
@@ -288,6 +288,8 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
@@ -295,13 +297,15 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <ScanBillIcon size={24} />
             <div>
-              <h3>AI Bill & Receipt Scanner</h3>
+              <h3>Bill & Receipt Scanner</h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Powered by AI Multimodal Vision
+                Smart receipt extraction & instant record creation
               </p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+            <LuX size={18} />
+          </button>
         </div>
 
         {error && (
@@ -352,11 +356,11 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   <LuUpload size={36} />
                 </div>
                 <h4 style={{ color: '#065f46', fontWeight: 800, fontSize: '1.1rem' }}>
-                  {scanning ? (scanStatus || 'AI Processing Image...') : 'Upload Receipt or Take Photo'}
+                  {scanning ? (scanStatus || 'Processing Image...') : 'Upload Receipt or Take Photo'}
                 </h4>
                 <p style={{ fontSize: '0.8rem', color: '#047857', marginTop: '0.35rem' }}>
                   {scanning
-                    ? 'AI is extracting merchant, line items, taxes & total amount'
+                    ? 'Extracting merchant, line items, taxes & total amount'
                     : 'Works with restaurant bills, supermarket receipts, fuel & invoices'}
                 </p>
 
@@ -394,8 +398,8 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                     <CategoryBadge name={merchantName} category={category} size={40} />
                     <div>
-                      <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        ✓ AI Extracted
+                      <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <LuCheck size={13} /> Extracted Details
                       </div>
                       <h4 style={{ fontSize: '1.05rem', fontWeight: 800 }}>{merchantName || 'Store Bill'}</h4>
                     </div>
@@ -535,7 +539,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                         }}
                         onClick={() => setSplitType('EQUAL')}
                       >
-                        👥 Equal Split (Ate Together)
+                        <LuUsers size={14} style={{ display: 'inline', marginRight: '0.35rem' }} /> Equal Split (Ate Together)
                       </button>
                       <button
                         type="button"
@@ -551,7 +555,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                         }}
                         onClick={() => setSplitType('CUSTOM')}
                       >
-                        ✏️ Custom Lent Amount
+                        <LuPenLine size={14} style={{ display: 'inline', marginRight: '0.35rem' }} /> Custom Lent Amount
                       </button>
                     </div>
 

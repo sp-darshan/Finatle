@@ -128,7 +128,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = ({
                     }`}
                   >
                     {isSettled
-                      ? '✓ Settled'
+                      ? 'Settled'
                       : isPartial
                       ? `Part (₹${paid})`
                       : isLent

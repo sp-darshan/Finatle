@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { CategoryPicker } from './CategoryPicker';
+import { LuX } from 'react-icons/lu';
 
 export type RecordKind = 'expense' | 'income' | 'lent' | 'borrowed' | 'split';
 
@@ -152,7 +153,9 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Add New Record</h3>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose}>
+            <LuX size={18} />
+          </button>
         </div>
 
         {/* Tab switcher */}
