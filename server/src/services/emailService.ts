@@ -79,9 +79,12 @@ class EmailService {
     if (user && pass && user !== 'your-email@gmail.com' && !user.includes('example.com')) {
       const isGmail = host.includes('gmail.com') || user.endsWith('@gmail.com');
       this.transporter = nodemailer.createTransport(
-        isGmail
+        (isGmail
           ? {
-              service: 'gmail',
+              host: 'smtp.gmail.com',
+              port: 465,
+              secure: true,
+              family: 4, // Force IPv4 to prevent cloud container IPv6 ENETUNREACH
               auth: { user, pass },
               connectionTimeout: 10000,
               greetingTimeout: 10000,
@@ -91,14 +94,15 @@ class EmailService {
               host,
               port,
               secure: port === 465,
+              family: 4, // Force IPv4
               auth: { user, pass },
               connectionTimeout: 10000,
               greetingTimeout: 10000,
               socketTimeout: 15000,
-            }
+            }) as any
       );
       this.isConfigured = true;
-      console.log(`[EmailService] Configured SMTP Transport via ${isGmail ? 'Gmail Service (Port 465 SSL)' : `${host}:${port}`} (${user})`);
+      console.log(`[EmailService] Configured SMTP Transport via ${isGmail ? 'Gmail Service (Port 465 SSL IPv4)' : `${host}:${port}`} (${user})`);
     } else {
       this.isConfigured = false;
       this.transporter = null;
@@ -137,7 +141,7 @@ class EmailService {
     };
   }
 
-  private async sendViaHttpsApi(to: string, subject: string, html: string): Promise<string | null> {
+  private async sendViaHttpsApi(to: string, subject: string, html: string): Promise<{ mode: string; error?: string } | null> {
     const resendKey = process.env.RESEND_API_KEY?.trim();
     if (resendKey) {
       try {
@@ -157,13 +161,15 @@ class EmailService {
         });
         if (res.ok) {
           console.log(`[EmailService] Dispatched email to ${to} via Resend HTTPS API`);
-          return 'resend';
+          return { mode: 'resend' };
         } else {
-          const errData = await res.json().catch(() => ({}));
+          const errData = await res.json().catch(() => ({})) as any;
           console.error('[EmailService] Resend API error:', errData);
+          return { mode: 'failed', error: `Resend: ${errData?.message || JSON.stringify(errData)}` };
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('[EmailService] Resend network error:', e);
+        return { mode: 'failed', error: `Resend Network: ${e?.message || String(e)}` };
       }
     }
 
@@ -188,7 +194,7 @@ class EmailService {
         });
         if (res.ok) {
           console.log(`[EmailService] Dispatched email to ${to} via Brevo HTTPS API`);
-          return 'brevo';
+          return { mode: 'brevo' };
         }
       } catch (e) {
         console.error('[EmailService] Brevo network error:', e);
@@ -259,13 +265,13 @@ class EmailService {
 `;
 
     // 1. First attempt HTTPS API (Resend / Brevo) if configured
-    const httpsMode = await this.sendViaHttpsApi(toEmail, subject, htmlContent);
-    if (httpsMode) {
-      return { success: true, mode: httpsMode };
+    const httpsRes = await this.sendViaHttpsApi(toEmail, subject, htmlContent);
+    if (httpsRes?.mode && httpsRes.mode !== 'failed') {
+      return { success: true, mode: httpsRes.mode };
     }
 
     // 2. Attempt SMTP Transporter
-    let smtpError: string | null = null;
+    let smtpError: string | null = httpsRes?.error || null;
     if (this.isConfigured && this.transporter) {
       try {
         const sender = process.env.SMTP_FROM || `"Finatle Reminders" <${process.env.SMTP_USER}>`;
@@ -278,7 +284,7 @@ class EmailService {
         console.log(`[EmailService] Reminder sent to ${toEmail} for ${formattedAmount}`);
         return { success: true, mode: 'smtp' };
       } catch (err: any) {
-        smtpError = err?.message || String(err);
+        smtpError = (smtpError ? `${smtpError} | ` : '') + (err?.message || String(err));
         console.error(`[EmailService] Failed to send email via SMTP to ${toEmail}:`, err);
       }
     }
