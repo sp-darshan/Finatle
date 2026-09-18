@@ -127,13 +127,75 @@ class EmailService {
     }
 
     return {
-      isConfigured: this.isConfigured,
+      isConfigured: this.isConfigured || !!process.env.RESEND_API_KEY || !!process.env.BREVO_API_KEY,
+      provider: process.env.RESEND_API_KEY ? 'resend (https)' : process.env.BREVO_API_KEY ? 'brevo (https)' : 'smtp',
       smtpUser: process.env.SMTP_USER ? `${process.env.SMTP_USER.slice(0, 3)}***@${process.env.SMTP_USER.split('@')[1] || ''}` : '(empty)',
       smtpPassLength: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '').length : 0,
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
-      smtpPort: Number(process.env.SMTP_PORT) || 587,
+      smtpPort: Number(process.env.SMTP_PORT) || 465,
       checkedFiles,
     };
+  }
+
+  private async sendViaHttpsApi(to: string, subject: string, html: string): Promise<string | null> {
+    const resendKey = process.env.RESEND_API_KEY?.trim();
+    if (resendKey) {
+      try {
+        const from = process.env.RESEND_FROM || 'Finatle Reminders <onboarding@resend.dev>';
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from,
+            to: [to],
+            subject,
+            html,
+          }),
+        });
+        if (res.ok) {
+          console.log(`[EmailService] Dispatched email to ${to} via Resend HTTPS API`);
+          return 'resend';
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.error('[EmailService] Resend API error:', errData);
+        }
+      } catch (e) {
+        console.error('[EmailService] Resend network error:', e);
+      }
+    }
+
+    const brevoKey = process.env.BREVO_API_KEY?.trim();
+    if (brevoKey) {
+      try {
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': brevoKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: {
+              name: 'Finatle Reminders',
+              email: process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'no-reply@finatle.app',
+            },
+            to: [{ email: to }],
+            subject,
+            htmlContent: html,
+          }),
+        });
+        if (res.ok) {
+          console.log(`[EmailService] Dispatched email to ${to} via Brevo HTTPS API`);
+          return 'brevo';
+        }
+      } catch (e) {
+        console.error('[EmailService] Brevo network error:', e);
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -196,6 +258,13 @@ class EmailService {
 </html>
 `;
 
+    // 1. First attempt HTTPS API (Resend / Brevo) if configured
+    const httpsMode = await this.sendViaHttpsApi(toEmail, subject, htmlContent);
+    if (httpsMode) {
+      return { success: true, mode: httpsMode };
+    }
+
+    // 2. Attempt SMTP Transporter
     let smtpError: string | null = null;
     if (this.isConfigured && this.transporter) {
       try {
@@ -266,6 +335,11 @@ class EmailService {
 </html>
 `;
 
+    // 1. Attempt HTTPS API
+    const httpsSent = await this.sendViaHttpsApi(lenderEmail, subject, htmlContent);
+    if (httpsSent) return { success: true, mode: httpsSent };
+
+    // 2. Attempt SMTP
     if (this.isConfigured && this.transporter) {
       try {
         await this.transporter.sendMail({
@@ -274,7 +348,7 @@ class EmailService {
           subject,
           html: htmlContent,
         });
-        return { success: true };
+        return { success: true, mode: 'smtp' };
       } catch (err) {
         console.error(`[EmailService] Failed to notify lender ${lenderEmail}:`, err);
       }
@@ -327,6 +401,11 @@ class EmailService {
 </html>
 `;
 
+    // 1. Attempt HTTPS API
+    const httpsSent = await this.sendViaHttpsApi(toEmail, subject, htmlContent);
+    if (httpsSent) return { success: true, mode: httpsSent };
+
+    // 2. Attempt SMTP
     if (this.isConfigured && this.transporter) {
       try {
         await this.transporter.sendMail({
@@ -335,7 +414,7 @@ class EmailService {
           subject,
           html: htmlContent,
         });
-        return { success: true };
+        return { success: true, mode: 'smtp' };
       } catch (err) {
         console.error(`[EmailService] Failed to send dispute notice to ${toEmail}:`, err);
       }
