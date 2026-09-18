@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CategoryPicker } from './CategoryPicker';
-import { LuX, LuUsers, LuPenLine, LuPlus, LuTrash2, LuUser } from 'react-icons/lu';
+import { LuX, LuUsers, LuPenLine, LuPlus, LuMinus, LuTrash2, LuUser } from 'react-icons/lu';
 
 export type RecordKind = 'expense' | 'income' | 'lent' | 'borrowed' | 'split';
 
@@ -55,10 +55,41 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
       setOtherCategory('');
       setPersonName('');
       setDueAt('');
+      setSplitPeopleCount('4');
+      setEqualFriendNames(['', '', '']);
     }
   }
 
   if (!isOpen) return null;
+
+  const count = Math.max(2, parseInt(splitPeopleCount) || 4);
+
+  const handleSetEqualPeopleCount = (newCount: number) => {
+    const validCount = Math.max(2, Math.min(100, newCount));
+    setSplitPeopleCount(String(validCount));
+    setEqualFriendNames((prev) => {
+      const friendsNeeded = validCount - 1;
+      const next = [...prev];
+      if (next.length < friendsNeeded) {
+        while (next.length < friendsNeeded) {
+          next.push('');
+        }
+      } else if (next.length > friendsNeeded) {
+        return next.slice(0, friendsNeeded);
+      }
+      return next;
+    });
+  };
+
+  const handleAddEqualFriend = () => {
+    handleSetEqualPeopleCount(count + 1);
+  };
+
+  const handleRemoveEqualFriend = (index: number) => {
+    if (count <= 2) return;
+    setEqualFriendNames((prev) => prev.filter((_, i) => i !== index));
+    setSplitPeopleCount(String(count - 1));
+  };
 
   const handleAddCustomPerson = () => {
     setCustomPeople((prev) => [
@@ -90,7 +121,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
   };
 
   const numericAmount = parseFloat(amount) || 0;
-  const count = Math.max(2, parseInt(splitPeopleCount) || 4);
   const equalPerPerson = numericAmount > 0 ? Math.round((numericAmount / count) * 100) / 100 : 0;
   const equalTotalLent = numericAmount > 0 ? Math.round(equalPerPerson * (count - 1) * 100) / 100 : 0;
   const equalUserShare = Math.max(0, Math.round((numericAmount - equalTotalLent) * 100) / 100);
@@ -489,25 +519,96 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               {splitType === 'EQUAL' ? (
                 <>
                   <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46' }}>
-                      Total People Sharing (Including You)
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
-                      {[2, 3, 4, 5, 6].map((num) => (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
+                        Total People Sharing (Including You):
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleSetEqualPeopleCount(count - 1)}
+                          disabled={count <= 2}
+                          style={{
+                            background: count <= 2 ? '#f1f5f9' : '#e0f2fe',
+                            border: '1px solid #bae6fd',
+                            color: count <= 2 ? '#94a3b8' : '#0369a1',
+                            borderRadius: 'var(--radius-sm)',
+                            width: '24px',
+                            height: '24px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: count <= 2 ? 'not-allowed' : 'pointer',
+                          }}
+                          title="Decrease people"
+                        >
+                          <LuMinus size={12} />
+                        </button>
+                        <input
+                          type="number"
+                          min="2"
+                          max="100"
+                          value={splitPeopleCount}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val)) {
+                              handleSetEqualPeopleCount(val);
+                            } else {
+                              setSplitPeopleCount(e.target.value);
+                            }
+                          }}
+                          style={{
+                            width: '44px',
+                            textAlign: 'center',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            padding: '0.2rem 0.2rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid #6ee7b7',
+                            color: '#065f46',
+                            background: '#ffffff',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSetEqualPeopleCount(count + 1)}
+                          style={{
+                            background: '#dcfce7',
+                            border: '1px solid #86efac',
+                            color: '#15803d',
+                            borderRadius: 'var(--radius-sm)',
+                            width: '24px',
+                            height: '24px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="Add person"
+                        >
+                          <LuPlus size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Preset Pills */}
+                    <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
+                      {[2, 3, 4, 5, 6, 8, 10, 12].map((num) => (
                         <button
                           key={num}
                           type="button"
                           className="select-pill"
                           style={{
-                            flex: 1,
+                            minWidth: '32px',
                             justifyContent: 'center',
-                            fontSize: '0.8rem',
-                            background: parseInt(splitPeopleCount) === num ? '#047857' : '#ffffff',
-                            color: parseInt(splitPeopleCount) === num ? '#ffffff' : '#065f46',
-                            borderColor: parseInt(splitPeopleCount) === num ? '#047857' : '#6ee7b7',
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.5rem',
+                            background: count === num ? '#047857' : '#ffffff',
+                            color: count === num ? '#ffffff' : '#065f46',
+                            borderColor: count === num ? '#047857' : '#6ee7b7',
                             fontWeight: 700,
                           }}
-                          onClick={() => setSplitPeopleCount(String(num))}
+                          onClick={() => handleSetEqualPeopleCount(num)}
                         >
                           {num}
                         </button>
@@ -517,12 +618,45 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
 
                   {/* Individual names for equal split */}
                   <div style={{ marginBottom: '0.85rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', display: 'block', marginBottom: '0.4rem' }}>
-                      Friends' Names:
-                    </label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '160px', overflowY: 'auto', paddingRight: '0.2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
+                        Friends' Names ({equalFriendNames.length} {equalFriendNames.length === 1 ? 'Friend' : 'Friends'}):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddEqualFriend}
+                        style={{
+                          background: '#dcfce7',
+                          border: '1px solid #86efac',
+                          color: '#15803d',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        <LuPlus size={13} /> Add Friend
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '190px', overflowY: 'auto', paddingRight: '0.2rem' }}>
                       {equalFriendNames.map((name, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', background: '#ffffff', padding: '0.45rem 0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid #cbd5e1' }}>
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            background: '#ffffff',
+                            padding: '0.45rem 0.55rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid #cbd5e1',
+                          }}
+                        >
                           <LuUser size={14} style={{ color: '#64748b' }} />
                           <input
                             type="text"
@@ -532,9 +666,31 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                             value={name}
                             onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
                           />
-                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>
                             ₹{equalPerPerson.toLocaleString('en-IN')}
                           </span>
+                          {count > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEqualFriend(idx)}
+                              style={{
+                                background: '#fee2e2',
+                                border: 'none',
+                                color: '#dc2626',
+                                borderRadius: 'var(--radius-sm)',
+                                width: '24px',
+                                height: '24px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                              title={`Remove Friend ${idx + 1}`}
+                            >
+                              <LuTrash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
