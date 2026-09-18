@@ -1,3 +1,10 @@
+import dns from 'dns';
+
+// Enforce IPv4 DNS resolution on cloud hosting (avoids IPv6 ENETUNREACH)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 import { app } from './app';
 import { ENV } from './config/env';
 import { checkDatabaseConnection } from './config/db';

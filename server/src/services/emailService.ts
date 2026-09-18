@@ -1,7 +1,13 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import dns from 'dns';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+
+// Enforce IPv4 DNS resolution
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 interface SendDueReminderOptions {
   toEmail: string;
