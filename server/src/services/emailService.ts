@@ -38,6 +38,16 @@ interface SendDisputeNoticeOptions {
   appUrl?: string;
 }
 
+const ipv4Lookup = (
+  hostname: string,
+  _options: any,
+  callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+) => {
+  dns.lookup(hostname, { family: 4 }, (err, address, family) => {
+    callback(err, address, family || 4);
+  });
+};
+
 class EmailService {
   private transporter: Transporter | null = null;
   private isConfigured: boolean = false;
@@ -74,35 +84,21 @@ class EmailService {
     const user = process.env.SMTP_USER?.trim();
     const pass = process.env.SMTP_PASS?.replace(/\s+/g, '').trim();
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const port = Number(process.env.SMTP_PORT) || 587;
+    const port = Number(process.env.SMTP_PORT) || 465;
 
     if (user && pass && user !== 'your-email@gmail.com' && !user.includes('example.com')) {
-      const isGmail = host.includes('gmail.com') || user.endsWith('@gmail.com');
-      this.transporter = nodemailer.createTransport(
-        (isGmail
-          ? {
-              host: 'smtp.gmail.com',
-              port: 465,
-              secure: true,
-              family: 4, // Force IPv4 to prevent cloud container IPv6 ENETUNREACH
-              auth: { user, pass },
-              connectionTimeout: 10000,
-              greetingTimeout: 10000,
-              socketTimeout: 15000,
-            }
-          : {
-              host,
-              port,
-              secure: port === 465,
-              family: 4, // Force IPv4
-              auth: { user, pass },
-              connectionTimeout: 10000,
-              greetingTimeout: 10000,
-              socketTimeout: 15000,
-            }) as any
-      );
+      this.transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+        lookup: ipv4Lookup, // Strictly force IPv4 resolution to prevent cloud container ENETUNREACH
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      } as any);
       this.isConfigured = true;
-      console.log(`[EmailService] Configured SMTP Transport via ${isGmail ? 'Gmail Service (Port 465 SSL IPv4)' : `${host}:${port}`} (${user})`);
+      console.log(`[EmailService] Configured SMTP Transport via ${host}:${port} (${user}) [IPv4 Forced]`);
     } else {
       this.isConfigured = false;
       this.transporter = null;
@@ -131,77 +127,13 @@ class EmailService {
     }
 
     return {
-      isConfigured: this.isConfigured || !!process.env.RESEND_API_KEY || !!process.env.BREVO_API_KEY,
-      provider: process.env.RESEND_API_KEY ? 'resend (https)' : process.env.BREVO_API_KEY ? 'brevo (https)' : 'smtp',
+      isConfigured: this.isConfigured,
       smtpUser: process.env.SMTP_USER ? `${process.env.SMTP_USER.slice(0, 3)}***@${process.env.SMTP_USER.split('@')[1] || ''}` : '(empty)',
       smtpPassLength: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '').length : 0,
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: Number(process.env.SMTP_PORT) || 465,
       checkedFiles,
     };
-  }
-
-  private async sendViaHttpsApi(to: string, subject: string, html: string): Promise<{ mode: string; error?: string } | null> {
-    const resendKey = process.env.RESEND_API_KEY?.trim();
-    if (resendKey) {
-      try {
-        const from = process.env.RESEND_FROM || 'Finatle Reminders <onboarding@resend.dev>';
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${resendKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from,
-            to: [to],
-            subject,
-            html,
-          }),
-        });
-        if (res.ok) {
-          console.log(`[EmailService] Dispatched email to ${to} via Resend HTTPS API`);
-          return { mode: 'resend' };
-        } else {
-          const errData = await res.json().catch(() => ({})) as any;
-          console.error('[EmailService] Resend API error:', errData);
-          return { mode: 'failed', error: `Resend: ${errData?.message || JSON.stringify(errData)}` };
-        }
-      } catch (e: any) {
-        console.error('[EmailService] Resend network error:', e);
-        return { mode: 'failed', error: `Resend Network: ${e?.message || String(e)}` };
-      }
-    }
-
-    const brevoKey = process.env.BREVO_API_KEY?.trim();
-    if (brevoKey) {
-      try {
-        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'api-key': brevoKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: {
-              name: 'Finatle Reminders',
-              email: process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'no-reply@finatle.app',
-            },
-            to: [{ email: to }],
-            subject,
-            htmlContent: html,
-          }),
-        });
-        if (res.ok) {
-          console.log(`[EmailService] Dispatched email to ${to} via Brevo HTTPS API`);
-          return { mode: 'brevo' };
-        }
-      } catch (e) {
-        console.error('[EmailService] Brevo network error:', e);
-      }
-    }
-
-    return null;
   }
 
   /**
@@ -264,14 +196,7 @@ class EmailService {
 </html>
 `;
 
-    // 1. First attempt HTTPS API (Resend / Brevo) if configured
-    const httpsRes = await this.sendViaHttpsApi(toEmail, subject, htmlContent);
-    if (httpsRes?.mode && httpsRes.mode !== 'failed') {
-      return { success: true, mode: httpsRes.mode };
-    }
-
-    // 2. Attempt SMTP Transporter
-    let smtpError: string | null = httpsRes?.error || null;
+    let smtpError: string | null = null;
     if (this.isConfigured && this.transporter) {
       try {
         const sender = process.env.SMTP_FROM || `"Finatle Reminders" <${process.env.SMTP_USER}>`;
@@ -284,7 +209,7 @@ class EmailService {
         console.log(`[EmailService] Reminder sent to ${toEmail} for ${formattedAmount}`);
         return { success: true, mode: 'smtp' };
       } catch (err: any) {
-        smtpError = (smtpError ? `${smtpError} | ` : '') + (err?.message || String(err));
+        smtpError = err?.message || String(err);
         console.error(`[EmailService] Failed to send email via SMTP to ${toEmail}:`, err);
       }
     }
@@ -341,11 +266,6 @@ class EmailService {
 </html>
 `;
 
-    // 1. Attempt HTTPS API
-    const httpsSent = await this.sendViaHttpsApi(lenderEmail, subject, htmlContent);
-    if (httpsSent) return { success: true, mode: httpsSent };
-
-    // 2. Attempt SMTP
     if (this.isConfigured && this.transporter) {
       try {
         await this.transporter.sendMail({
@@ -407,11 +327,6 @@ class EmailService {
 </html>
 `;
 
-    // 1. Attempt HTTPS API
-    const httpsSent = await this.sendViaHttpsApi(toEmail, subject, htmlContent);
-    if (httpsSent) return { success: true, mode: httpsSent };
-
-    // 2. Attempt SMTP
     if (this.isConfigured && this.transporter) {
       try {
         await this.transporter.sendMail({
