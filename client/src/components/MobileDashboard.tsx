@@ -527,7 +527,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                     <div
                       className="loan-row"
                       key={item.id}
-                      style={isClaimed ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
                     >
                       <div className="row-left">
                         <div className={`loan-avatar ${item.kind}`}>
@@ -961,7 +960,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                   <div
                     className="loan-row"
                     key={item.id}
-                    style={isClaimed ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
                   >
                     <div className="row-left">
                       <div className={`loan-avatar ${item.kind}`}>

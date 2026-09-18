@@ -477,8 +477,6 @@ export function App() {
                       statusLabel: data.loan.status === 'PAID' ? 'Settled' : 'Yet to receive',
                       date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : new Date().toISOString(),
                       dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
-                      borrowerEmail: data.loan.borrowerEmail || undefined,
-                      reminderFrequencyDays: data.loan.reminderFrequencyDays || undefined,
                     };
                     setLoans((prev) => {
                       const updated = prev.map((l) => (l.id === e.optimisticData.id ? realLoan : l));
@@ -580,8 +578,6 @@ export function App() {
                   statusLabel: data.loan.status === 'PAID' ? 'Settled' : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
                   date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : data.loan.borrowedAt ? new Date(data.loan.borrowedAt).toISOString() : new Date().toISOString(),
                   dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
-                  borrowerEmail: data.loan.borrowerEmail || undefined,
-                  reminderFrequencyDays: data.loan.reminderFrequencyDays || undefined,
                 };
                 setLoans((prev) => {
                   const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
