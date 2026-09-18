@@ -43,9 +43,9 @@ router.post('/loans/:loanId/reacknowledge', asyncHandler(reacknowledgeLoan));
 router.post('/lent/:loanId/reacknowledge', asyncHandler(reacknowledgeLoan));
 
 // Manual trigger for testing overdue reminders
-router.all('/reminders/trigger', asyncHandler(async (_req, res) => {
-  await ReminderSchedulerService.checkAndSendDueReminders();
-  res.json({ success: true, message: 'Checked and sent due reminders.' });
+router.all(['/reminders/trigger', '/loans/reminders/trigger'], asyncHandler(async (_req, res) => {
+  const report = await ReminderSchedulerService.checkAndSendDueReminders(true);
+  res.json({ success: true, message: 'Checked and sent due reminders.', report });
 }));
 
 export default router;

@@ -21,7 +21,7 @@ import {
   type BudgetLimit,
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
-import { LuReceipt, LuX, LuCheck, LuRotateCcw, LuPlus } from 'react-icons/lu';
+import { LuReceipt, LuX, LuPlus } from 'react-icons/lu';
 import { useGreeting } from '../lib/greeting';
 
 
@@ -82,9 +82,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   onOpenPWA,
   onEditTransaction,
   onEditLoan,
-  onSettleLoan,
-  canSettleLoan,
-  onReacknowledgeLoan,
   currentNav,
   onSelectNav,
 }) => {
@@ -587,82 +584,27 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                           {formatRupee(isPartial ? remaining : item.amount)}
                         </span>
 
-                        {isClaimed ? (
-                          <div style={{ display: 'flex', gap: '0.3rem' }}>
-                            {onSettleLoan && (
-                              <button
-                                type="button"
-                                style={{
-                                  background: '#10b981',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  borderRadius: 'var(--radius-sm)',
-                                  padding: '0.2rem 0.45rem',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.2rem',
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSettleLoan(item.id, item.status);
-                                }}
-                                title="Confirm payment and settle loan"
-                              >
-                                <LuCheck size={12} /> Confirm
-                              </button>
-                            )}
-                            {onReacknowledgeLoan && (
-                              <button
-                                type="button"
-                                style={{
-                                  background: '#fee2e2',
-                                  color: '#dc2626',
-                                  border: '1px solid #fca5a5',
-                                  borderRadius: 'var(--radius-sm)',
-                                  padding: '0.2rem 0.45rem',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.2rem',
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onReacknowledgeLoan(item.id);
-                                }}
-                                title="Friend did not pay: resume reminders"
-                              >
-                                <LuRotateCcw size={11} /> Not Received
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <span
-                            className={`loan-status-btn ${
-                              isSettled
-                                ? 'settled'
-                                : isPartial
-                                ? 'partial'
-                                : isLent || isSplit
-                                ? 'to-receive'
-                                : 'to-pay'
-                            }`}
-                          >
-                            {isSettled
-                              ? 'Settled'
+                        <span
+                          className={`loan-status-btn ${
+                            isSettled
+                              ? 'settled'
                               : isPartial
-                              ? `Part (₹${paid})`
-                              : isLent
-                              ? 'To get'
-                              : isSplit
-                              ? 'Split'
-                              : 'To pay'}
-                          </span>
-                        )}
+                              ? 'partial'
+                              : isLent || isSplit
+                              ? 'to-receive'
+                              : 'to-pay'
+                          }`}
+                        >
+                          {isSettled
+                            ? 'Settled'
+                            : isPartial
+                            ? `Part (₹${paid})`
+                            : isLent
+                            ? 'To get'
+                            : isSplit
+                            ? 'Split'
+                            : 'To pay'}
+                        </span>
 
                         {onEditLoan && (
                           <button
@@ -1091,89 +1033,27 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                         {formatRupee(isPartial ? remaining : item.amount)}
                       </span>
 
-                      {isClaimed ? (
-                        <div style={{ display: 'flex', gap: '0.3rem' }}>
-                          {onSettleLoan && (
-                            <button
-                              type="button"
-                              style={{
-                                background: '#10b981',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 'var(--radius-sm)',
-                                padding: '0.2rem 0.45rem',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.2rem',
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSettleLoan(item.id, item.status);
-                              }}
-                              title="Confirm payment and settle loan"
-                            >
-                              <LuCheck size={12} /> Confirm
-                            </button>
-                          )}
-                          {onReacknowledgeLoan && (
-                            <button
-                              type="button"
-                              style={{
-                                background: '#fee2e2',
-                                color: '#dc2626',
-                                border: '1px solid #fca5a5',
-                                borderRadius: 'var(--radius-sm)',
-                                padding: '0.2rem 0.45rem',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.2rem',
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onReacknowledgeLoan(item.id);
-                              }}
-                              title="Friend did not pay: resume reminders"
-                            >
-                              <LuRotateCcw size={11} /> Not Received
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className={`loan-status-btn ${
-                            isSettled
-                              ? 'settled'
-                              : isPartial
-                              ? 'partial'
-                              : isLent || isSplit
-                              ? 'to-receive'
-                              : 'to-pay'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onSettleLoan) onSettleLoan(item.id, item.status);
-                          }}
-                          disabled={canSettleLoan ? !canSettleLoan(item) : false}
-                          style={{ cursor: 'pointer', border: 'none' }}
-                        >
-                          {isSettled
-                            ? 'Settled'
+                      <span
+                        className={`loan-status-btn ${
+                          isSettled
+                            ? 'settled'
                             : isPartial
-                            ? `Part (₹${paid})`
-                            : isLent
-                            ? 'To get'
-                            : isSplit
-                            ? 'Split'
-                            : 'To pay'}
-                        </button>
-                      )}
+                            ? 'partial'
+                            : isLent || isSplit
+                            ? 'to-receive'
+                            : 'to-pay'
+                        }`}
+                      >
+                        {isSettled
+                          ? 'Settled'
+                          : isPartial
+                          ? `Part (₹${paid})`
+                          : isLent
+                          ? 'To get'
+                          : isSplit
+                          ? 'Split'
+                          : 'To pay'}
+                      </span>
 
                       {onEditLoan && (
                         <button

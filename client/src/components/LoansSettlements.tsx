@@ -37,11 +37,8 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
   loans,
   limit,
   onViewAll,
-  onSettle,
-  canSettle,
   onAddNew,
   onEditLoan,
-  onReacknowledgeLoan,
 }) => {
   const formatRupee = (val: number) => `₹${Math.round(val).toLocaleString('en-IN')}`;
   const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
@@ -154,81 +151,27 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
                       {formatRupee(isPartial ? remaining : item.amount)}
                     </span>
 
-                    {onSettle ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <button
-                          type="button"
-                          className={`loan-status-btn ${
-                            isSettled
-                              ? 'settled'
-                              : isPartial
-                              ? 'partial'
-                              : isLent || isSplit
-                              ? 'to-receive'
-                              : 'to-pay'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSettle(item.id, item.status);
-                          }}
-                          disabled={!canSettle?.(item)}
-                          title={!canSettle?.(item) ? 'Insufficient funds or savings to settle' : isSettled ? 'Click to mark as pending' : isClaimed ? 'Confirm payment receipt' : 'Click to mark as settled'}
-                        >
-                          {isSettled
-                            ? 'Settled'
-                            : isClaimed
-                            ? 'Confirm Settle'
-                            : isPartial
-                            ? `Part (₹${paid})`
-                            : isLent
-                            ? 'Mark Settled'
-                            : isSplit
-                            ? 'Mark Settled'
-                            : 'Mark Paid'}
-                        </button>
-
-                        {isClaimed && onReacknowledgeLoan && (
-                          <button
-                            type="button"
-                            className="loan-status-btn"
-                            style={{
-                              background: '#fee2e2',
-                              color: '#dc2626',
-                              border: '1px solid #fca5a5',
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onReacknowledgeLoan(item.id);
-                            }}
-                            title="Dispute claim and resume email reminders"
-                          >
-                            Not Received
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <span
-                        className={`loan-status-btn ${
-                          isSettled
-                            ? 'settled'
-                            : isPartial
-                            ? 'partial'
-                            : isLent || isSplit
-                            ? 'to-receive'
-                            : 'to-pay'
-                        }`}
-                      >
-                        {isSettled
-                          ? 'Settled'
+                    <span
+                      className={`loan-status-btn ${
+                        isSettled
+                          ? 'settled'
                           : isPartial
-                          ? `Part (₹${paid})`
-                          : isLent
-                          ? 'To get'
-                          : isSplit
-                          ? 'Split'
-                          : 'To pay'}
-                      </span>
-                    )}
+                          ? 'partial'
+                          : isLent || isSplit
+                          ? 'to-receive'
+                          : 'to-pay'
+                      }`}
+                    >
+                      {isSettled
+                        ? 'Settled'
+                        : isPartial
+                        ? `Part (₹${paid})`
+                        : isLent
+                        ? 'To get'
+                        : isSplit
+                        ? 'Split'
+                        : 'To pay'}
+                    </span>
 
                     {onEditLoan && (
                       <button

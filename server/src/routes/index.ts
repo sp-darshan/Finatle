@@ -27,7 +27,13 @@ router.post('/finance/public/claim-paid', asyncHandler(claimPaid));
 router.get('/public/claim-paid', asyncHandler(claimPaid));
 
 // Public Manual Trigger for testing overdue reminders
-router.all(['/public/reminders/trigger', '/finance/public/reminders/trigger', '/reminders/trigger'], asyncHandler(async (_req: Request, res: Response) => {
+router.all([
+  '/public/reminders/trigger',
+  '/finance/public/reminders/trigger',
+  '/reminders/trigger',
+  '/loans/reminders/trigger',
+  '/finance/loans/reminders/trigger',
+], asyncHandler(async (_req: Request, res: Response) => {
   const scheduler = (await import('../services/reminderSchedulerService')).ReminderSchedulerService;
   const report = await scheduler.checkAndSendDueReminders(true);
   res.json({ success: true, message: 'Checked and dispatched overdue reminders.', report });
