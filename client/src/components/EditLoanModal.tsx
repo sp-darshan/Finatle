@@ -9,6 +9,7 @@ interface EditLoanModalProps {
   loan: LoanItem | null;
   token?: string | null;
   onSuccess: (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => void | Promise<void>;
+  onReacknowledgeLoan?: (loanId: string) => void;
 }
 
 export const EditLoanModal: React.FC<EditLoanModalProps> = ({
@@ -16,6 +17,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   onClose,
   loan,
   onSuccess,
+  onReacknowledgeLoan,
 }) => {
   const [kind, setKind] = useState<'lent' | 'borrowed'>('lent');
   const [personName, setPersonName] = useState('');
@@ -170,6 +172,55 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit}>
+          {/* Claimed Paid Notification Banner */}
+          {loan?.claimedPaid && (
+            <div
+              style={{
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.75rem 0.9rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.6rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#065f46' }}>
+                  ✓ Friend reported this loan as paid
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#047857', marginTop: '0.15rem' }}>
+                  If received, select 100% Full below. If not received, dispute to resume email reminders.
+                </div>
+              </div>
+              {onReacknowledgeLoan && (
+                <button
+                  type="button"
+                  style={{
+                    background: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.35rem 0.65rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    onReacknowledgeLoan(loan.id);
+                    onClose();
+                  }}
+                  title="Mark as not received and send follow-up reminder emails"
+                >
+                  ⚠️ Not Received (Resend Mail)
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Person / Friend Name */}
           <div className="form-group">
             <label>Person / Contact Name</label>

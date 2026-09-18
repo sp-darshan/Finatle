@@ -71,14 +71,28 @@ class EmailService {
     const port = Number(process.env.SMTP_PORT) || 587;
 
     if (user && pass && user !== 'your-email@gmail.com' && !user.includes('example.com')) {
-      this.transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass },
-      });
+      const isGmail = host.includes('gmail.com') || user.endsWith('@gmail.com');
+      this.transporter = nodemailer.createTransport(
+        isGmail
+          ? {
+              service: 'gmail',
+              auth: { user, pass },
+              connectionTimeout: 10000,
+              greetingTimeout: 10000,
+              socketTimeout: 15000,
+            }
+          : {
+              host,
+              port,
+              secure: port === 465,
+              auth: { user, pass },
+              connectionTimeout: 10000,
+              greetingTimeout: 10000,
+              socketTimeout: 15000,
+            }
+      );
       this.isConfigured = true;
-      console.log(`[EmailService] Configured SMTP Transport via ${host}:${port} (${user})`);
+      console.log(`[EmailService] Configured SMTP Transport via ${isGmail ? 'Gmail Service (Port 465 SSL)' : `${host}:${port}`} (${user})`);
     } else {
       this.isConfigured = false;
       this.transporter = null;

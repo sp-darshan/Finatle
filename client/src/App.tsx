@@ -1410,6 +1410,7 @@ export function App() {
         loan={editingLoan}
         token={token}
         onSuccess={handleLoanSuccess}
+        onReacknowledgeLoan={handleReacknowledgeLoan}
       />
 
       <BillScannerModal

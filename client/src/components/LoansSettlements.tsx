@@ -39,6 +39,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
   onViewAll,
   onAddNew,
   onEditLoan,
+  onReacknowledgeLoan,
 }) => {
   const formatRupee = (val: number) => `₹${Math.round(val).toLocaleString('en-IN')}`;
   const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
@@ -124,19 +125,54 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
                       {isClaimed && (
                         <div
                           style={{
-                            marginTop: '0.35rem',
+                            marginTop: '0.4rem',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.35rem',
-                            fontSize: '0.72rem',
-                            color: '#065f46',
-                            background: '#d1fae5',
-                            padding: '0.15rem 0.5rem',
-                            borderRadius: 'var(--radius-sm)',
-                            fontWeight: 700,
+                            gap: '0.4rem',
+                            flexWrap: 'wrap',
                           }}
                         >
-                          ✓ Friend reported paid
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.72rem',
+                              color: '#065f46',
+                              background: '#d1fae5',
+                              padding: '0.18rem 0.5rem',
+                              borderRadius: 'var(--radius-sm)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            ✓ Friend reported paid
+                          </span>
+
+                          {onReacknowledgeLoan && (
+                            <button
+                              type="button"
+                              style={{
+                                background: '#fee2e2',
+                                color: '#dc2626',
+                                border: '1px solid #fca5a5',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '0.18rem 0.55rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onReacknowledgeLoan(item.id);
+                              }}
+                              title="Payment not received: re-activate automated reminder emails"
+                            >
+                              Not Received (Resend Mail)
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

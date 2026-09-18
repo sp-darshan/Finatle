@@ -5,13 +5,19 @@ import { emailService } from './emailService';
 export class ReminderSchedulerService {
   private static intervalTimer: NodeJS.Timeout | null = null;
   private static isRunning: boolean = false;
+  private static lockAcquiredAt: number = 0;
 
   /**
    * Run the check and dispatch overdue reminder emails
    */
   static async checkAndSendDueReminders(force: boolean = false) {
-    if (this.isRunning) return { status: 'already_running', count: 0 };
+    const nowTimestamp = Date.now();
+    // Auto-release lock if held longer than 15s to prevent stalled background states
+    if (this.isRunning && (nowTimestamp - this.lockAcquiredAt < 15000)) {
+      return { status: 'already_running', count: 0 };
+    }
     this.isRunning = true;
+    this.lockAcquiredAt = nowTimestamp;
 
     // Refresh SMTP configuration in case .env was modified
     emailService.initTransporter();

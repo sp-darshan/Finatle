@@ -82,6 +82,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   onOpenPWA,
   onEditTransaction,
   onEditLoan,
+  onReacknowledgeLoan,
   currentNav,
   onSelectNav,
 }) => {
@@ -554,15 +555,46 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '0.35rem',
-                                fontSize: '0.72rem',
-                                color: '#065f46',
-                                background: '#d1fae5',
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: 'var(--radius-sm)',
-                                fontWeight: 700,
+                                flexWrap: 'wrap',
                               }}
                             >
-                              ✓ Friend reported paid
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem',
+                                  fontSize: '0.72rem',
+                                  color: '#065f46',
+                                  background: '#d1fae5',
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: 'var(--radius-sm)',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                ✓ Friend reported paid
+                              </span>
+                              {onReacknowledgeLoan && (
+                                <button
+                                  type="button"
+                                  style={{
+                                    background: '#fee2e2',
+                                    color: '#dc2626',
+                                    border: '1px solid #fca5a5',
+                                    borderRadius: 'var(--radius-sm)',
+                                    padding: '0.15rem 0.45rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onReacknowledgeLoan(item.id);
+                                  }}
+                                  title="Not received: resend reminder emails"
+                                >
+                                  Not Received
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1008,15 +1040,46 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.35rem',
-                              fontSize: '0.72rem',
-                              color: '#065f46',
-                              background: '#d1fae5',
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: 'var(--radius-sm)',
-                              fontWeight: 700,
+                              flexWrap: 'wrap',
                             }}
                           >
-                            ✓ Friend reported paid
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                                fontSize: '0.72rem',
+                                color: '#065f46',
+                                background: '#d1fae5',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: 'var(--radius-sm)',
+                                fontWeight: 700,
+                              }}
+                            >
+                              ✓ Friend reported paid
+                            </span>
+                            {onReacknowledgeLoan && (
+                              <button
+                                type="button"
+                                style={{
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fca5a5',
+                                  borderRadius: 'var(--radius-sm)',
+                                  padding: '0.15rem 0.45rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onReacknowledgeLoan(item.id);
+                                }}
+                                title="Not received: resend reminder emails"
+                              >
+                                Not Received
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
