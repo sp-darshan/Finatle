@@ -9,7 +9,6 @@ interface EditLoanModalProps {
   loan: LoanItem | null;
   token?: string | null;
   onSuccess: (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => void | Promise<void>;
-  onReacknowledgeLoan?: (loanId: string) => void;
 }
 
 export const EditLoanModal: React.FC<EditLoanModalProps> = ({
@@ -17,7 +16,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   onClose,
   loan,
   onSuccess,
-  onReacknowledgeLoan,
 }) => {
   const [kind, setKind] = useState<'lent' | 'borrowed'>('lent');
   const [personName, setPersonName] = useState('');
@@ -25,8 +23,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const [paidAmount, setPaidAmount] = useState('0');
   const [description, setDescription] = useState('');
   const [dueAt, setDueAt] = useState('');
-  const [borrowerEmail, setBorrowerEmail] = useState('');
-  const [reminderFrequencyDays, setReminderFrequencyDays] = useState('3');
   const [status, setStatus] = useState<'PENDING' | 'PAID' | 'PARTIAL'>('PENDING');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,8 +36,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       setPaidAmount(String(loan.paidAmount !== undefined ? loan.paidAmount : (loan.status === 'PAID' ? loan.amount : 0)));
       setDescription(loan.subtext === 'Personal loan' ? '' : (loan.subtext || ''));
       setDueAt(loan.dueDate ? new Date(loan.dueDate).toISOString().split('T')[0] : '');
-      setBorrowerEmail(loan.borrowerEmail || '');
-      setReminderFrequencyDays(String(loan.reminderFrequencyDays || 3));
       setStatus(loan.status as any || 'PENDING');
       setError('');
       setIsConfirmingDelete(false);
@@ -71,8 +65,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
 
     const numericPaid = isNaN(paidNum) ? 0 : Math.max(0, Math.min(numericAmount, paidNum));
     const computedStatus = numericPaid >= numericAmount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
-    const email = kind === 'lent' ? borrowerEmail.trim() : undefined;
-    const freq = kind === 'lent' && dueAt && email ? parseInt(reminderFrequencyDays) || 3 : undefined;
 
     const apiPayload = {
       kind,
@@ -81,8 +73,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       paidAmount: numericPaid,
       description: description.trim(),
       dueAt: dueAt || undefined,
-      borrowerEmail: email || undefined,
-      reminderFrequencyDays: freq,
       status: computedStatus,
     };
 
@@ -97,8 +87,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       status: computedStatus,
       statusLabel: computedStatus === 'PAID' ? 'Settled' : computedStatus === 'PARTIAL' ? `Part (₹${numericPaid})` : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
       dueDate: dueAt || undefined,
-      borrowerEmail: email || undefined,
-      reminderFrequencyDays: freq,
     };
 
     onSuccess({
@@ -172,55 +160,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* Claimed Paid Notification Banner */}
-          {loan?.claimedPaid && (
-            <div
-              style={{
-                background: '#ecfdf5',
-                border: '1px solid #a7f3d0',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.75rem 0.9rem',
-                marginBottom: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.6rem',
-                flexWrap: 'wrap',
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#065f46' }}>
-                  ✓ Friend reported this loan as paid
-                </div>
-                <div style={{ fontSize: '0.74rem', color: '#047857', marginTop: '0.15rem' }}>
-                  If received, select 100% Full below. If not received, dispute to resume email reminders.
-                </div>
-              </div>
-              {onReacknowledgeLoan && (
-                <button
-                  type="button"
-                  style={{
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '0.35rem 0.65rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    onReacknowledgeLoan(loan.id);
-                    onClose();
-                  }}
-                  title="Mark as not received and send follow-up reminder emails"
-                >
-                  ⚠️ Not Received (Resend Mail)
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Person / Friend Name */}
           <div className="form-group">
             <label>Person / Contact Name</label>
@@ -325,60 +264,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
               onChange={(e) => setDueAt(e.target.value)}
             />
           </div>
-
-          {/* Automated Email Reminder for Lent */}
-          {kind === 'lent' && (
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-md)', padding: '0.75rem', marginBottom: '1rem' }}>
-              <div className="form-group" style={{ marginBottom: dueAt && borrowerEmail ? '0.5rem' : 0 }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>
-                  Friend's Email ID (For automated overdue reminders)
-                </label>
-                <input
-                  type="email"
-                  placeholder="friend@example.com (optional)"
-                  className="form-control"
-                  value={borrowerEmail}
-                  onChange={(e) => setBorrowerEmail(e.target.value)}
-                  style={{ fontSize: '0.82rem' }}
-                />
-              </div>
-
-              {dueAt && borrowerEmail && (
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46' }}>
-                    Reminder Frequency After Due Date
-                  </label>
-                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
-                    {[
-                      { days: '1', label: 'Daily' },
-                      { days: '2', label: 'Every 2d' },
-                      { days: '3', label: 'Every 3d' },
-                      { days: '7', label: 'Weekly' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.days}
-                        type="button"
-                        className="select-pill"
-                        style={{
-                          flex: 1,
-                          justifyContent: 'center',
-                          fontSize: '0.75rem',
-                          padding: '0.3rem 0.4rem',
-                          background: reminderFrequencyDays === opt.days ? '#047857' : '#ffffff',
-                          color: reminderFrequencyDays === opt.days ? '#ffffff' : '#334155',
-                          borderColor: reminderFrequencyDays === opt.days ? '#047857' : '#cbd5e1',
-                          fontWeight: 700,
-                        }}
-                        onClick={() => setReminderFrequencyDays(opt.days)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Status Selection */}
           <div className="form-group">

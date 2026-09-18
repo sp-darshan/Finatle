@@ -14,12 +14,6 @@ export interface LoanItem {
   statusLabel?: string;
   date?: string;
   dueDate?: string | null;
-  borrowerEmail?: string | null;
-  reminderFrequencyDays?: number;
-  claimedPaid?: boolean;
-  claimedPaidAt?: string | null;
-  snoozeReminders?: boolean;
-  lastReminderSentAt?: string | null;
 }
 
 interface LoansSettlementsProps {
@@ -30,7 +24,6 @@ interface LoansSettlementsProps {
   canSettle?: (loan: LoanItem) => boolean;
   onAddNew?: () => void;
   onEditLoan?: (loan: LoanItem) => void;
-  onReacknowledgeLoan?: (loanId: string) => void;
 }
 
 export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
@@ -39,7 +32,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
   onViewAll,
   onAddNew,
   onEditLoan,
-  onReacknowledgeLoan,
 }) => {
   const formatRupee = (val: number) => `₹${Math.round(val).toLocaleString('en-IN')}`;
   const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
@@ -84,7 +76,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
               const isSplit = item.kind === 'split';
               const isSettled = item.status === 'PAID';
               const isPartial = item.status === 'PARTIAL';
-              const isClaimed = Boolean(item.claimedPaid && !isSettled);
               const paid = item.paidAmount || 0;
               const remaining = Math.max(0, item.amount - paid);
               const compactTitle = isSplit
@@ -101,7 +92,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
                 <div
                   className="loan-row"
                   key={item.id}
-                  style={isClaimed ? { borderColor: '#10b981', background: '#f0fdf4' } : undefined}
                 >
                   <div className="row-left">
                     <div
@@ -121,60 +111,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
                         <span>{isLent ? 'Lent' : 'Borrowed'}: {formatDate(item.date)}</span>
                         <span>Due: {formatDate(item.dueDate || undefined)}</span>
                       </div>
-
-                      {isClaimed && (
-                        <div
-                          style={{
-                            marginTop: '0.4rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              fontSize: '0.72rem',
-                              color: '#065f46',
-                              background: '#d1fae5',
-                              padding: '0.18rem 0.5rem',
-                              borderRadius: 'var(--radius-sm)',
-                              fontWeight: 700,
-                            }}
-                          >
-                            ✓ Friend reported paid
-                          </span>
-
-                          {onReacknowledgeLoan && (
-                            <button
-                              type="button"
-                              style={{
-                                background: '#fee2e2',
-                                color: '#dc2626',
-                                border: '1px solid #fca5a5',
-                                borderRadius: 'var(--radius-sm)',
-                                padding: '0.18rem 0.55rem',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onReacknowledgeLoan(item.id);
-                              }}
-                              title="Payment not received: re-activate automated reminder emails"
-                            >
-                              Not Received (Resend Mail)
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
 

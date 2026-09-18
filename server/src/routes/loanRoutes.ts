@@ -5,9 +5,7 @@ import {
   updateLoan,
   updateLoanStatus,
   deleteLoan,
-  reacknowledgeLoan,
 } from '../controllers/loanController';
-import { ReminderSchedulerService } from '../services/reminderSchedulerService';
 import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
@@ -38,14 +36,5 @@ router.delete('/money-borrowed/:loanId', asyncHandler(deleteLoan));
 router.patch('/loans/:loanId/status', asyncHandler(updateLoanStatus));
 router.patch('/lent/:loanId/status', asyncHandler(updateLoanStatus));
 router.patch('/borrowed/:loanId/status', asyncHandler(updateLoanStatus));
-
-router.post('/loans/:loanId/reacknowledge', asyncHandler(reacknowledgeLoan));
-router.post('/lent/:loanId/reacknowledge', asyncHandler(reacknowledgeLoan));
-
-// Manual trigger for testing overdue reminders
-router.all(['/reminders/trigger', '/loans/reminders/trigger'], asyncHandler(async (_req, res) => {
-  const report = await ReminderSchedulerService.checkAndSendDueReminders(true);
-  res.json({ success: true, message: 'Checked and sent due reminders.', report });
-}));
 
 export default router;

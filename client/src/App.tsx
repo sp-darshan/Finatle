@@ -263,12 +263,6 @@ export function App() {
               paidAmount: paid,
               date: l.lentAt,
               dueDate: l.dueAt,
-              borrowerEmail: l.borrowerEmail,
-              reminderFrequencyDays: l.reminderFrequencyDays,
-              claimedPaid: l.claimedPaid,
-              claimedPaidAt: l.claimedPaidAt,
-              snoozeReminders: l.snoozeReminders,
-              lastReminderSentAt: l.lastReminderSentAt,
               status: l.status,
               statusLabel: l.status === 'PAID' ? 'Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
             });
@@ -790,38 +784,6 @@ export function App() {
     }
   }, [token]);
 
-  const handleReacknowledgeLoan = useCallback(async (loanId: string) => {
-    if (!token) return;
-    try {
-      // Optimistically unsnooze and clear friend claimed paid status
-      setLoans((prev) =>
-        prev.map((item) =>
-          item.id === loanId
-            ? { ...item, claimedPaid: false, snoozeReminders: false }
-            : item
-        )
-      );
-
-      const response = await apiFetch(`/api/finance/lent/${loanId}/reacknowledge`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to send follow-up reminder.');
-      }
-
-      await fetchUserData(token);
-    } catch (error: any) {
-      console.error('Re-acknowledge error:', error);
-      setSettlementError(error.message || 'Failed to re-acknowledge payment status.');
-      if (token) await fetchUserData(token);
-    }
-  }, [token]);
-
   const handleConfirmScannedBill = useCallback(async (scanned: ScannedBillPayload) => {
     if (!token) return;
 
@@ -1131,7 +1093,6 @@ export function App() {
             onEditLoan={handleEditLoan}
             onSettleLoan={handleSettleLoan}
             canSettleLoan={canSettleLoan}
-            onReacknowledgeLoan={handleReacknowledgeLoan}
             currentNav={mobileNav}
             onSelectNav={handleSelectMobileNav}
           />
@@ -1278,7 +1239,6 @@ export function App() {
                     canSettle={canSettleLoan}
                     onAddNew={() => openAdd('lent')}
                     onEditLoan={(loan) => setEditingLoan(loan)}
-                    onReacknowledgeLoan={handleReacknowledgeLoan}
                   />
                 </div>
               </>
@@ -1344,7 +1304,6 @@ export function App() {
                   canSettle={canSettleLoan}
                   onAddNew={() => openAdd('lent')}
                   onEditLoan={(loan) => setEditingLoan(loan)}
-                  onReacknowledgeLoan={handleReacknowledgeLoan}
                 />
               </div>
             )}
@@ -1410,7 +1369,6 @@ export function App() {
         loan={editingLoan}
         token={token}
         onSuccess={handleLoanSuccess}
-        onReacknowledgeLoan={handleReacknowledgeLoan}
       />
 
       <BillScannerModal

@@ -7,7 +7,6 @@ export type RecordKind = 'expense' | 'income' | 'lent' | 'borrowed' | 'split';
 interface CustomPersonEntry {
   id: string;
   name: string;
-  email?: string;
   amount: string;
 }
 
@@ -32,19 +31,14 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
   const [category, setCategory] = useState(initialKind === 'income' ? 'Salary' : 'Food & Dining');
   const [otherCategory, setOtherCategory] = useState('');
   const [personName, setPersonName] = useState('');
-  const [borrowerEmail, setBorrowerEmail] = useState('');
   const [dueAt, setDueAt] = useState('');
-  const [reminderFrequencyDays, setReminderFrequencyDays] = useState('3');
   
   // Split mode state
   const [splitType, setSplitType] = useState<'EQUAL' | 'CUSTOM'>('EQUAL');
   const [splitPeopleCount, setSplitPeopleCount] = useState('4');
-  const [splitDueDate, setSplitDueDate] = useState('');
-  const [splitReminderFreq, setSplitReminderFreq] = useState('3');
   const [equalFriendNames, setEqualFriendNames] = useState<string[]>(['', '', '']);
-  const [equalFriendEmails, setEqualFriendEmails] = useState<string[]>(['', '', '']);
   const [customPeople, setCustomPeople] = useState<CustomPersonEntry[]>([
-    { id: '1', name: '', email: '', amount: '' },
+    { id: '1', name: '', amount: '' },
   ]);
   
   const [error, setError] = useState('');
@@ -60,7 +54,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
       setCategory(initialKind === 'income' ? 'Salary' : 'Food & Dining');
       setOtherCategory('');
       setPersonName('');
-      setBorrowerEmail('');
       setDueAt('');
     }
   }
@@ -82,7 +75,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
     }
   };
 
-  const handleCustomPersonChange = (id: string, field: 'name' | 'email' | 'amount', val: string) => {
+  const handleCustomPersonChange = (id: string, field: 'name' | 'amount', val: string) => {
     setCustomPeople((prev) =>
       prev.map((p) => (p.id === id ? { ...p, [field]: val } : p))
     );
@@ -90,14 +83,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
 
   const handleEqualFriendNameChange = (index: number, val: string) => {
     setEqualFriendNames((prev) => {
-      const next = [...prev];
-      next[index] = val;
-      return next;
-    });
-  };
-
-  const handleEqualFriendEmailChange = (index: number, val: string) => {
-    setEqualFriendEmails((prev) => {
       const next = [...prev];
       next[index] = val;
       return next;
@@ -148,16 +133,12 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
       });
     } else if (kind === 'lent' || kind === 'borrowed') {
       const person = personName.trim() || (kind === 'lent' ? 'Friend' : 'Lender');
-      const email = kind === 'lent' ? borrowerEmail.trim() : undefined;
-      const freq = kind === 'lent' && dueAt && email ? parseInt(reminderFrequencyDays) || 3 : undefined;
       
       const apiPayload = {
         personName: person,
         amount: numericAmount,
         description: title.trim() || undefined,
         dueAt: dueAt || undefined,
-        borrowerEmail: email || undefined,
-        reminderFrequencyDays: freq,
       };
 
       const optimisticData = {
@@ -172,8 +153,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         statusLabel: kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
         date: new Date().toISOString(),
         dueDate: dueAt || undefined,
-        borrowerEmail: email || undefined,
-        reminderFrequencyDays: freq,
       };
 
       onSuccess({
@@ -188,20 +167,16 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
 
         const itemTitle = title.trim() || selectedCategory || 'Expense';
         const lentTitle = title.trim() || selectedCategory || 'Split bill';
-        const freq = splitDueDate ? parseInt(splitReminderFreq) || 3 : undefined;
 
         for (let i = 0; i < friendsCount; i++) {
           const friend = equalFriendNames[i]?.trim() || `Friend ${i + 1}`;
-          const friendMail = equalFriendEmails[i]?.trim() || undefined;
           const tempId = `temp-split-${Date.now()}-${i}`;
           lentEntries.push({
             apiPayload: {
               personName: friend,
               amount: equalPerPerson,
               description: lentTitle,
-              dueAt: splitDueDate || undefined,
-              borrowerEmail: friendMail || undefined,
-              reminderFrequencyDays: splitDueDate && friendMail ? freq : undefined,
+              dueAt: dueAt || undefined,
             },
             optimisticData: {
               id: tempId,
@@ -214,9 +189,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               status: 'PENDING' as const,
               statusLabel: 'Yet to receive',
               date: new Date().toISOString(),
-              dueDate: splitDueDate || undefined,
-              borrowerEmail: friendMail || undefined,
-              reminderFrequencyDays: splitDueDate && friendMail ? freq : undefined,
+              dueDate: dueAt || undefined,
             },
           });
         }
@@ -250,7 +223,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         const validPeople = customPeople
           .map((p, idx) => ({
             name: p.name.trim() || `Friend ${idx + 1}`,
-            email: p.email?.trim() || undefined,
             amount: parseFloat(p.amount) || 0,
           }))
           .filter((p) => p.amount > 0);
@@ -267,7 +239,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
 
         const itemTitle = title.trim() || selectedCategory || 'Expense';
         const lentTitle = title.trim() || selectedCategory || 'Split bill';
-        const freq = splitDueDate ? parseInt(splitReminderFreq) || 3 : undefined;
 
         const lentEntries = validPeople.map((p, idx) => {
           const tempId = `temp-split-${Date.now()}-${idx}`;
@@ -276,9 +247,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               personName: p.name,
               amount: p.amount,
               description: lentTitle,
-              dueAt: splitDueDate || undefined,
-              borrowerEmail: p.email || undefined,
-              reminderFrequencyDays: splitDueDate && p.email ? freq : undefined,
+              dueAt: dueAt || undefined,
             },
             optimisticData: {
               id: tempId,
@@ -291,9 +260,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               status: 'PENDING' as const,
               statusLabel: 'Yet to receive',
               date: new Date().toISOString(),
-              dueDate: splitDueDate || undefined,
-              borrowerEmail: p.email || undefined,
-              reminderFrequencyDays: splitDueDate && p.email ? freq : undefined,
+              dueDate: dueAt || undefined,
             },
           };
         });
@@ -458,60 +425,6 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             </div>
           )}
 
-          {/* Automated Email Reminder for Lent */}
-          {kind === 'lent' && (
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 'var(--radius-md)', padding: '0.75rem', marginBottom: '1rem' }}>
-              <div className="form-group" style={{ marginBottom: dueAt && borrowerEmail ? '0.5rem' : 0 }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>
-                  Friend's Email ID (For automated overdue reminders)
-                </label>
-                <input
-                  type="email"
-                  placeholder="friend@example.com (optional)"
-                  className="form-control"
-                  value={borrowerEmail}
-                  onChange={(e) => setBorrowerEmail(e.target.value)}
-                  style={{ fontSize: '0.82rem' }}
-                />
-              </div>
-
-              {dueAt && borrowerEmail && (
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46' }}>
-                    Reminder Frequency After Due Date
-                  </label>
-                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
-                    {[
-                      { days: '1', label: 'Daily' },
-                      { days: '2', label: 'Every 2d' },
-                      { days: '3', label: 'Every 3d' },
-                      { days: '7', label: 'Weekly' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.days}
-                        type="button"
-                        className="select-pill"
-                        style={{
-                          flex: 1,
-                          justifyContent: 'center',
-                          fontSize: '0.75rem',
-                          padding: '0.3rem 0.4rem',
-                          background: reminderFrequencyDays === opt.days ? '#047857' : '#ffffff',
-                          color: reminderFrequencyDays === opt.days ? '#ffffff' : '#334155',
-                          borderColor: reminderFrequencyDays === opt.days ? '#047857' : '#cbd5e1',
-                          fontWeight: 700,
-                        }}
-                        onClick={() => setReminderFrequencyDays(opt.days)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* SPLIT CONFIGURATION SECTION */}
           {kind === 'split' && (
             <div
@@ -559,37 +472,18 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                 </button>
               </div>
 
-              {/* Split Due Date & Reminder Frequency */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#065f46', display: 'block', marginBottom: '0.2rem' }}>
-                    Due Date (Optional)
-                  </label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', margin: 0 }}
-                    value={splitDueDate}
-                    onChange={(e) => setSplitDueDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#065f46', display: 'block', marginBottom: '0.2rem' }}>
-                    Reminder Frequency
-                  </label>
-                  <select
-                    className="form-control"
-                    style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', margin: 0 }}
-                    value={splitReminderFreq}
-                    onChange={(e) => setSplitReminderFreq(e.target.value)}
-                    disabled={!splitDueDate}
-                  >
-                    <option value="1">Daily</option>
-                    <option value="2">Every 2 days</option>
-                    <option value="3">Every 3 days</option>
-                    <option value="7">Every 7 days</option>
-                  </select>
-                </div>
+              {/* Split Due Date */}
+              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46' }}>
+                  Due Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  className="form-control"
+                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', margin: 0 }}
+                  value={dueAt}
+                  onChange={(e) => setDueAt(e.target.value)}
+                />
               </div>
 
               {splitType === 'EQUAL' ? (
@@ -621,36 +515,26 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                     </div>
                   </div>
 
-                  {/* Individual names & emails for equal split */}
+                  {/* Individual names for equal split */}
                   <div style={{ marginBottom: '0.85rem' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', display: 'block', marginBottom: '0.4rem' }}>
-                      Friends' Names & Emails:
+                      Friends' Names:
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '160px', overflowY: 'auto', paddingRight: '0.2rem' }}>
                       {equalFriendNames.map((name, idx) => (
-                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', background: '#ffffff', padding: '0.45rem 0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid #cbd5e1' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <LuUser size={14} style={{ color: '#64748b' }} />
-                            <input
-                              type="text"
-                              placeholder={`Friend ${idx + 1} Name`}
-                              className="form-control"
-                              style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem', margin: 0 }}
-                              value={name}
-                              onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
-                            />
-                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857' }}>
-                              ₹{equalPerPerson.toLocaleString('en-IN')}
-                            </span>
-                          </div>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', background: '#ffffff', padding: '0.45rem 0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid #cbd5e1' }}>
+                          <LuUser size={14} style={{ color: '#64748b' }} />
                           <input
-                            type="email"
-                            placeholder="Email (for overdue reminders)"
+                            type="text"
+                            placeholder={`Friend ${idx + 1} Name`}
                             className="form-control"
-                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', margin: 0 }}
-                            value={equalFriendEmails[idx] || ''}
-                            onChange={(e) => handleEqualFriendEmailChange(idx, e.target.value)}
+                            style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem', margin: 0 }}
+                            value={name}
+                            onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
                           />
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857' }}>
+                            ₹{equalPerPerson.toLocaleString('en-IN')}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -690,70 +574,60 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                         key={person.id}
                         style={{
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.3rem',
+                          alignItems: 'center',
+                          gap: '0.45rem',
                           background: '#ffffff',
                           padding: '0.45rem 0.55rem',
                           borderRadius: 'var(--radius-md)',
                           border: '1px solid #cbd5e1',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                          <LuUser size={14} style={{ color: '#64748b' }} />
-                          <input
-                            type="text"
-                            placeholder={`Friend ${index + 1} Name`}
-                            className="form-control"
-                            style={{ flex: 1.4, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0 }}
-                            value={person.name}
-                            onChange={(e) => handleCustomPersonChange(person.id, 'name', e.target.value)}
-                          />
-                          <div style={{ position: 'relative', flex: 1 }}>
-                            <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>
-                              ₹
-                            </span>
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              placeholder="Amount"
-                              className="form-control"
-                              style={{ paddingLeft: '1.25rem', paddingRight: '0.4rem', fontSize: '0.82rem', paddingBlock: '0.35rem', margin: 0, fontWeight: 700 }}
-                              value={person.amount}
-                              onChange={(e) => handleCustomPersonChange(person.id, 'amount', e.target.value)}
-                            />
-                          </div>
-                          {customPeople.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveCustomPerson(person.id)}
-                              style={{
-                                background: '#fee2e2',
-                                border: 'none',
-                                color: '#dc2626',
-                                borderRadius: 'var(--radius-sm)',
-                                width: '26px',
-                                height: '26px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                              }}
-                              title="Remove person"
-                            >
-                              <LuTrash2 size={13} />
-                            </button>
-                          )}
-                        </div>
+                        <LuUser size={14} style={{ color: '#64748b' }} />
                         <input
-                          type="email"
-                          placeholder="Email (for overdue reminders)"
+                          type="text"
+                          placeholder={`Friend ${index + 1} Name`}
                           className="form-control"
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', margin: 0 }}
-                          value={person.email || ''}
-                          onChange={(e) => handleCustomPersonChange(person.id, 'email', e.target.value)}
+                          style={{ flex: 1.4, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0 }}
+                          value={person.name}
+                          onChange={(e) => handleCustomPersonChange(person.id, 'name', e.target.value)}
                         />
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="Amount"
+                            className="form-control"
+                            style={{ paddingLeft: '1.25rem', paddingRight: '0.4rem', fontSize: '0.82rem', paddingBlock: '0.35rem', margin: 0, fontWeight: 700 }}
+                            value={person.amount}
+                            onChange={(e) => handleCustomPersonChange(person.id, 'amount', e.target.value)}
+                          />
+                        </div>
+                        {customPeople.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomPerson(person.id)}
+                            style={{
+                              background: '#fee2e2',
+                              border: 'none',
+                              color: '#dc2626',
+                              borderRadius: 'var(--radius-sm)',
+                              width: '26px',
+                              height: '26px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                            title="Remove person"
+                          >
+                            <LuTrash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

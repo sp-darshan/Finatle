@@ -27,8 +27,6 @@ export interface CreateLoanDto {
   paidAmount?: number | string;
   description?: string | null;
   dueAt?: string | Date | null;
-  borrowerEmail?: string | null;
-  reminderFrequencyDays?: number;
 }
 
 export interface UpdateLoanDto {
@@ -39,9 +37,6 @@ export interface UpdateLoanDto {
   dueAt?: string | Date | null;
   status?: LoanStatus | 'PENDING' | 'PAID' | 'OVERDUE' | 'PARTIAL';
   kind?: 'lent' | 'borrowed';
-  borrowerEmail?: string | null;
-  reminderFrequencyDays?: number;
-  snoozeReminders?: boolean;
 }
 
 export interface UpdateLoanStatusDto {
