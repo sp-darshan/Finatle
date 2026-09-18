@@ -344,7 +344,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-card" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card" style={{ maxWidth: 540, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <ScanBillIcon size={24} />
@@ -495,17 +495,19 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   marginBottom: '1rem',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
                     <CategoryBadge name={merchantName} category={category} size={40} />
-                    <div>
+                    <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                       <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         <LuCheck size={13} /> Extracted Details
                       </div>
-                      <h4 style={{ fontSize: '1.05rem', fontWeight: 800 }}>{merchantName || 'Store Bill'}</h4>
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }} title={merchantName}>
+                        {merchantName || 'Store Bill'}
+                      </h4>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Amount</div>
                     <strong style={{ fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 800 }}>
                       ₹{parsedTotal.toLocaleString('en-IN')}
@@ -519,11 +521,13 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.3rem' }}>
                       ITEMIZED BREAKDOWN ({scannedResult.items.length} items):
                     </div>
-                    <div style={{ maxHeight: '90px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ maxHeight: '120px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                       {scannedResult.items.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#475569' }}>
-                          <span>• {item.name}</span>
-                          <span style={{ fontWeight: 600 }}>₹{item.price.toLocaleString('en-IN')}</span>
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#475569', gap: '0.5rem', minWidth: 0 }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }} title={item.name}>
+                            • {item.name}
+                          </span>
+                          <span style={{ fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>₹{item.price.toLocaleString('en-IN')}</span>
                         </div>
                       ))}
                     </div>
@@ -532,34 +536,34 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
               </div>
 
               {/* Editable Fields */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.85rem' }}>
-                <div className="form-group" style={{ margin: 0 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.65rem', marginBottom: '0.85rem', width: '100%', boxSizing: 'border-box' }}>
+                <div className="form-group" style={{ margin: 0, minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
                   <label style={{ fontSize: '0.75rem' }}>Merchant / Place Name</label>
                   <input
                     type="text"
                     className="form-control"
-                    style={{ fontSize: '0.85rem', padding: '0.45rem 0.65rem' }}
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.65rem', width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0 }}
                     value={merchantName}
                     onChange={(e) => setMerchantName(e.target.value)}
                     required
                   />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
                   <label style={{ fontSize: '0.75rem' }}>Total Amount (₹)</label>
                   <input
                     type="number"
                     step="any"
                     min="0.01"
                     className="form-control"
-                    style={{ fontSize: '0.85rem', padding: '0.45rem 0.65rem', fontWeight: 700 }}
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.65rem', fontWeight: 700, width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0 }}
                     value={totalAmount}
                     onChange={(e) => setTotalAmount(e.target.value)}
                     required
                   />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
                   <label style={{ fontSize: '0.75rem' }}>Category</label>
                   <CategoryPicker
                     value={category}
@@ -569,12 +573,12 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, minWidth: 0, width: '100%', boxSizing: 'border-box' }}>
                   <label style={{ fontSize: '0.75rem' }}>Bill Date</label>
                   <input
                     type="date"
                     className="form-control"
-                    style={{ fontSize: '0.85rem', padding: '0.45rem 0.65rem' }}
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.65rem', width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0 }}
                     value={billDate}
                     onChange={(e) => setBillDate(e.target.value)}
                   />
@@ -582,36 +586,37 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
               </div>
 
               {/* RECORD TYPE SELECTION TABS */}
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '1rem', width: '100%', boxSizing: 'border-box' }}>
                 <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
                   Record this bill as:
                 </label>
-                <div className="modal-tabs" style={{ marginBottom: '0.65rem' }}>
+                <div className="modal-tabs" style={{ marginBottom: '0.65rem', width: '100%', boxSizing: 'border-box' }}>
                   <button
                     type="button"
                     className={`modal-tab-btn ${recordMode === 'EXPENSE' ? 'active' : ''}`}
                     onClick={() => setRecordMode('EXPENSE')}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    <MinusIcon size={14} /> Personal Expense
+                    <MinusIcon size={13} />
+                    <span>Expense</span>
                   </button>
                   <button
                     type="button"
                     className={`modal-tab-btn ${recordMode === 'INCOME' ? 'active' : ''}`}
                     onClick={() => setRecordMode('INCOME')}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    <PlusIcon size={14} /> Income
+                    <PlusIcon size={13} />
+                    <span>Income</span>
                   </button>
                   <button
                     type="button"
                     className={`modal-tab-btn ${recordMode === 'SPLIT' ? 'active' : ''}`}
                     onClick={() => setRecordMode('SPLIT')}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    <UsersGroupIcon size={14} /> Split / Lent
+                    <UsersGroupIcon size={13} />
+                    <span>Split / Lent</span>
                   </button>
                 </div>
+              </div>
 
                 {/* SPLIT / LENT CONFIGURATION PANEL */}
                 {recordMode === 'SPLIT' && (
@@ -834,7 +839,6 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     </div>
                   </div>
                 )}
-              </div>
 
               {/* ACTION BUTTONS */}
               <div style={{ display: 'flex', gap: '0.65rem', marginTop: '1rem' }}>

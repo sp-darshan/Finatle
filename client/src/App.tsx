@@ -104,7 +104,10 @@ export function App() {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('token');
   });
-  const [loadingUser, setLoadingUser] = useState(true);
+  const [loadingUser, setLoadingUser] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(localStorage.getItem('token'));
+  });
 
   // Financial state strictly from DB
   const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
@@ -1313,8 +1316,17 @@ export function App() {
     setEditingLoan(null);
   }, []);
 
-  // 1. If user is not authenticated and not loading, show the Hero Landing Page!
-  if (!user && !loadingUser) {
+  // 1. If verifying existing token but user is not cached yet, show clean loader
+  if (loadingUser && !user) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-app)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="animate-spin" style={{ width: 36, height: 36, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary, #6366f1)', borderRadius: '50%' }} />
+      </div>
+    );
+  }
+
+  // 2. If user is not authenticated, show the Hero Landing Page!
+  if (!user) {
     return (
       <>
         <HeroLanding

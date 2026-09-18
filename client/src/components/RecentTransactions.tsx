@@ -157,9 +157,9 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = React.memo(
                       <div className="breakdown-items-list">
                         {t.items!.map((item, idx) => (
                           <div className="breakdown-item-row" key={item.id || idx}>
-                            <div className="breakdown-item-name">
-                              <span>•</span>
-                              <span>{item.name}</span>
+                            <div className="breakdown-item-name" title={item.name}>
+                              <span className="bullet">•</span>
+                              <span className="item-name-text">{item.name}</span>
                               {item.quantity && item.quantity > 1 && (
                                 <span className="breakdown-item-qty">×{item.quantity}</span>
                               )}

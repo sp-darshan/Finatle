@@ -1431,6 +1431,9 @@ button.select-pill {
   border-radius: var(--radius-md);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
   animation: fadeIn 0.18s ease-out;
+  box-sizing: border-box;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .breakdown-header {
@@ -1440,6 +1443,7 @@ button.select-pill {
   margin-bottom: 0.45rem;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid #f1f5f9;
+  min-width: 0;
 }
 
 .breakdown-header h5 {
@@ -1452,18 +1456,23 @@ button.select-pill {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .breakdown-header span {
   font-size: 0.7rem;
   color: #64748b;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .breakdown-items-list {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .breakdown-item-row {
@@ -1472,15 +1481,38 @@ button.select-pill {
   justify-content: space-between;
   font-size: 0.78rem;
   color: #1e293b;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .breakdown-item-name {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.breakdown-item-name .bullet {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.breakdown-item-name .item-name-text,
+.breakdown-item-name > span:not(.breakdown-item-qty):not(.bullet) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+  display: block;
 }
 
 .breakdown-item-qty {
@@ -1490,12 +1522,16 @@ button.select-pill {
   background: #f1f5f9;
   padding: 0.05rem 0.3rem;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .breakdown-item-price {
   font-weight: 700;
   color: #0f172a;
   flex-shrink: 0;
+  white-space: nowrap;
+  text-align: right;
+  margin-left: auto;
 }
 
 .loan-status-btn {
@@ -2811,6 +2847,9 @@ button.select-pill {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   min-height: 2.75rem;
   padding: 0.65rem 0.85rem;
   border: 1px solid #dbe4ee;
@@ -3076,6 +3115,7 @@ button.select-pill {
   gap: 0.2rem;
   margin-bottom: 1.25rem;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -3096,6 +3136,11 @@ button.select-pill {
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  box-sizing: border-box;
 }
 
 .modal-tab-btn.active {
@@ -3110,6 +3155,9 @@ button.select-pill {
   flex-direction: column;
   gap: 0.4rem;
   margin-bottom: 1rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-group label {
@@ -3120,6 +3168,10 @@ button.select-pill {
 
 .form-control,
 .form-input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   padding: 0.65rem 0.85rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -3312,6 +3364,13 @@ button.select-pill {
 
   .row-right-transaction > span {
     white-space: nowrap;
+  }
+
+  .transaction-breakdown-container {
+    margin: 0.15rem 0.25rem 0.4rem 1.5rem !important;
+    padding: 0.5rem 0.65rem !important;
+    max-width: calc(100% - 1.75rem) !important;
+    box-sizing: border-box !important;
   }
 
   .row-right-loan {
