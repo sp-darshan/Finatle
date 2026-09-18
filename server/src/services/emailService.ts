@@ -129,6 +129,7 @@ class EmailService {
     return {
       isConfigured: this.isConfigured || !!process.env.BREVO_API_KEY,
       provider: process.env.BREVO_API_KEY ? 'brevo (https)' : 'smtp',
+      brevoSender: process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'notify.projects@gmail.com',
       smtpUser: process.env.SMTP_USER ? `${process.env.SMTP_USER.slice(0, 3)}***@${process.env.SMTP_USER.split('@')[1] || ''}` : '(empty)',
       smtpPassLength: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '').length : 0,
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -137,12 +138,12 @@ class EmailService {
     };
   }
 
-  private async sendViaBrevoApi(toEmail: string, friendName: string, subject: string, htmlContent: string): Promise<string | null> {
+  private async sendViaBrevoApi(toEmail: string, friendName: string, subject: string, htmlContent: string): Promise<{ success: boolean; error?: string } | null> {
     const brevoKey = process.env.BREVO_API_KEY?.trim();
     if (!brevoKey) return null;
 
     try {
-      const senderEmail = process.env.SMTP_USER || process.env.BREVO_SENDER_EMAIL || 'notify.projects@gmail.com';
+      const senderEmail = process.env.BREVO_SENDER_EMAIL?.trim() || process.env.SMTP_USER?.trim() || 'notify.projects@gmail.com';
       const senderName = process.env.SMTP_FROM ? process.env.SMTP_FROM.split('<')[0].trim() : 'Finatle Reminders';
 
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -161,17 +162,18 @@ class EmailService {
       });
 
       if (res.ok) {
-        console.log(`[EmailService] Dispatched email to ${toEmail} via Brevo HTTPS REST API`);
-        return 'brevo';
+        console.log(`[EmailService] Dispatched email to ${toEmail} via Brevo HTTPS REST API (sender: ${senderEmail})`);
+        return { success: true };
       } else {
         const errJson = await res.json().catch(() => ({})) as any;
-        console.error('[EmailService] Brevo API error:', errJson);
+        const msg = errJson?.message || `Brevo HTTP status ${res.status}`;
+        console.error('[EmailService] Brevo API error:', msg);
+        return { success: false, error: `Brevo error: ${msg}` };
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[EmailService] Brevo network request error:', err);
+      return { success: false, error: `Brevo network error: ${err?.message || String(err)}` };
     }
-
-    return null;
   }
 
   public async createIPv4Transporter(): Promise<Transporter | null> {
@@ -268,13 +270,15 @@ class EmailService {
 `;
 
     // 1. Try Brevo HTTPS REST API (Port 443 - works 100% on Render to any recipient)
-    const brevoSent = await this.sendViaBrevoApi(toEmail, friendName, subject, htmlContent);
-    if (brevoSent) {
+    let smtpError: string | null = null;
+    const brevoResult = await this.sendViaBrevoApi(toEmail, friendName, subject, htmlContent);
+    if (brevoResult?.success) {
       return { success: true, mode: 'brevo' };
+    } else if (brevoResult?.error) {
+      smtpError = brevoResult.error;
     }
 
     // 2. Fallback to direct IPv4 SMTP
-    let smtpError: string | null = null;
     const transporter = await this.createIPv4Transporter();
     if (transporter) {
       try {
@@ -346,8 +350,8 @@ class EmailService {
 `;
 
     // 1. Try Brevo HTTPS REST API
-    const brevoSent = await this.sendViaBrevoApi(lenderEmail, lenderName, subject, htmlContent);
-    if (brevoSent) {
+    const brevoResult = await this.sendViaBrevoApi(lenderEmail, lenderName, subject, htmlContent);
+    if (brevoResult?.success) {
       return { success: true, mode: 'brevo' };
     }
 
@@ -415,8 +419,8 @@ class EmailService {
 `;
 
     // 1. Try Brevo HTTPS REST API
-    const brevoSent = await this.sendViaBrevoApi(toEmail, friendName, subject, htmlContent);
-    if (brevoSent) {
+    const disputeBrevoResult = await this.sendViaBrevoApi(toEmail, friendName, subject, htmlContent);
+    if (disputeBrevoResult?.success) {
       return { success: true, mode: 'brevo' };
     }
 
