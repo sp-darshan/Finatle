@@ -136,6 +136,39 @@ class EmailService {
     };
   }
 
+  public async createIPv4Transporter(): Promise<Transporter | null> {
+    this.initTransporter();
+    if (!this.isConfigured) return null;
+
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS?.replace(/\s+/g, '').trim();
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const port = Number(process.env.SMTP_PORT) || 465;
+
+    let targetHost = host;
+    try {
+      const ipv4List = await dns.promises.resolve4(host);
+      if (ipv4List && ipv4List.length > 0) {
+        targetHost = ipv4List[0];
+      }
+    } catch {
+      targetHost = host;
+    }
+
+    return nodemailer.createTransport({
+      host: targetHost,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      tls: {
+        servername: host,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    } as any);
+  }
+
   /**
    * Send Overdue Payment Reminder to the Friend / Borrower
    */
@@ -197,10 +230,11 @@ class EmailService {
 `;
 
     let smtpError: string | null = null;
-    if (this.isConfigured && this.transporter) {
+    const transporter = await this.createIPv4Transporter();
+    if (transporter) {
       try {
         const sender = process.env.SMTP_FROM || `"Finatle Reminders" <${process.env.SMTP_USER}>`;
-        await this.transporter.sendMail({
+        await transporter.sendMail({
           from: sender,
           to: toEmail,
           subject,
@@ -266,9 +300,10 @@ class EmailService {
 </html>
 `;
 
-    if (this.isConfigured && this.transporter) {
+    const transporter = await this.createIPv4Transporter();
+    if (transporter) {
       try {
-        await this.transporter.sendMail({
+        await transporter.sendMail({
           from: `"Finatle" <${process.env.SMTP_USER}>`,
           to: lenderEmail,
           subject,
@@ -327,9 +362,10 @@ class EmailService {
 </html>
 `;
 
-    if (this.isConfigured && this.transporter) {
+    const disputeTransporter = await this.createIPv4Transporter();
+    if (disputeTransporter) {
       try {
-        await this.transporter.sendMail({
+        await disputeTransporter.sendMail({
           from: `"Finatle Reminders" <${process.env.SMTP_USER}>`,
           to: toEmail,
           subject,
