@@ -20,7 +20,14 @@ export interface ScannedBillResult {
 
 export class BillScannerService {
   /**
-   * Scan and extract receipt details using Google Gemini Multimodal LLM Vision API
+   * Scan and extract receipt details using Google Gemini Vision API.
+   *
+   * Optimized for speed:
+   * - No model discovery
+   * - No fallback model loop
+   * - Single Gemini request
+   * - Structured JSON response
+   * - Bill validation included
    */
   public static async scanBill(payload: {
     imageBase64?: string;
@@ -29,37 +36,43 @@ export class BillScannerService {
     apiKey?: string;
     preset?: 'cafe' | 'supermarket' | 'fuel' | 'dining';
   }): Promise<ScannedBillResult> {
-    const { imageBase64, mimeType = 'image/jpeg', rawText, apiKey, preset } = payload;
+    const {
+      imageBase64,
+      mimeType = 'image/jpeg',
+      rawText,
+      apiKey,
+      preset,
+    } = payload;
 
-    // 1. Quick presets for testing
+    // Presets are only for development/testing.
     if (preset) {
       return this.getPresetResult(preset);
     }
 
     if (!imageBase64 && !rawText) {
-      throw new Error('No receipt image or text provided for AI analysis.');
-    }
-
-    // 2. Dynamically reload .env to ensure any recently added keys are immediately picked up
-    dotenv.config();
-
-    let geminiKey =
-      apiKey ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      ENV.GEMINI_API_KEY;
-
-    if (geminiKey) {
-      geminiKey = geminiKey.trim().replace(/^["']|["']$/g, '');
-    }
-
-    if (!geminiKey || geminiKey === '' || geminiKey.includes('your-gemini-api-key')) {
       throw new Error(
-        'GEMINI_API_KEY not found in server environment. Please ensure GEMINI_API_KEY is defined in server/.env'
+        'No receipt image or text provided for AI analysis.'
       );
     }
 
-    // 3. Call Gemini Multimodal LLM Vision model
+    dotenv.config();
+
+    const geminiKey =
+      apiKey?.trim() ||
+      process.env.GEMINI_API_KEY?.trim() ||
+      process.env.GOOGLE_API_KEY?.trim() ||
+      ENV.GEMINI_API_KEY?.trim();
+
+    if (
+      !geminiKey ||
+      geminiKey === '' ||
+      geminiKey.includes('your-gemini-api-key')
+    ) {
+      throw new Error(
+        'GEMINI_API_KEY not found in server environment.'
+      );
+    }
+
     return await this.scanWithGeminiLLM({
       imageBase64,
       mimeType,
@@ -69,7 +82,9 @@ export class BillScannerService {
   }
 
   /**
-   * Send receipt image to Gemini vision models with dynamic model discovery and auto-fallback
+   * Analyze and validate a receipt using Gemini.
+   *
+   * Uses a single fast multimodal model.
    */
   private static async scanWithGeminiLLM(data: {
     imageBase64?: string;
@@ -77,36 +92,163 @@ export class BillScannerService {
     rawText?: string;
     apiKey: string;
   }): Promise<ScannedBillResult> {
-    const systemPrompt = `
-You are an expert AI receipt and bill analysis system for a personal finance manager.
-Analyze the provided bill / receipt image or text with high precision.
-Extract:
-1. "merchant": Store, restaurant, brand, or business name.
-2. "amount": Final total payable numeric amount (after all discounts, additions, and taxes).
-3. "category": Choose best match from ["Food & Dining", "Groceries", "Shopping", "Travel", "Entertainment", "Utilities", "Healthcare", "Personal", "Other"].
-4. "date": Date of bill in YYYY-MM-DD format (or today's date if not visible).
-5. "items": Itemized list of purchased items with item names and numeric prices.
-6. "tax": Total GST/VAT/tax amount (number).
-7. "tip": Tip or service charge (number).
+    const startTime = Date.now();
 
-Return ONLY raw JSON conforming to this schema without markdown code blocks:
+    /**
+     * Fast multimodal model suitable for receipt extraction.
+     */
+    const MODEL = 'gemini-3.5-flash-lite';
+
+    const prompt = `
+You are a receipt and bill validation and extraction system.
+
+Your task has TWO stages:
+
+STAGE 1 — VALIDATE THE INPUT
+
+Determine whether the provided image/text is a genuine bill, invoice, receipt, purchase receipt, restaurant bill, supermarket bill, fuel receipt, shopping receipt, utility bill, or another legitimate transaction document.
+
+A valid bill should contain meaningful transaction-related information such as:
+- Merchant/store/business name
+- Purchased goods or services
+- Transaction amount/total
+- Receipt or invoice information
+- Date or transaction details
+- Tax/payment information
+- Itemized purchase information
+
+INVALID examples:
+- Selfies
+- Human photographs
+- Animals
+- Landscapes
+- Screenshots unrelated to purchases
+- Random documents
+- Blank images
+- Completely unreadable images
+- Advertisements
+- Product photographs without transaction information
+- Menus without a transaction
+- Text that is not a bill or receipt
+
+If the input is NOT a bill or receipt, return:
+
 {
+  "validBill": false
+}
+
+Do not extract or invent receipt information for an invalid bill.
+
+STAGE 2 — EXTRACT DATA
+
+Only if the input is a valid bill/receipt, extract the following:
+
+{
+  "validBill": true,
   "merchant": "string",
-  "amount": 0.0,
+  "amount": 0,
   "category": "Food & Dining",
-  "date": "YYYY-MM-DD",
   "items": [
-    { "name": "string", "price": 0.0, "quantity": 1 }
+    {
+      "name": "string",
+      "price": 0,
+      "quantity": 1
+    }
   ],
-  "tax": 0.0,
-  "tip": 0.0
+  "tax": 0,
+  "tip": 0,
+  "note": "string"
+}
+
+RULES:
+
+1. Extract information ONLY from the provided bill/receipt.
+
+2. NEVER invent, guess, or fabricate information.
+
+3. Do NOT use default values.
+
+4. merchant must be the actual merchant/store/business name visible on the receipt.
+
+5. amount must be the final payable transaction amount shown on the receipt.
+
+6. items must contain the actual purchased products/services visible on the receipt.
+
+9. price must be the actual item price.
+
+10. quantity should be included only when it can be determined from the receipt.
+
+11. tax should be included only when tax/GST/VAT is visible.
+
+12. tip should be included only when tip/service charge is visible.
+
+13. note should contain useful additional transaction information only when present.
+
+14. category MUST be one of:
+   - Food & Dining
+   - Groceries
+   - Shopping
+   - Travel
+   - Entertainment
+   - Utilities
+   - Healthcare
+   - Personal
+   - Other
+
+15. If a required field cannot be reliably determined from a valid bill, set:
+   "validBill": false
+
+16. Do not treat a menu, catalog, price list, advertisement, or product image as a bill.
+
+17. Do not treat an ordinary text document as a bill unless it clearly represents a transaction.
+
+18. Return ONLY valid JSON.
+
+19. Do NOT wrap the JSON in markdown.
+
+20. Do NOT include explanations outside the JSON.
+
+VALID BILL EXAMPLE:
+
+{
+  "validBill": true,
+  "merchant": "ABC Supermarket",
+  "amount": 1250,
+  "category": "Groceries",
+  "date": "2026-09-18",
+  "items": [
+    {
+      "name": "Milk",
+      "price": 60,
+      "quantity": 2
+    }
+  ],
+  "tax": 60,
+  "tip": 0
+}
+
+INVALID BILL EXAMPLE:
+
+{
+  "validBill": false
 }
 `;
 
-    const parts: any[] = [{ text: systemPrompt }];
+    const parts: any[] = [
+      {
+        text: prompt,
+      },
+    ];
 
+    /**
+     * Add receipt image.
+     */
     if (data.imageBase64) {
-      const cleanBase64 = data.imageBase64.replace(/^data:image\/[a-zA-Z0-9+]+;base64,/, '');
+      const cleanBase64 = data.imageBase64.replace(
+        /^data:image\/[^;]+;base64,/,
+        ''
+      );
+
       parts.push({
         inlineData: {
           mimeType: data.mimeType || 'image/jpeg',
@@ -115,137 +257,281 @@ Return ONLY raw JSON conforming to this schema without markdown code blocks:
       });
     }
 
+    /**
+     * Add raw receipt text if provided.
+     */
     if (data.rawText) {
       parts.push({
-        text: `Raw Receipt Content:\n${data.rawText}`,
+        text: `Receipt text:\n${data.rawText}`,
       });
     }
 
-    // 1. Try to discover valid models dynamically for this key
-    let candidateEndpoints: string[] = [];
+    const endpoint =
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
     try {
-      const listRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${data.apiKey}`
-      );
-      if (listRes.ok) {
-        const listJson = await listRes.json();
-        if (Array.isArray(listJson.models)) {
-          const supported = listJson.models
-            .filter((m: any) =>
-              Array.isArray(m.supportedGenerationMethods)
-                ? m.supportedGenerationMethods.includes('generateContent')
-                : true
-            )
-            .map((m: any) => m.name.replace(/^models\//, ''));
+      const response = await fetch(endpoint, {
+        method: 'POST',
 
-          // Prioritize flash models then pro models
-          const flashModels = supported.filter((n: string) => n.includes('flash'));
-          const proModels = supported.filter((n: string) => n.includes('pro') && !n.includes('flash'));
-          const otherModels = supported.filter((n: string) => !n.includes('flash') && !n.includes('pro'));
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': data.apiKey,
+        },
 
-          const ordered = [...flashModels, ...proModels, ...otherModels];
-          candidateEndpoints = ordered.map(
-            (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${data.apiKey}`
-          );
-        }
-      }
-    } catch {
-      // ignore listModels failure and use fallback endpoints
-    }
-
-    // Fallback static endpoints across v1 and v1beta
-    if (candidateEndpoints.length === 0) {
-      const fallbackModels = [
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-flash-001',
-        'gemini-1.5-flash-002',
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro',
-        'gemini-1.5-pro-latest',
-        'gemini-1.0-pro-vision-latest',
-      ];
-      candidateEndpoints = [
-        ...fallbackModels.map(
-          (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${data.apiKey}`
-        ),
-        ...fallbackModels.map(
-          (m) => `https://generativelanguage.googleapis.com/v1/models/${m}:generateContent?key=${data.apiKey}`
-        ),
-      ];
-    }
-
-    let lastError: any = null;
-
-    for (const endpoint of candidateEndpoints) {
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts }],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: 'application/json',
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts,
             },
-          }),
+          ],
+
+          generationConfig: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+            maxOutputTokens: 700,
+          },
+        }),
+      });
+
+      const elapsed = Date.now() - startTime;
+
+      console.log(
+        `[Gemini] Bill scan completed in ${elapsed}ms`
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+
+        let errorMessage = `HTTP ${response.status}`;
+
+        try {
+          const parsedError = JSON.parse(errorBody);
+
+          if (parsedError?.error?.message) {
+            errorMessage = parsedError.error.message;
+          }
+        } catch {
+          if (errorBody) {
+            errorMessage = errorBody;
+          }
+        }
+
+        throw new Error(
+          `Gemini: ${errorMessage}`
+        );
+      }
+
+      const json = await response.json();
+
+      const candidateText =
+        json.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!candidateText) {
+        throw new Error(
+          'Gemini returned no usable response.'
+        );
+      }
+
+      let parsed: any;
+
+      try {
+        parsed = JSON.parse(candidateText.trim());
+      } catch {
+        throw new Error(
+          `Gemini returned invalid JSON: ${candidateText}`
+        );
+      }
+
+      /**
+       * =====================================================
+       * BILL VALIDATION
+       * =====================================================
+       */
+
+      if (parsed.validBill !== true) {
+        throw new Error(
+          'Invalid bill: The uploaded image or text does not appear to be a valid bill or receipt.'
+        );
+      }
+
+      /**
+       * Required fields.
+       *
+       * No defaults are provided.
+       */
+      if (
+        typeof parsed.merchant !== 'string' ||
+        parsed.merchant.trim() === ''
+      ) {
+        throw new Error(
+          'Invalid bill: Merchant name could not be identified.'
+        );
+      }
+
+      if (
+        parsed.amount === undefined ||
+        parsed.amount === null ||
+        typeof parsed.amount !== 'number' ||
+        !Number.isFinite(parsed.amount)
+      ) {
+        throw new Error(
+          'Invalid bill: Final transaction amount could not be identified.'
+        );
+      }
+
+
+
+      const validCategories = [
+        'Food & Dining',
+        'Groceries',
+        'Shopping',
+        'Travel',
+        'Entertainment',
+        'Utilities',
+        'Healthcare',
+        'Personal',
+        'Other',
+      ];
+
+      if (
+        typeof parsed.category !== 'string' ||
+        !validCategories.includes(parsed.category)
+      ) {
+        throw new Error(
+          'Invalid bill: Transaction category could not be determined.'
+        );
+      }
+
+      if (!Array.isArray(parsed.items)) {
+        throw new Error(
+          'Invalid bill: Purchased items could not be identified.'
+        );
+      }
+
+      /**
+       * Validate individual items.
+       */
+      const items: ScannedBillItem[] =
+        parsed.items.map((item: any) => {
+          if (
+            !item ||
+            typeof item.name !== 'string' ||
+            item.name.trim() === ''
+          ) {
+            throw new Error(
+              'Invalid bill: One or more item names could not be identified.'
+            );
+          }
+
+          if (
+            item.price === undefined ||
+            item.price === null ||
+            typeof item.price !== 'number' ||
+            !Number.isFinite(item.price)
+          ) {
+            throw new Error(
+              'Invalid bill: One or more item prices could not be identified.'
+            );
+          }
+
+          const result: ScannedBillItem = {
+            name: item.name.trim(),
+            price: item.price,
+          };
+
+          if (
+            item.quantity !== undefined &&
+            item.quantity !== null
+          ) {
+            if (
+              typeof item.quantity !== 'number' ||
+              !Number.isFinite(item.quantity)
+            ) {
+              throw new Error(
+                'Invalid bill: Invalid item quantity detected.'
+              );
+            }
+
+            result.quantity = item.quantity;
+          }
+
+          return result;
         });
 
-        if (!response.ok) {
-          const errBody = await response.text();
-          let errorMsg = `HTTP ${response.status}`;
-          try {
-            const parsedErr = JSON.parse(errBody);
-            if (parsedErr?.error?.message) {
-              errorMsg = parsedErr.error.message;
-            }
-          } catch {
-            errorMsg = errBody;
-          }
-          lastError = new Error(`Gemini: ${errorMsg}`);
-          continue; // Try next endpoint
+      /**
+       * Optional fields.
+       *
+       * They are NOT given default values.
+       */
+      const today = new Date().toISOString().split('T')[0];
+
+      const result: ScannedBillResult = {
+        merchant: parsed.merchant.trim(),
+        amount: parsed.amount,
+        category: parsed.category,
+        date: today,
+        items,
+      };
+
+      if (
+        parsed.tax !== undefined &&
+        parsed.tax !== null
+      ) {
+        if (
+          typeof parsed.tax !== 'number' ||
+          !Number.isFinite(parsed.tax)
+        ) {
+          throw new Error(
+            'Invalid bill: Invalid tax value detected.'
+          );
         }
 
-        const json = await response.json();
-        const candidateText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!candidateText) {
-          continue;
-        }
-
-        const parsed = JSON.parse(candidateText.trim());
-        const today = new Date().toISOString().split('T')[0];
-
-        return {
-          merchant: String(parsed.merchant || 'Store Bill'),
-          amount: Number(parsed.amount) || 0,
-          category: String(parsed.category || 'Food & Dining'),
-          date: String(parsed.date || today),
-          items: Array.isArray(parsed.items)
-            ? parsed.items.map((it: any) => ({
-                name: String(it.name || 'Item'),
-                price: Number(it.price) || 0,
-                quantity: Number(it.quantity) || 1,
-              }))
-            : [],
-          tax: Number(parsed.tax) || 0,
-          tip: Number(parsed.tip) || 0,
-        };
-      } catch (err) {
-        lastError = err;
+        result.tax = parsed.tax;
       }
-    }
 
-    throw lastError || new Error('Failed to analyze receipt with Gemini Vision.');
+      if (
+        parsed.tip !== undefined &&
+        parsed.tip !== null
+      ) {
+        if (
+          typeof parsed.tip !== 'number' ||
+          !Number.isFinite(parsed.tip)
+        ) {
+          throw new Error(
+            'Invalid bill: Invalid tip/service charge detected.'
+          );
+        }
+
+        result.tip = parsed.tip;
+      }
+
+      if (
+        typeof parsed.note === 'string' &&
+        parsed.note.trim() !== ''
+      ) {
+        result.note = parsed.note.trim();
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        '[Gemini] Bill scanning failed:',
+        error
+      );
+
+      throw error;
+    }
   }
 
   /**
-   * Realistic presets for testing without an API key
+   * Realistic presets for testing without an API key.
    */
-  private static getPresetResult(preset: string): ScannedBillResult {
-    const today = new Date().toISOString().split('T')[0];
+  private static getPresetResult(
+    preset: string
+  ): ScannedBillResult {
+    const today =
+      new Date().toISOString().split('T')[0];
 
     if (preset === 'supermarket') {
       return {
@@ -254,9 +540,21 @@ Return ONLY raw JSON conforming to this schema without markdown code blocks:
         category: 'Groceries',
         date: today,
         items: [
-          { name: 'Organic Milk & Farm Eggs', price: 350, quantity: 2 },
-          { name: 'Fresh Fruits & Greens', price: 620, quantity: 1 },
-          { name: 'Artisan Sourdough & Snacks', price: 480, quantity: 1 },
+          {
+            name: 'Organic Milk & Farm Eggs',
+            price: 350,
+            quantity: 2,
+          },
+          {
+            name: 'Fresh Fruits & Greens',
+            price: 620,
+            quantity: 1,
+          },
+          {
+            name: 'Artisan Sourdough & Snacks',
+            price: 480,
+            quantity: 1,
+          },
         ],
         tax: 65,
       };
@@ -269,7 +567,11 @@ Return ONLY raw JSON conforming to this schema without markdown code blocks:
         category: 'Travel',
         date: today,
         items: [
-          { name: 'Shell V-Power Petrol (18.5 L)', price: 2000, quantity: 1 },
+          {
+            name: 'Shell V-Power Petrol (18.5 L)',
+            price: 2000,
+            quantity: 1,
+          },
         ],
         tax: 0,
       };
@@ -282,23 +584,38 @@ Return ONLY raw JSON conforming to this schema without markdown code blocks:
         category: 'Food & Dining',
         date: today,
         items: [
-          { name: '4x Grand Buffet Feast', price: 2400, quantity: 4 },
-          { name: 'Mocktails & Desserts', price: 400, quantity: 2 },
+          {
+            name: '4x Grand Buffet Feast',
+            price: 2400,
+            quantity: 4,
+          },
+          {
+            name: 'Mocktails & Desserts',
+            price: 400,
+            quantity: 2,
+          },
         ],
         tax: 140,
         tip: 100,
       };
     }
 
-    // Default: Cafe Receipt
     return {
       merchant: 'Starbucks Coffee',
       amount: 640,
       category: 'Food & Dining',
       date: today,
       items: [
-        { name: '2x Caffe Latte (Grande)', price: 480, quantity: 2 },
-        { name: '1x Butter Almond Croissant', price: 160, quantity: 1 },
+        {
+          name: '2x Caffe Latte (Grande)',
+          price: 480,
+          quantity: 2,
+        },
+        {
+          name: '1x Butter Almond Croissant',
+          price: 160,
+          quantity: 1,
+        },
       ],
       tax: 32,
     };

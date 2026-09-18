@@ -17,9 +17,20 @@ export class FinanceService {
 
     const [account, transactions, moneyLent, moneyBorrowed] = await Promise.all([
       prisma.account.findUnique({ where: { uid: userId } }),
-      prisma.transaction.findMany({ where: { uid: userId }, orderBy: { occurredAt: 'desc' }, take: 100 }),
-      prisma.moneyLent.findMany({ where: { uid: userId }, orderBy: { lentAt: 'desc' } }),
-      prisma.moneyBorrowed.findMany({ where: { uid: userId }, orderBy: { borrowedAt: 'desc' } }),
+      prisma.transaction.findMany({
+        where: { uid: userId },
+        include: { items: true },
+        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+        take: 100,
+      }),
+      prisma.moneyLent.findMany({
+        where: { uid: userId },
+        orderBy: [{ lentAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+      prisma.moneyBorrowed.findMany({
+        where: { uid: userId },
+        orderBy: [{ borrowedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
     ]);
 
     const cleanText = (text?: string | null) =>

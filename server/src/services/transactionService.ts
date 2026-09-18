@@ -29,6 +29,19 @@ export class TransactionService {
     }
 
     const balanceChange = type === 'INCOME' ? amount : -amount;
+    const now = new Date();
+    let finalOccurredAt = now;
+    if (occurredAt) {
+      const parsedDate = new Date(occurredAt);
+      if (!isNaN(parsedDate.getTime())) {
+        const isToday =
+          parsedDate.getUTCFullYear() === now.getUTCFullYear() &&
+          parsedDate.getUTCMonth() === now.getUTCMonth() &&
+          parsedDate.getUTCDate() === now.getUTCDate();
+        finalOccurredAt = isToday ? now : parsedDate;
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.create({
         data: {
@@ -37,7 +50,21 @@ export class TransactionService {
           amount: new Prisma.Decimal(amount),
           description,
           category,
-          occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+          occurredAt: finalOccurredAt,
+          items: Array.isArray(dto.items) && dto.items.length > 0
+            ? {
+                create: dto.items
+                  .filter((it) => it && (it.name || Number(it.price) > 0))
+                  .map((it) => ({
+                    name: sanitizeString(it.name) || 'Item',
+                    price: new Prisma.Decimal(parseAmount(it.price) || 0),
+                    quantity: it.quantity && Number(it.quantity) > 0 ? Number(it.quantity) : 1,
+                  })),
+              }
+            : undefined,
+        },
+        include: {
+          items: true,
         },
       });
       const updatedAccount = await tx.account.upsert({
@@ -45,7 +72,7 @@ export class TransactionService {
         create: { uid: userId, balance: new Prisma.Decimal(balanceChange) },
         update: { balance: { increment: new Prisma.Decimal(balanceChange) } },
       });
-      return { transaction, account: updatedAccount };
+      return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid }, account: updatedAccount };
     });
 
     await cacheService.invalidateUserFinance(userId);
@@ -56,7 +83,11 @@ export class TransactionService {
   /**
    * Update an existing transaction with balance recalculation
    */
-  static async updateTransaction(userId: string | undefined, transactionId: string, dto: UpdateTransactionDto) {
+  static async updateTransaction(
+    userId: string | undefined,
+    transactionId: string,
+    dto: UpdateTransactionDto
+  ) {
     if (!userId) throw new UnauthorizedError();
 
     const existing = await prisma.transaction.findFirst({
@@ -110,7 +141,7 @@ export class TransactionService {
         update: { balance: { increment: new Prisma.Decimal(netDifference) } },
       });
 
-      return { transaction, account };
+      return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid }, account };
     });
 
     await cacheService.invalidateUserFinance(userId);

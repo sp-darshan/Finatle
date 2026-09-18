@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CategoryBadge, PencilEditIcon } from './Icons';
-import { LuReceipt, LuArrowRight } from 'react-icons/lu';
+import { LuReceipt, LuChevronDown, LuChevronUp, LuShoppingBag } from 'react-icons/lu';
+
+export interface TransactionBreakdownItem {
+  id?: string;
+  name: string;
+  price: number;
+  quantity?: number;
+}
 
 export interface TransactionItem {
   id: string;
@@ -9,6 +16,7 @@ export interface TransactionItem {
   date: string;
   amount: number;
   type: 'INCOME' | 'EXPENSE';
+  items?: TransactionBreakdownItem[];
 }
 
 interface RecentTransactionsProps {
@@ -26,13 +34,18 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = React.memo(
   onAddTransaction,
   onEditTransaction,
 }) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const formatRupee = (amount: number) => {
     return `₹${Math.abs(amount).toLocaleString('en-IN')}`;
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  };
+
   const maxItems = limit !== undefined ? limit : (onViewAll ? 5 : undefined);
   const displayedTransactions = maxItems ? transactions.slice(0, maxItems) : transactions;
-  const remainingCount = maxItems ? Math.max(0, transactions.length - maxItems) : 0;
 
   return (
     <div className="dashboard-card">
@@ -68,65 +81,100 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = React.memo(
             {displayedTransactions.map((t) => {
               const isIncome = t.type === 'INCOME';
               const cleanName = t.name ? t.name.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : t.name;
+              const hasItems = Array.isArray(t.items) && t.items.length > 0;
+              const isExpanded = expandedId === t.id;
+
               return (
-                <div className="transaction-row" key={t.id}>
-                  <div className="row-left">
-                    <CategoryBadge name={cleanName} category={t.category} size={38} />
-                    <div className="row-info">
-                      <h4>{cleanName}</h4>
-                      <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
+                <div
+                  className={`transaction-card-wrapper ${isExpanded ? 'expanded' : ''}`}
+                  key={t.id}
+                >
+                  <div
+                    className={`transaction-row ${hasItems ? 'clickable' : ''}`}
+                    onClick={() => hasItems && toggleExpand(t.id)}
+                    title={hasItems ? 'Click to view receipt breakdown' : undefined}
+                  >
+                    <div className="row-left">
+                      <CategoryBadge name={cleanName} category={t.category} size={38} />
+                      <div className="row-info">
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          <h4>{cleanName}</h4>
+                          {hasItems && (
+                            <span className="receipt-pill-badge" title="Scanned receipt items">
+                              <LuReceipt size={10} />
+                              {t.items!.length} {t.items!.length === 1 ? 'item' : 'items'}
+                            </span>
+                          )}
+                        </div>
+                        <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
+                      </div>
+                    </div>
+
+                    <div className="row-right-transaction">
+                      <span className={isIncome ? 'amount-positive' : 'amount-negative'}>
+                        {isIncome ? `+ ${formatRupee(t.amount)}` : `- ${formatRupee(t.amount)}`}
+                      </span>
+
+                      {hasItems && (
+                        <span
+                          style={{
+                            color: '#94a3b8',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isExpanded ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
+                        </span>
+                      )}
+
+                      {onEditTransaction && (
+                        <button
+                          className="edit-pencil-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditTransaction(t);
+                          }}
+                          title="Edit Transaction"
+                        >
+                          <PencilEditIcon size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="row-right-transaction">
-                    <span className={isIncome ? 'amount-positive' : 'amount-negative'}>
-                      {isIncome ? `+ ${formatRupee(t.amount)}` : `- ${formatRupee(t.amount)}`}
-                    </span>
+                  {/* ITEM BREAKDOWN ACCORDION */}
+                  {hasItems && isExpanded && (
+                    <div className="transaction-breakdown-container">
+                      <div className="breakdown-header">
+                        <h5>
+                          <LuShoppingBag size={13} color="#059669" />
+                          Receipt Breakdown
+                        </h5>
+                        <span>{t.items!.length} {t.items!.length === 1 ? 'Item' : 'Items'}</span>
+                      </div>
 
-                    {onEditTransaction && (
-                      <button
-                        className="edit-pencil-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditTransaction(t);
-                        }}
-                        title="Edit Transaction"
-                      >
-                        <PencilEditIcon size={13} />
-                      </button>
-                    )}
-                  </div>
+                      <div className="breakdown-items-list">
+                        {t.items!.map((item, idx) => (
+                          <div className="breakdown-item-row" key={item.id || idx}>
+                            <div className="breakdown-item-name">
+                              <span>•</span>
+                              <span>{item.name}</span>
+                              {item.quantity && item.quantity > 1 && (
+                                <span className="breakdown-item-qty">×{item.quantity}</span>
+                              )}
+                            </div>
+                            <span className="breakdown-item-price">
+                              ₹{Number(item.price).toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
-
-            {remainingCount > 0 && onViewAll && (
-              <button
-                type="button"
-                className="view-all-btn"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  padding: '0.65rem 1rem',
-                  marginTop: '0.5rem',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--primary-dark)',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onClick={onViewAll}
-              >
-                <span>View More ({remainingCount} more)</span>
-                <LuArrowRight size={14} />
-              </button>
-            )}
           </>
         )}
       </div>

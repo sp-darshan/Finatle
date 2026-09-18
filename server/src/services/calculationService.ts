@@ -30,9 +30,9 @@ export class CalculationService {
   }
 
   /**
-   * Balance validation rule (non-blocking for personal finance tracking)
+   * Balance validation rule: Balance and net savings cannot be negative
    */
-  static violatesBalanceRules(_netSavings: number, _actualBalance: number): boolean {
-    return false;
+  static violatesBalanceRules(netSavings: number, actualBalance: number): boolean {
+    return netSavings < 0 || actualBalance < 0;
   }
 }

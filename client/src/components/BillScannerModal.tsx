@@ -16,6 +16,7 @@ export interface ScannedBillPayload {
   category: string;
   amount: number;
   date?: string;
+  items?: Array<{ id?: string; name: string; price: number; quantity?: number }>;
   splitDetails?: {
     peopleCount: number;
     userShare: number;
@@ -78,6 +79,28 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  const resetForm = () => {
+    setScannedResult(null);
+    setMerchantName('');
+    setTotalAmount('');
+    setCategory('Food & Dining');
+    setOtherCategory('');
+    setBillDate(new Date().toISOString().split('T')[0]);
+    setRecordMode('EXPENSE');
+    setSplitType('EQUAL');
+    setPeopleCount(4);
+    setGroupOrPersonName('Friends');
+    setCustomPeople([{ id: '1', name: '', amount: '' }]);
+    setError(null);
+    setScanStatus('');
+    setScanning(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   const handleAddPerson = () => {
@@ -108,21 +131,58 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     date?: string;
     items?: Array<{ name: string; price: number; quantity?: number }>;
   }) => {
+    const today = new Date().toISOString().split('T')[0];
     setScannedResult({
       merchant: data.merchant || 'Store Bill',
       amount: data.amount || 0,
       category: data.category || 'Food & Dining',
-      date: data.date || new Date().toISOString().split('T')[0],
+      date: today,
       items: data.items || [],
     });
     setMerchantName(data.merchant || 'Store Bill');
     setTotalAmount(String(data.amount || ''));
     setCategory(data.category || 'Food & Dining');
-    setBillDate(data.date || new Date().toISOString().split('T')[0]);
+    setBillDate(today);
     setRecordMode('EXPENSE');
     setCustomPeople([
       { id: '1', name: '', amount: String(Math.round((data.amount || 0) * 0.5)) },
     ]);
+  };
+
+  // Fast client-side image compression & downsampling (prevents multi-MB payload latency)
+  const compressReceiptImage = (file: File, maxDimension = 1600, quality = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(event.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(event.target?.result as string);
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
   };
 
   // Scan via Uploaded Image / Camera Photo
@@ -131,53 +191,45 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     if (!file) return;
 
     setScanning(true);
-    setScanStatus('Analyzing receipt...');
+    setScanStatus('Optimizing & analyzing receipt...');
     setError(null);
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result as string;
-
-      try {
-        if (!token) {
-          throw new Error('Please sign in to scan bills.');
-        }
-
-        const res = await apiFetch('/api/finance/scan-bill', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            imageBase64: base64,
-            mimeType: file.type || 'image/jpeg',
-          }),
-        });
-
-        const json = await res.json();
-
-        if (!res.ok) {
-          throw new Error(json.message || json.error || 'Receipt extraction failed.');
-        }
-
-        const resultData = json.data || json;
-        handleSetScanData(resultData);
-      } catch (err: any) {
-        setError(err.message || 'Failed to extract bill details.');
-      } finally {
-        setScanning(false);
-        setScanStatus('');
+    try {
+      if (!token) {
+        throw new Error('Please sign in to scan bills.');
       }
-    };
 
-    reader.onerror = () => {
-      setError('Unable to read the image file.');
+      const base64 = await compressReceiptImage(file);
+
+      const res = await apiFetch('/api/finance/scan-bill', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imageBase64: base64,
+          mimeType: 'image/jpeg',
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.message || json.error || 'Receipt extraction failed.');
+      }
+
+      const resultData = json.data || json;
+      handleSetScanData(resultData);
+    } catch (err: any) {
+      setError(err.message || 'Failed to extract bill details.');
+    } finally {
       setScanning(false);
       setScanStatus('');
-    };
-
-    reader.readAsDataURL(file);
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
   };
 
   // Calculations for Split Mode
@@ -188,28 +240,25 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
 
   if (recordMode === 'SPLIT') {
     if (splitType === 'EQUAL') {
-      const people = Math.max(2, peopleCount || 2);
-      computedUserShare = Math.round((parsedTotal / people) * 100) / 100;
-      computedLentAmount = Math.max(0, Math.round((parsedTotal - computedUserShare) * 100) / 100);
-      perPersonOwed = Math.round((computedLentAmount / (people - 1)) * 100) / 100;
+      const validPeopleCount = Math.max(2, peopleCount);
+      computedUserShare = Math.round((parsedTotal / validPeopleCount) * 100) / 100;
+      computedLentAmount = Math.round((parsedTotal - computedUserShare) * 100) / 100;
+      perPersonOwed = Math.round((computedLentAmount / (validPeopleCount - 1)) * 100) / 100;
     } else {
-      const totalCustomLent = customPeople.reduce(
-        (acc, curr) => acc + (parseFloat(curr.amount) || 0),
-        0
-      );
-      computedLentAmount = Math.round(totalCustomLent * 100) / 100;
+      computedLentAmount = customPeople.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
       computedUserShare = Math.max(0, Math.round((parsedTotal - computedLentAmount) * 100) / 100);
     }
   }
 
   // Submit Handler
   const handleConfirm = async () => {
-    if (parsedTotal <= 0) {
-      setError('Please enter a valid amount greater than ₹0.');
+    if (!merchantName.trim()) {
+      setError('Please provide a merchant or expense description.');
       return;
     }
-    if (!merchantName.trim()) {
-      setError('Please enter a merchant or bill description.');
+
+    if (isNaN(parsedTotal) || parsedTotal <= 0) {
+      setError('Please provide a valid bill amount greater than ₹0.');
       return;
     }
 
@@ -247,6 +296,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
             category: finalCategory,
             amount: parsedTotal,
             date: billDate,
+            items: scannedResult?.items || [],
             splitDetails: {
               peopleCount: validPeople.length + 1,
               userShare: computedUserShare,
@@ -263,6 +313,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
             category: finalCategory,
             amount: parsedTotal,
             date: billDate,
+            items: scannedResult?.items || [],
             splitDetails: {
               peopleCount: peopleCount,
               userShare: computedUserShare,
@@ -279,8 +330,10 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
           category: finalCategory,
           amount: parsedTotal,
           date: billDate,
+          items: scannedResult?.items || [],
         });
       }
+      resetForm();
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to save scanned bill.');
@@ -289,10 +342,8 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-card" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -304,7 +355,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
               </p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+          <button className="modal-close-btn" onClick={handleClose} aria-label="Close modal">
             <LuX size={18} />
           </button>
         </div>
@@ -799,7 +850,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     cursor: 'pointer',
                     fontSize: '0.85rem',
                   }}
-                  onClick={() => setScannedResult(null)}
+                  onClick={resetForm}
                   disabled={submitting}
                 >
                   Scan Another

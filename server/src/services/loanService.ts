@@ -54,7 +54,8 @@ export class LoanService {
         create: { uid: userId, balance: new Prisma.Decimal(balanceChange) },
         update: { balance: { increment: new Prisma.Decimal(balanceChange) } },
       });
-      return { loan, account };
+      const loanId = kind === 'lent' ? (loan as any).lid : (loan as any).bid;
+      return { loan: { ...loan, id: loanId, lid: (loan as any).lid, bid: (loan as any).bid }, account };
     });
 
     await cacheService.invalidateUserFinance(userId);
@@ -108,7 +109,7 @@ export class LoanService {
           where: { uid: userId },
           data: { balance: { increment: new Prisma.Decimal(repaymentChange) } },
         });
-        return { loan, account };
+        return { loan: { ...loan, id: loan.lid, lid: loan.lid }, account };
       });
 
       await cacheService.invalidateUserFinance(userId);
@@ -154,7 +155,7 @@ export class LoanService {
           where: { uid: userId },
           data: { balance: { increment: new Prisma.Decimal(repaymentChange) } },
         });
-        return { loan, account };
+        return { loan: { ...loan, id: loan.bid, bid: loan.bid }, account };
       });
 
       await cacheService.invalidateUserFinance(userId);
@@ -284,7 +285,8 @@ export class LoanService {
         update: { balance: { increment: new Prisma.Decimal(balanceDelta) } },
       });
 
-      return { loan: updatedLoan, account };
+      const updatedId = (updatedLoan as any).lid || (updatedLoan as any).bid;
+      return { loan: { ...updatedLoan, id: updatedId, lid: (updatedLoan as any).lid, bid: (updatedLoan as any).bid }, account };
     });
 
     await cacheService.invalidateUserFinance(userId);

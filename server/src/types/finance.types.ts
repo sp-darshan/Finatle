@@ -5,12 +5,19 @@ export interface FinancialState {
   actualBalance: number;
 }
 
+export interface CreateTransactionItemDto {
+  name: string;
+  price: number | string;
+  quantity?: number;
+}
+
 export interface CreateTransactionDto {
   type: TransactionType | 'INCOME' | 'EXPENSE';
   amount: number | string;
   description?: string | null;
   category?: string | null;
   occurredAt?: string | Date;
+  items?: CreateTransactionItemDto[];
 }
 
 export interface UpdateTransactionDto {
@@ -19,6 +26,7 @@ export interface UpdateTransactionDto {
   description?: string | null;
   category?: string | null;
   occurredAt?: string | Date;
+  items?: CreateTransactionItemDto[];
 }
 
 export interface CreateLoanDto {

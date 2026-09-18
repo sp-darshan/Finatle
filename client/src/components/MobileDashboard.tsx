@@ -21,7 +21,7 @@ import {
   type BudgetLimit,
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
-import { LuReceipt, LuX, LuPlus } from 'react-icons/lu';
+import { LuReceipt, LuX, LuPlus, LuChevronDown, LuChevronUp, LuShoppingBag } from 'react-icons/lu';
 import { useGreeting } from '../lib/greeting';
 
 
@@ -121,18 +121,18 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
   const topTransactions = React.useMemo(() => transactions.slice(0, 5), [transactions]);
   const pendingLoans = React.useMemo(() => loans.slice(0, 5), [loans]);
-
-  const [filterType, setFilterType] = useState<'ALL' | 'EXPENSE' | 'INCOME'>('ALL');
+  const [txTypeFilter, setTxTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   const [mobileSearch, setMobileSearch] = useState('');
 
   const displayedTransactions = React.useMemo(() => {
     return transactions.filter((t) => {
-      if (filterType !== 'ALL' && t.type !== filterType) return false;
+      if (txTypeFilter !== 'ALL' && t.type !== txTypeFilter) return false;
       if (!mobileSearch.trim()) return true;
       const q = mobileSearch.toLowerCase();
       return t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q);
     });
-  }, [transactions, filterType, mobileSearch]);
+  }, [transactions, txTypeFilter, mobileSearch]);
 
   const [loanFilterType, setLoanFilterType] = useState<'ALL' | 'LENT' | 'BORROWED' | 'SPLIT' | 'PENDING' | 'SETTLED'>('ALL');
   const [mobileLoanSearch, setMobileLoanSearch] = useState('');
@@ -403,62 +403,87 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 {topTransactions.map((t) => {
                   const isIncome = t.type === 'INCOME';
                   const cleanName = t.name ? t.name.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : t.name;
+                  const hasItems = Array.isArray(t.items) && t.items.length > 0;
+                  const isExpanded = expandedTxId === t.id;
+
                   return (
-                    <div className="transaction-row" key={t.id}>
-                      <div className="row-left">
-                        <CategoryBadge name={cleanName} category={t.category} size={36} />
-                        <div className="row-info">
-                          <h4>{cleanName}</h4>
-                          <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
+                    <div
+                      className={`transaction-card-wrapper ${isExpanded ? 'expanded' : ''}`}
+                      key={t.id}
+                    >
+                      <div
+                        className={`transaction-row ${hasItems ? 'clickable' : ''}`}
+                        onClick={() => hasItems && setExpandedTxId(prev => prev === t.id ? null : t.id)}
+                      >
+                        <div className="row-left">
+                          <CategoryBadge name={cleanName} category={t.category} size={36} />
+                          <div className="row-info">
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                              <h4>{cleanName}</h4>
+                              {hasItems && (
+                                <span className="receipt-pill-badge">
+                                  <LuReceipt size={9} />
+                                  {t.items!.length} {t.items!.length === 1 ? 'item' : 'items'}
+                                </span>
+                              )}
+                            </div>
+                            <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
+                          </div>
+                        </div>
+                        <div className="row-right-transaction">
+                          <span className={isIncome ? 'amount-positive' : 'amount-negative'}>
+                            {isIncome ? `+ ${formatRupee(t.amount)}` : `- ${formatRupee(t.amount)}`}
+                          </span>
+                          {hasItems && (
+                            <span style={{ color: '#94a3b8', display: 'inline-flex', alignItems: 'center' }}>
+                              {isExpanded ? <LuChevronUp size={14} /> : <LuChevronDown size={14} />}
+                            </span>
+                          )}
+                          {onEditTransaction && (
+                            <button
+                              className="edit-pencil-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditTransaction(t);
+                              }}
+                              title="Edit Transaction"
+                            >
+                              <PencilEditIcon size={12} />
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="row-right-transaction">
-                        <span className={isIncome ? 'amount-positive' : 'amount-negative'}>
-                          {isIncome ? `+ ${formatRupee(t.amount)}` : `- ${formatRupee(t.amount)}`}
-                        </span>
-                        {onEditTransaction && (
-                          <button
-                            className="edit-pencil-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditTransaction(t);
-                            }}
-                            title="Edit Transaction"
-                          >
-                            <PencilEditIcon size={12} />
-                          </button>
-                        )}
-                      </div>
+
+                      {hasItems && isExpanded && (
+                        <div className="transaction-breakdown-container" style={{ margin: '0.15rem 0.35rem 0.4rem 2.8rem' }}>
+                          <div className="breakdown-header">
+                            <h5>
+                              <LuShoppingBag size={12} color="#059669" />
+                              Receipt Breakdown
+                            </h5>
+                            <span>{t.items!.length} items</span>
+                          </div>
+                          <div className="breakdown-items-list">
+                            {t.items!.map((item, idx) => (
+                              <div className="breakdown-item-row" key={item.id || idx}>
+                                <div className="breakdown-item-name">
+                                  <span>•</span>
+                                  <span>{item.name}</span>
+                                  {item.quantity && item.quantity > 1 && (
+                                    <span className="breakdown-item-qty">×{item.quantity}</span>
+                                  )}
+                                </div>
+                                <span className="breakdown-item-price">
+                                  ₹{Number(item.price).toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
-                {transactions.length > 5 && (
-                  <button
-                    type="button"
-                    className="view-more-footer-btn"
-                    onClick={onOpenAllTransactions || (() => onSelectNav('transactions'))}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      marginTop: '0.5rem',
-                      background: 'rgba(59, 130, 246, 0.06)',
-                      border: '1px dashed rgba(59, 130, 246, 0.3)',
-                      borderRadius: 'var(--radius-md, 12px)',
-                      color: '#2563eb',
-                      fontWeight: 600,
-                      fontSize: '0.86rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <span>View More ({transactions.length - 5} remaining)</span>
-                    <span style={{ fontSize: '1rem' }}>&rarr;</span>
-                  </button>
-                )}
               </div>
             )}
           </section>
@@ -601,33 +626,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                     </div>
                   );
                 })}
-                {loans.length > 5 && (
-                  <button
-                    type="button"
-                    className="view-more-footer-btn"
-                    onClick={onOpenLoans}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      marginTop: '0.5rem',
-                      background: 'rgba(99, 102, 241, 0.06)',
-                      border: '1px dashed rgba(99, 102, 241, 0.3)',
-                      borderRadius: 'var(--radius-md, 12px)',
-                      color: 'var(--settle-indigo, #6366f1)',
-                      fontWeight: 600,
-                      fontSize: '0.86rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <span>View More ({loans.length - 5} remaining)</span>
-                    <span style={{ fontSize: '1rem' }}>&rarr;</span>
-                  </button>
-                )}
               </div>
             )}
           </section>
@@ -676,22 +674,22 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
           <div className="modal-tabs" style={{ marginBottom: '1rem' }}>
             <button
               type="button"
-              className={`modal-tab-btn ${filterType === 'ALL' ? 'active' : ''}`}
-              onClick={() => setFilterType('ALL')}
+              className={`modal-tab-btn ${txTypeFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => setTxTypeFilter('ALL')}
             >
               All
             </button>
             <button
               type="button"
-              className={`modal-tab-btn ${filterType === 'EXPENSE' ? 'active' : ''}`}
-              onClick={() => setFilterType('EXPENSE')}
+              className={`modal-tab-btn ${txTypeFilter === 'EXPENSE' ? 'active' : ''}`}
+              onClick={() => setTxTypeFilter('EXPENSE')}
             >
               Expenses
             </button>
             <button
               type="button"
-              className={`modal-tab-btn ${filterType === 'INCOME' ? 'active' : ''}`}
-              onClick={() => setFilterType('INCOME')}
+              className={`modal-tab-btn ${txTypeFilter === 'INCOME' ? 'active' : ''}`}
+              onClick={() => setTxTypeFilter('INCOME')}
             >
               Income
             </button>
@@ -710,32 +708,84 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
               {displayedTransactions.map((t) => {
                 const isIncome = t.type === 'INCOME';
                 const cleanName = t.name ? t.name.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim() : t.name;
+                const hasItems = Array.isArray(t.items) && t.items.length > 0;
+                const isExpanded = expandedTxId === t.id;
+
                 return (
-                  <div className="transaction-row" key={t.id}>
-                    <div className="row-left">
-                      <CategoryBadge name={cleanName} category={t.category} size={36} />
-                      <div className="row-info">
-                        <h4>{cleanName}</h4>
-                        <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
+                  <div
+                    className={`transaction-card-wrapper ${isExpanded ? 'expanded' : ''}`}
+                    key={t.id}
+                  >
+                    <div
+                      className={`transaction-row ${hasItems ? 'clickable' : ''}`}
+                      onClick={() => hasItems && setExpandedTxId(prev => prev === t.id ? null : t.id)}
+                    >
+                      <div className="row-left">
+                        <CategoryBadge name={cleanName} category={t.category} size={36} />
+                        <div className="row-info">
+                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                            <h4>{cleanName}</h4>
+                            {hasItems && (
+                              <span className="receipt-pill-badge">
+                                <LuReceipt size={9} />
+                                {t.items!.length} {t.items!.length === 1 ? 'item' : 'items'}
+                              </span>
+                            )}
+                          </div>
+                          <p>{t.category ? `${t.category} • ` : ''}{t.date}</p>
+                        </div>
+                      </div>
+                      <div className="row-right-transaction">
+                        <span className={isIncome ? 'amount-positive' : 'amount-negative'}>
+                          {isIncome ? `+ ${formatRupee(t.amount)}` : `- ${formatRupee(t.amount)}`}
+                        </span>
+                        {hasItems && (
+                          <span style={{ color: '#94a3b8', display: 'inline-flex', alignItems: 'center' }}>
+                            {isExpanded ? <LuChevronUp size={14} /> : <LuChevronDown size={14} />}
+                          </span>
+                        )}
+                        {onEditTransaction && (
+                          <button
+                            className="edit-pencil-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditTransaction(t);
+                            }}
+                            title="Edit Transaction"
+                          >
+                            <PencilEditIcon size={12} />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="row-right-transaction">
-                      <span className={isIncome ? 'amount-positive' : 'amount-negative'}>
-                        {isIncome ? `+ ${formatRupee(t.amount)}` : `- ${formatRupee(t.amount)}`}
-                      </span>
-                      {onEditTransaction && (
-                        <button
-                          className="edit-pencil-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditTransaction(t);
-                          }}
-                          title="Edit Transaction"
-                        >
-                          <PencilEditIcon size={12} />
-                        </button>
-                      )}
-                    </div>
+
+                    {hasItems && isExpanded && (
+                      <div className="transaction-breakdown-container" style={{ margin: '0.15rem 0.35rem 0.4rem 2.8rem' }}>
+                        <div className="breakdown-header">
+                          <h5>
+                            <LuShoppingBag size={12} color="#059669" />
+                            Receipt Breakdown
+                          </h5>
+                          <span>{t.items!.length} items</span>
+                        </div>
+                        <div className="breakdown-items-list">
+                          {t.items!.map((item, idx) => (
+                            <div className="breakdown-item-row" key={item.id || idx}>
+                              <div className="breakdown-item-name">
+                                <span>•</span>
+                                <span>{item.name}</span>
+                                {item.quantity && item.quantity > 1 && (
+                                  <span className="breakdown-item-qty">×{item.quantity}</span>
+                                )}
+                              </div>
+                              <span className="breakdown-item-price">
+                                ₹{Number(item.price).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

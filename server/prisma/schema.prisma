@@ -40,19 +40,33 @@ model Account {
 }
 
 model Transaction {
-  tid         String          @id @default(uuid())
+  tid         String            @id @default(uuid())
   uid         String
   type        TransactionType
-  amount      Decimal         @db.Decimal(14, 2)
+  amount      Decimal           @db.Decimal(14, 2)
   description String?
   category    String?
-  occurredAt  DateTime        @default(now())
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  user        User            @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  occurredAt  DateTime          @default(now())
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  user        User              @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  items       TransactionItem[]
 
   @@index([uid, occurredAt])
   @@map("transactions")
+}
+
+model TransactionItem {
+  id            String      @id @default(uuid())
+  transactionId String
+  name          String
+  price         Decimal     @db.Decimal(14, 2)
+  quantity      Int         @default(1)
+  createdAt     DateTime    @default(now())
+  transaction   Transaction @relation(fields: [transactionId], references: [tid], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@map("transaction_items")
 }
 
 model MoneyLent {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { PencilEditIcon, UsersGroupIcon } from './Icons';
-import { LuHandshake, LuArrowRight } from 'react-icons/lu';
+import { LuHandshake } from 'react-icons/lu';
 
 export interface LoanItem {
   id: string;
@@ -38,7 +38,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
 
   const maxItems = limit !== undefined ? limit : (onViewAll ? 5 : undefined);
   const displayedLoans = maxItems ? loans.slice(0, maxItems) : loans;
-  const remainingCount = maxItems ? Math.max(0, loans.length - maxItems) : 0;
 
   return (
     <div className="dashboard-card">
@@ -162,34 +161,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
                 </div>
               );
             })}
-
-            {remainingCount > 0 && onViewAll && (
-              <button
-                type="button"
-                className="view-all-btn"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  padding: '0.65rem 1rem',
-                  marginTop: '0.5rem',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--settle-text)',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onClick={onViewAll}
-              >
-                <span>View More ({remainingCount} more)</span>
-                <LuArrowRight size={14} />
-              </button>
-            )}
           </>
         )}
       </div>

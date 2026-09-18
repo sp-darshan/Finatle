@@ -23,6 +23,7 @@ import { AuthModal } from './components/AuthModal';
 import { BudgetManager } from './components/BudgetManager';
 import type { BudgetLimit } from './components/BudgetManager';
 import { SettingsView } from './components/SettingsView';
+import { Toast } from './components/Toast';
 import { apiFetch } from './lib/api';
 import { useGreeting } from './lib/greeting';
 
@@ -131,8 +132,23 @@ export function App() {
     }
   });
   const [budgets, setBudgets] = useState<BudgetLimit[]>([]);
-  const [settlementError, setSettlementError] = useState('');
+  const [toast, setToast] = useState<{ message: string; type?: 'error' | 'success' | 'info'; id: number } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRequestRef = useRef(0);
+
+  const showToast = useCallback((message: string, type: 'error' | 'success' | 'info' = 'error') => {
+    if (!message) return;
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type, id: Date.now() });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  }, []);
+
+  const hideToast = useCallback(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(null);
+  }, []);
 
   // Auto detect mobile window size efficiently
   useEffect(() => {
@@ -231,15 +247,30 @@ export function App() {
         
         const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
 
-        // Transactions strictly from DB
+        // Transactions strictly from DB (sorted by most recent first)
         if (data.transactions && Array.isArray(data.transactions)) {
-          const mapped: TransactionItem[] = data.transactions.map((t: any) => ({
+          const sorted = [...data.transactions].sort((a: any, b: any) => {
+            const timeA = new Date(a.occurredAt || a.createdAt).getTime();
+            const timeB = new Date(b.occurredAt || b.createdAt).getTime();
+            if (timeB !== timeA) return timeB - timeA;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          });
+
+          const mapped: TransactionItem[] = sorted.map((t: any) => ({
             id: t.tid,
             name: cleanSplitText(t.description) || t.category || 'Transaction',
             category: t.category || 'General',
             date: new Date(t.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             amount: Number(t.amount),
             type: t.type,
+            items: Array.isArray(t.items)
+              ? t.items.map((it: any) => ({
+                  id: it.id,
+                  name: it.name,
+                  price: Number(it.price) || 0,
+                  quantity: Number(it.quantity) || 1,
+                }))
+              : [],
           }));
           setTransactions(mapped);
           localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(mapped));
@@ -396,7 +427,7 @@ export function App() {
     if (kind === 'split' && splitData) {
       const { userShareTransaction, lentEntries } = splitData;
 
-      // 1. If user has a personal share, record it as a transaction optimistically
+      // 1. Add split transaction for the user
       if (userShareTransaction) {
         setTransactions((prev) => {
           const updated = [userShareTransaction.optimisticData as TransactionItem, ...prev];
@@ -411,22 +442,26 @@ export function App() {
             body: JSON.stringify(userShareTransaction.apiPayload),
           })
             .then(async (res) => {
-              if (res.ok) {
-                const data = await res.json();
-                const realItem: TransactionItem = {
-                  id: data.transaction?.tid || userShareTransaction.optimisticData.id,
-                  name: data.transaction?.description || userShareTransaction.optimisticData.name,
-                  category: data.transaction?.category || userShareTransaction.optimisticData.category,
-                  date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : userShareTransaction.optimisticData.date,
-                  amount: Number(data.transaction?.amount ?? userShareTransaction.optimisticData.amount),
-                  type: data.transaction?.type || userShareTransaction.optimisticData.type,
-                };
-                setTransactions((prev) => {
-                  const updated = prev.map((t) => (t.id === userShareTransaction.optimisticData.id ? realItem : t));
-                  localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
-                  return updated;
-                });
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || errData.error || 'Failed to save transaction');
               }
+              const data = await res.json();
+              const realTxId = data.transaction?.tid || data.transaction?.id || userShareTransaction.optimisticData.id;
+              const realItem: TransactionItem = {
+                id: realTxId,
+                name: data.transaction?.description || userShareTransaction.optimisticData.name,
+                category: data.transaction?.category || userShareTransaction.optimisticData.category,
+                date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : userShareTransaction.optimisticData.date,
+                amount: Number(data.transaction?.amount ?? userShareTransaction.optimisticData.amount),
+                type: data.transaction?.type || userShareTransaction.optimisticData.type,
+              };
+              setTransactions((prev) => {
+                const updated = prev.map((t) => (t.id === userShareTransaction.optimisticData.id ? realItem : t));
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+              fetchUserData(token, false);
             })
             .catch((err) => {
               console.error('[Optimistic] Split user share transaction failed:', err);
@@ -435,6 +470,7 @@ export function App() {
                 localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
                 return updated;
               });
+              showToast(err.message || 'Failed to save split transaction. Reverted.', 'error');
             });
         }
       }
@@ -459,14 +495,15 @@ export function App() {
                 .then(async (res) => {
                   if (!res.ok) {
                     const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.error || 'Failed to save lent record');
+                    throw new Error(errData.message || errData.error || 'Failed to save lent record');
                   }
                   return res.json();
                 })
                 .then((data) => {
                   if (data.loan) {
+                    const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || e.optimisticData.id;
                     const realLoan: LoanItem = {
-                      id: data.loan.id,
+                      id: realLoanId,
                       kind: 'lent',
                       personName: data.loan.personName,
                       title: `You lent to ${data.loan.personName}`,
@@ -493,6 +530,7 @@ export function App() {
             .catch((err) => {
               console.error('[Optimistic] Split friends loan save error:', err);
               if (token) fetchUserData(token, false);
+              showToast(err.message || 'Failed to save lent records.', 'error');
             });
         }
       }
@@ -516,24 +554,28 @@ export function App() {
           body: JSON.stringify(apiPayload),
         })
           .then(async (res) => {
-            if (res.ok) {
-              const data = await res.json();
-              if (data.transaction) {
-                const realItem: TransactionItem = {
-                  id: data.transaction.tid,
-                  name: cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction',
-                  category: data.transaction.category || 'General',
-                  date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                  amount: Number(data.transaction.amount),
-                  type: data.transaction.type,
-                };
-                setTransactions((prev) => {
-                  const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
-                  localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
-                  return updated;
-                });
-              }
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.message || errData.error || 'Unable to save transaction.');
             }
+            const data = await res.json();
+            if (data.transaction) {
+              const realTxId = data.transaction.tid || data.transaction.id || optimisticData.id;
+              const realItem: TransactionItem = {
+                id: realTxId,
+                name: cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction',
+                category: data.transaction.category || 'General',
+                date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                amount: Number(data.transaction.amount),
+                type: data.transaction.type,
+              };
+              setTransactions((prev) => {
+                const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            }
+            fetchUserData(token, false);
           })
           .catch((err) => {
             console.error('[Optimistic] Add transaction failed, reverting:', err);
@@ -542,7 +584,7 @@ export function App() {
               localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
               return updated;
             });
-            setSettlementError('Unable to save transaction. Reverted.');
+            showToast(err.message || 'Unable to save transaction. Reverted.', 'error');
           });
       }
     } else if ((kind === 'lent' || kind === 'borrowed') && optimisticData) {
@@ -563,29 +605,33 @@ export function App() {
           body: JSON.stringify(apiPayload),
         })
           .then(async (res) => {
-            if (res.ok) {
-              const data = await res.json();
-              if (data.loan) {
-                const realItem: LoanItem = {
-                  id: data.loan.id,
-                  kind,
-                  personName: data.loan.personName,
-                  title: kind === 'lent' ? `You lent to ${data.loan.personName}` : `You borrowed from ${data.loan.personName}`,
-                  subtext: data.loan.description || 'Personal loan',
-                  amount: Number(data.loan.amount),
-                  paidAmount: Number(data.loan.paidAmount || 0),
-                  status: data.loan.status || 'PENDING',
-                  statusLabel: data.loan.status === 'PAID' ? 'Settled' : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
-                  date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : data.loan.borrowedAt ? new Date(data.loan.borrowedAt).toISOString() : new Date().toISOString(),
-                  dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
-                };
-                setLoans((prev) => {
-                  const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
-                  localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
-                  return updated;
-                });
-              }
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.message || errData.error || 'Unable to save loan.');
             }
+            const data = await res.json();
+            if (data.loan) {
+              const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || optimisticData.id;
+              const realItem: LoanItem = {
+                id: realLoanId,
+                kind,
+                personName: data.loan.personName,
+                title: kind === 'lent' ? `You lent to ${data.loan.personName}` : `You borrowed from ${data.loan.personName}`,
+                subtext: data.loan.description || 'Personal loan',
+                amount: Number(data.loan.amount),
+                paidAmount: Number(data.loan.paidAmount || 0),
+                status: data.loan.status || 'PENDING',
+                statusLabel: data.loan.status === 'PAID' ? 'Settled' : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+                date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : data.loan.borrowedAt ? new Date(data.loan.borrowedAt).toISOString() : new Date().toISOString(),
+                dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
+              };
+              setLoans((prev) => {
+                const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
+                localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            }
+            fetchUserData(token, false);
           })
           .catch((err) => {
             console.error('[Optimistic] Add loan failed, reverting:', err);
@@ -594,11 +640,11 @@ export function App() {
               localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
               return updated;
             });
-            setSettlementError('Unable to save loan. Reverted.');
+            showToast(err.message || 'Unable to save loan. Reverted.', 'error');
           });
       }
     }
-  }, [token, user?.uid]);
+  }, [token, user?.uid, showToast]);
 
   const handleTransactionSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: TransactionItem; originalId?: string }) => {
     if (!action) {
@@ -621,11 +667,18 @@ export function App() {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.message || data.error || 'Failed to delete transaction.');
+            }
+            fetchUserData(token, false);
+          })
           .catch((err) => {
             console.error('[Optimistic] Delete transaction failed, reverting:', err);
             setTransactions(prevTransactions);
             localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
-            setSettlementError('Failed to delete transaction. Reverted.');
+            showToast(err.message || 'Failed to delete transaction. Reverted.', 'error');
           });
       }
     } else if (action.type === 'update' && action.data && action.originalId) {
@@ -647,15 +700,22 @@ export function App() {
             category: updatedData.category,
           }),
         })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.message || data.error || 'Failed to update transaction.');
+            }
+            fetchUserData(token, false);
+          })
           .catch((err) => {
             console.error('[Optimistic] Update transaction failed, reverting:', err);
             setTransactions(prevTransactions);
             localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
-            setSettlementError('Failed to update transaction. Reverted.');
+            showToast(err.message || 'Failed to update transaction. Reverted.', 'error');
           });
       }
     }
-  }, [token, user?.uid, transactions]);
+  }, [token, user?.uid, transactions, showToast]);
 
   const handleLoanSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => {
     if (!action) {
@@ -683,11 +743,18 @@ export function App() {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.message || data.error || 'Failed to delete loan.');
+            }
+            fetchUserData(token, false);
+          })
           .catch((err) => {
             console.error('[Optimistic] Delete loan failed, reverting:', err);
             setLoans(prevLoans);
             localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
-            setSettlementError('Failed to delete loan. Reverted.');
+            showToast(err.message || 'Failed to delete loan. Reverted.', 'error');
           });
       }
     } else if (action.type === 'update' && action.data && action.originalId) {
@@ -711,7 +778,7 @@ export function App() {
           .then(async (res) => {
             if (!res.ok) {
               const data = await res.json().catch(() => ({}));
-              throw new Error(data.error || 'Failed to update loan');
+              throw new Error(data.message || data.error || 'Failed to update loan.');
             }
             if (token) fetchUserData(token, false);
           })
@@ -719,11 +786,11 @@ export function App() {
             console.error('[Optimistic] Update loan failed, reverting:', err);
             setLoans(prevLoans);
             localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
-            setSettlementError(err?.message || 'Failed to update loan. Reverted.');
+            showToast(err?.message || 'Failed to update loan. Reverted.', 'error');
           });
       }
     }
-  }, [token, user?.uid, loans]);
+  }, [token, user?.uid, loans, showToast]);
 
   const handleEditTransaction = useCallback((transaction: TransactionItem) => {
     setEditingTransaction(transaction);
@@ -734,7 +801,6 @@ export function App() {
   }, []);
 
   const handleSettleLoan = useCallback(async (loanId: string, currentStatus: LoanItem['status']) => {
-    setSettlementError('');
     const isCurrentlyPaid = currentStatus === 'PAID';
     const nextStatus: LoanItem['status'] = isCurrentlyPaid ? 'PENDING' : 'PAID';
 
@@ -775,19 +841,38 @@ export function App() {
               }
             : item)
         );
-        setSettlementError(error.message || 'Unable to update settlement status.');
+        showToast(error.message || 'Unable to update settlement status.', 'error');
       }
     }
-  }, [token]);
+  }, [token, showToast]);
 
   const handleConfirmScannedBill = useCallback(async (scanned: ScannedBillPayload) => {
     if (!token) return;
 
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+    const tempTxId = `temp-scan-tx-${Date.now()}`;
+    const todayFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
     try {
       if (scanned.mode === 'SPLIT' && scanned.splitDetails) {
-        // 1. Create personal expense transaction for user's share (if > 0)
+        // 1. Optimistically insert user share transaction
         if (scanned.splitDetails.userShare > 0) {
-          await apiFetch('/api/finance/transactions', {
+          const optimisticTx: TransactionItem = {
+            id: tempTxId,
+            name: scanned.name,
+            category: scanned.category,
+            date: todayFormatted,
+            amount: scanned.splitDetails.userShare,
+            type: 'EXPENSE',
+            items: scanned.items,
+          };
+          setTransactions((prev) => {
+            const updated = [optimisticTx, ...prev];
+            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+            return updated;
+          });
+
+          apiFetch('/api/finance/transactions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -798,14 +883,69 @@ export function App() {
               amount: scanned.splitDetails.userShare,
               description: scanned.name,
               category: scanned.category,
+              occurredAt: scanned.date,
+              items: scanned.items,
             }),
-          });
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || 'Insufficient balance for this transaction.');
+              }
+              const data = await res.json();
+              if (data.transaction) {
+                const realTxId = data.transaction.tid || data.transaction.id || tempTxId;
+                const realItem: TransactionItem = {
+                  id: realTxId,
+                  name: data.transaction.description || scanned.name,
+                  category: data.transaction.category || scanned.category,
+                  date: todayFormatted,
+                  amount: Number(data.transaction.amount ?? scanned.splitDetails?.userShare),
+                  type: 'EXPENSE',
+                  items: data.transaction.items || scanned.items,
+                };
+                setTransactions((prev) => {
+                  const updated = prev.map((t) => (t.id === tempTxId ? realItem : t));
+                  localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              }
+              fetchUserData(token, false);
+            })
+            .catch((err) => {
+              console.error('[Optimistic] Scanned user share sync failed:', err);
+              setTransactions((prev) => {
+                const updated = prev.filter((t) => t.id !== tempTxId);
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast(err.message || 'Insufficient balance for this transaction.', 'error');
+            });
         }
 
-        // 2. Create Lent loan records for each individual person (or group)
+        // 2. Optimistically insert lent records for friends
         if (scanned.splitDetails.lentEntries && scanned.splitDetails.lentEntries.length > 0) {
-          await Promise.all(
-            scanned.splitDetails.lentEntries.map((entry) =>
+          const optimisticLoans: LoanItem[] = scanned.splitDetails.lentEntries.map((entry, idx) => ({
+            id: `temp-scan-loan-${Date.now()}-${idx}`,
+            kind: 'lent',
+            personName: entry.personName,
+            title: `You lent to ${entry.personName}`,
+            subtext: entry.description || `${scanned.name} split`,
+            amount: entry.amount,
+            paidAmount: 0,
+            date: new Date().toISOString(),
+            status: 'PENDING',
+            statusLabel: 'Yet to receive',
+          }));
+
+          setLoans((prev) => {
+            const updated = [...optimisticLoans, ...prev];
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+            return updated;
+          });
+
+          Promise.all(
+            scanned.splitDetails.lentEntries.map((entry, idx) =>
               apiFetch('/api/finance/lent', {
                 method: 'POST',
                 headers: {
@@ -818,11 +958,57 @@ export function App() {
                   description: entry.description || `${scanned.name} split`,
                   lentAt: scanned.date,
                 }),
+              }).then(async (res) => {
+                if (!res.ok) {
+                  const errData = await res.json().catch(() => ({}));
+                  throw new Error(errData.message || 'Insufficient balance to lend.');
+                }
+                const data = await res.json();
+                if (data.loan) {
+                  const realId = data.loan.lid || data.loan.bid || data.loan.id;
+                  const tempId = optimisticLoans[idx]?.id;
+                  if (tempId && realId) {
+                    setLoans((prev) => {
+                      const updated = prev.map((l) => (l.id === tempId ? { ...l, id: realId } : l));
+                      localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                      return updated;
+                    });
+                  }
+                }
+                return data;
               })
             )
-          );
+          )
+            .then(() => {
+              fetchUserData(token, false);
+            })
+            .catch((err) => {
+              console.error('[Optimistic] Scanned lent sync failed:', err);
+              fetchUserData(token, false);
+              showToast(err.message || 'Insufficient balance for lent records.', 'error');
+            });
         } else if (scanned.splitDetails.lentAmount > 0) {
-          await apiFetch('/api/finance/lent', {
+          const singleLoanId = `temp-scan-loan-${Date.now()}`;
+          const optimisticLoan: LoanItem = {
+            id: singleLoanId,
+            kind: 'lent',
+            personName: scanned.splitDetails.personName,
+            title: `You lent to ${scanned.splitDetails.personName}`,
+            subtext: scanned.splitDetails.description,
+            amount: scanned.splitDetails.lentAmount,
+            paidAmount: 0,
+            date: new Date().toISOString(),
+            status: 'PENDING',
+            statusLabel: 'Yet to receive',
+          };
+
+          setLoans((prev) => {
+            const updated = [optimisticLoan, ...prev];
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+            return updated;
+          });
+
+          apiFetch('/api/finance/lent', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -834,30 +1020,120 @@ export function App() {
               description: scanned.splitDetails.description,
               lentAt: scanned.date,
             }),
-          });
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || 'Insufficient balance to lend.');
+              }
+              const data = await res.json();
+              if (data.loan) {
+                const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || singleLoanId;
+                const realLoan: LoanItem = {
+                  id: realLoanId,
+                  kind: 'lent',
+                  personName: data.loan.personName,
+                  title: `You lent to ${data.loan.personName}`,
+                  subtext: data.loan.description || scanned.splitDetails?.description || '',
+                  amount: Number(data.loan.amount),
+                  paidAmount: 0,
+                  date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : new Date().toISOString(),
+                  status: 'PENDING',
+                  statusLabel: 'Yet to receive',
+                };
+                setLoans((prev) => {
+                  const updated = prev.map((l) => (l.id === singleLoanId ? realLoan : l));
+                  localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              }
+              fetchUserData(token, false);
+            })
+            .catch((err) => {
+              console.error('[Optimistic] Scanned single lent sync failed:', err);
+              setLoans((prev) => {
+                const updated = prev.filter((l) => l.id !== singleLoanId);
+                localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+              showToast(err.message || 'Insufficient balance to lend.', 'error');
+            });
         }
       } else {
-        // Direct EXPENSE or INCOME transaction
-        await apiFetch('/api/finance/transactions', {
+        // Direct EXPENSE or INCOME transaction - Instant UI update
+        const directType: 'INCOME' | 'EXPENSE' = scanned.mode === 'INCOME' ? 'INCOME' : 'EXPENSE';
+        const optimisticTx: TransactionItem = {
+          id: tempTxId,
+          name: scanned.name,
+          category: scanned.category,
+          date: todayFormatted,
+          amount: scanned.amount,
+          type: directType,
+          items: scanned.items,
+        };
+
+        setTransactions((prev) => {
+          const updated = [optimisticTx, ...prev];
+          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        // Fire network write in background
+        apiFetch('/api/finance/transactions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            type: scanned.mode,
+            type: directType,
             amount: scanned.amount,
             description: scanned.name,
             category: scanned.category,
+            occurredAt: scanned.date,
+            items: scanned.items,
           }),
-        });
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.message || 'Insufficient balance for this transaction.');
+            }
+            const data = await res.json();
+            if (data.transaction) {
+              const realTxId = data.transaction.tid || data.transaction.id || tempTxId;
+              const realItem: TransactionItem = {
+                id: realTxId,
+                name: data.transaction.description || scanned.name,
+                category: data.transaction.category || scanned.category,
+                date: todayFormatted,
+                amount: Number(data.transaction.amount),
+                type: directType,
+                items: data.transaction.items || scanned.items,
+              };
+              setTransactions((prev) => {
+                const updated = prev.map((t) => (t.id === tempTxId ? realItem : t));
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            }
+            fetchUserData(token, false);
+          })
+          .catch((err) => {
+            console.error('[Optimistic] Scanned direct transaction failed:', err);
+            setTransactions((prev) => {
+              const updated = prev.filter((t) => t.id !== tempTxId);
+              localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+              return updated;
+            });
+            showToast(err.message || 'Insufficient balance for this transaction.', 'error');
+          });
       }
-
-      await fetchUserData(token);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to process scanned bill:', err);
+      showToast(err.message || 'Failed to process scanned bill.', 'error');
     }
-  }, [token]);
+  }, [token, user, showToast]);
 
   // Filter transactions according to search input (memoized)
   const filteredTransactions = useMemo(() => {
@@ -1137,6 +1413,14 @@ export function App() {
           isOpen={isPWAOpen}
           onClose={handleClosePWA}
         />
+
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={hideToast}
+          />
+        )}
       </div>
     );
   }
@@ -1198,7 +1482,6 @@ export function App() {
                 </div>
 
                 {/* 4 Metric Cards */}
-                {settlementError && <p className="form-error">{settlementError}</p>}
                 <MetricCards
                   income={totalIncome}
                   expenses={totalExpense}
@@ -1378,6 +1661,14 @@ export function App() {
         isOpen={isPWAOpen}
         onClose={handleClosePWA}
       />
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }
