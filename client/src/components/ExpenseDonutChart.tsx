@@ -14,16 +14,19 @@ interface ExpenseDonutChartProps {
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  'Food & Dining': '#10B981', // Emerald Green (160°)
+  'Dining': '#10B981', // Emerald Green (160°)
+  'Food & Dining': '#10B981',
   'Food': '#10B981',
   'Shopping': '#F97316', // Tangerine Orange (25°) - opposite blue/green
-  'Rent & Housing': '#EC4899', // Hot Pink / Rose (330°)
+  'Rent': '#EC4899', // Hot Pink / Rose (330°)
+  'Rent & Housing': '#EC4899',
   'Housing': '#EC4899',
   'Travel': '#8B5CF6', // Electric Purple (260°) - opposite yellow
   'Transport': '#8B5CF6',
   'Utilities': '#06B6D4', // Electric Cyan (190°) - opposite red
   'Entertainment': '#EAB308', // Sun Amber (45°) - opposite purple
-  'Health & Fitness': '#14B8A6', // Teal (175°)
+  'Health': '#14B8A6', // Teal (175°)
+  'Health & Fitness': '#14B8A6',
   'Gym': '#14B8A6',
   'Education': '#3B82F6', // Royal Blue (220°)
   'Medical': '#EF4444', // Crimson Red (0°)

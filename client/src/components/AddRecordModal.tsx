@@ -28,7 +28,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(initialKind === 'income' ? 'Salary' : 'Food & Dining');
+  const [category, setCategory] = useState(initialKind === 'income' ? 'Salary' : 'Dining');
   const [otherCategory, setOtherCategory] = useState('');
   const [personName, setPersonName] = useState('');
   const [dueAt, setDueAt] = useState('');
@@ -51,7 +51,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
       setAmount('');
       setTitle('');
       setError('');
-      setCategory(initialKind === 'income' ? 'Salary' : 'Food & Dining');
+      setCategory(initialKind === 'income' ? 'Salary' : 'Dining');
       setOtherCategory('');
       setPersonName('');
       setDueAt('');

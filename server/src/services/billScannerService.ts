@@ -147,7 +147,7 @@ Only if the input is a valid bill/receipt, extract the following:
   "validBill": true,
   "merchant": "string",
   "amount": 0,
-  "category": "Food & Dining",
+  "category": "Dining",
   "items": [
     {
       "name": "string",
@@ -185,13 +185,15 @@ RULES:
 13. note should contain useful additional transaction information only when present.
 
 14. category MUST be one of:
-   - Food & Dining
-   - Groceries
+   - Dining
    - Shopping
+   - Rent
    - Travel
    - Entertainment
    - Utilities
-   - Healthcare
+   - Health
+   - Medical
+   - Groceries
    - Personal
    - Other
 
@@ -383,13 +385,20 @@ INVALID BILL EXAMPLE:
 
 
       const validCategories = [
+        'Dining',
         'Food & Dining',
+        'Food',
         'Groceries',
         'Shopping',
+        'Rent',
+        'Rent & Housing',
         'Travel',
         'Entertainment',
         'Utilities',
+        'Health',
+        'Health & Fitness',
         'Healthcare',
+        'Medical',
         'Personal',
         'Other',
       ];
@@ -581,7 +590,7 @@ INVALID BILL EXAMPLE:
       return {
         merchant: 'Barbeque Nation Diner',
         amount: 2800,
-        category: 'Food & Dining',
+        category: 'Dining',
         date: today,
         items: [
           {
@@ -603,7 +612,7 @@ INVALID BILL EXAMPLE:
     return {
       merchant: 'Starbucks Coffee',
       amount: 640,
-      category: 'Food & Dining',
+      category: 'Dining',
       date: today,
       items: [
         {

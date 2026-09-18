@@ -22,14 +22,14 @@ const CATEGORY_OPTIONS: {
   icon: React.ComponentType<{ size?: number }>;
   tone: string;
 }[] = [
-  { name: 'Food & Dining', icon: LuUtensils, tone: 'green' },
+  { name: 'Dining', icon: LuUtensils, tone: 'green' },
   { name: 'Shopping', icon: LuShoppingBag, tone: 'blue' },
-  { name: 'Rent & Housing', icon: FaHouse, tone: 'teal' },
+  { name: 'Rent', icon: FaHouse, tone: 'teal' },
   { name: 'Travel', icon: LuPlane, tone: 'amber' },
   { name: 'Utilities', icon: LuZap, tone: 'cyan' },
   { name: 'Entertainment', icon: LuFilm, tone: 'coral' },
   { name: 'Salary', icon: LuTrendingUp, tone: 'emerald' },
-  { name: 'Health & Fitness', icon: LuDumbbell, tone: 'emerald' },
+  { name: 'Health', icon: LuDumbbell, tone: 'emerald' },
   { name: 'Education', icon: LuGraduationCap, tone: 'indigo' },
   { name: 'Medical', icon: LuHeartPulse, tone: 'coral' },
   { name: 'General', icon: LuFolder, tone: 'slate' },

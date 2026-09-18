@@ -19,12 +19,13 @@ interface BudgetManagerProps {
 const formatRupee = (value: number) => `₹${Math.round(value).toLocaleString('en-IN')}`;
 
 const STANDARD_CATEGORIES = [
-  'Food & Dining',
+  'Dining',
   'Shopping',
-  'Rent & Housing',
+  'Rent',
   'Travel',
   'Utilities',
   'Entertainment',
+  'Health',
   'Salary',
   'General',
 ];
@@ -35,7 +36,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
   onSave,
   onDelete,
 }) => {
-  const [category, setCategory] = useState('Food & Dining');
+  const [category, setCategory] = useState('Dining');
   const [otherCategory, setOtherCategory] = useState('');
   const [limit, setLimit] = useState('');
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
 
   const handleCancelEdit = () => {
     setEditingCategory(null);
-    setCategory('Food & Dining');
+    setCategory('Dining');
     setOtherCategory('');
     setLimit('');
   };
@@ -83,7 +84,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
     if (editingCategory) {
       existingCats.delete(editingCategory.toLowerCase());
     }
-    const nextUnset = STANDARD_CATEGORIES.find((c) => !existingCats.has(c.toLowerCase())) || 'Food & Dining';
+    const nextUnset = STANDARD_CATEGORIES.find((c) => !existingCats.has(c.toLowerCase())) || 'Dining';
 
     setEditingCategory(null);
     setCategory(nextUnset);

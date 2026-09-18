@@ -21,7 +21,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Food & Dining');
+  const [category, setCategory] = useState('Dining');
   const [otherCategory, setOtherCategory] = useState('');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,7 +32,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setType(transaction.type);
       setAmount(String(transaction.amount));
       setDescription(transaction.name);
-      setCategory(transaction.category || 'Food & Dining');
+      setCategory(transaction.category || 'Dining');
       setOtherCategory('');
       setError(null);
       setIsConfirmingDelete(false);

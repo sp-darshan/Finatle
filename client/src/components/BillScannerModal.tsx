@@ -61,7 +61,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
   // Editable bill fields
   const [merchantName, setMerchantName] = useState('');
   const [totalAmount, setTotalAmount] = useState<string>('');
-  const [category, setCategory] = useState('Food & Dining');
+  const [category, setCategory] = useState('Dining');
   const [otherCategory, setOtherCategory] = useState('');
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -71,7 +71,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
   // Split configurations
   const [splitType, setSplitType] = useState<'EQUAL' | 'CUSTOM'>('EQUAL');
   const [peopleCount, setPeopleCount] = useState<number>(4);
-  const [groupOrPersonName, setGroupOrPersonName] = useState('Friends');
+  const [equalFriendNames, setEqualFriendNames] = useState<string[]>(['', '', '']);
   const [customPeople, setCustomPeople] = useState<CustomLentPerson[]>([
     { id: '1', name: '', amount: '' },
   ]);
@@ -83,13 +83,13 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     setScannedResult(null);
     setMerchantName('');
     setTotalAmount('');
-    setCategory('Food & Dining');
+    setCategory('Dining');
     setOtherCategory('');
     setBillDate(new Date().toISOString().split('T')[0]);
     setRecordMode('EXPENSE');
     setSplitType('EQUAL');
     setPeopleCount(4);
-    setGroupOrPersonName('Friends');
+    setEqualFriendNames(['', '', '']);
     setCustomPeople([{ id: '1', name: '', amount: '' }]);
     setError(null);
     setScanStatus('');
@@ -102,6 +102,34 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const handleSetPeopleCount = (newCount: number) => {
+    const count = Math.max(2, newCount);
+    setPeopleCount(count);
+    setEqualFriendNames((prev) => {
+      const targetCount = count - 1;
+      const updated = [...prev];
+      while (updated.length < targetCount) {
+        updated.push('');
+      }
+      return updated.slice(0, targetCount);
+    });
+  };
+
+  const handleAddEqualFriend = () => {
+    setPeopleCount((prev) => prev + 1);
+    setEqualFriendNames((prev) => [...prev, '']);
+  };
+
+  const handleRemoveEqualFriend = (idx: number) => {
+    if (peopleCount <= 2) return;
+    setPeopleCount((prev) => prev - 1);
+    setEqualFriendNames((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleEqualFriendNameChange = (idx: number, name: string) => {
+    setEqualFriendNames((prev) => prev.map((n, i) => (i === idx ? name : n)));
+  };
 
   const handleAddPerson = () => {
     setCustomPeople((prev) => [
@@ -135,13 +163,13 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     setScannedResult({
       merchant: data.merchant || 'Store Bill',
       amount: data.amount || 0,
-      category: data.category || 'Food & Dining',
+      category: data.category || 'Dining',
       date: today,
       items: data.items || [],
     });
     setMerchantName(data.merchant || 'Store Bill');
     setTotalAmount(String(data.amount || ''));
-    setCategory(data.category || 'Food & Dining');
+    setCategory(data.category || 'Dining');
     setBillDate(today);
     setRecordMode('EXPENSE');
     setCustomPeople([
@@ -307,6 +335,12 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
             },
           });
         } else {
+          const validFriends = equalFriendNames.map((name, idx) => ({
+            personName: name.trim() || `Friend ${idx + 1}`,
+            amount: perPersonOwed,
+            description: `${merchantName.trim()} split`,
+          }));
+
           await onConfirmBill({
             mode: 'SPLIT',
             name: merchantName.trim(),
@@ -318,8 +352,9 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
               peopleCount: peopleCount,
               userShare: computedUserShare,
               lentAmount: computedLentAmount,
-              personName: groupOrPersonName.trim() || 'Friends',
+              personName: validFriends.map((f) => f.personName).join(', '),
               description: merchantName.trim(),
+              lentEntries: validFriends,
             },
           });
         }
@@ -667,11 +702,17 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
 
                     {splitType === 'EQUAL' ? (
                       <>
-                        <div style={{ marginBottom: '0.65rem' }}>
-                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#065f46', display: 'block', marginBottom: '0.3rem' }}>
-                            Total people who ate together / shared this bill (including you):
-                          </label>
-                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
+                              Total people sharing bill (including you):
+                            </label>
+                            <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700 }}>
+                              You + {peopleCount - 1} {peopleCount - 1 === 1 ? 'Friend' : 'Friends'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                             {[2, 3, 4, 5, 6].map((num) => (
                               <button
                                 key={num}
@@ -681,29 +722,143 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                                   flex: 1,
                                   justifyContent: 'center',
                                   fontSize: '0.8rem',
+                                  padding: '0.35rem 0.2rem',
                                   background: peopleCount === num ? '#047857' : '#ffffff',
                                   color: peopleCount === num ? '#ffffff' : '#065f46',
                                   borderColor: peopleCount === num ? '#047857' : '#6ee7b7',
                                   fontWeight: 700,
+                                  minWidth: 0,
                                 }}
-                                onClick={() => setPeopleCount(num)}
+                                onClick={() => handleSetPeopleCount(num)}
                               >
                                 {num}
                               </button>
                             ))}
+                            <button
+                              type="button"
+                              onClick={() => handleSetPeopleCount(peopleCount - 1)}
+                              disabled={peopleCount <= 2}
+                              style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid #6ee7b7',
+                                background: '#ffffff',
+                                color: '#065f46',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: peopleCount <= 2 ? 'not-allowed' : 'pointer',
+                                opacity: peopleCount <= 2 ? 0.5 : 1,
+                                flexShrink: 0,
+                              }}
+                              title="Decrease people"
+                            >
+                              <MinusIcon size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetPeopleCount(peopleCount + 1)}
+                              style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid #6ee7b7',
+                                background: '#ffffff',
+                                color: '#065f46',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                              title="Increase people"
+                            >
+                              <PlusIcon size={13} />
+                            </button>
                           </div>
                         </div>
 
-                        <div className="form-group" style={{ marginBottom: '0.65rem' }}>
-                          <label style={{ fontSize: '0.75rem', color: '#065f46' }}>Group or Friends Name</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Friends, Office Team, Goa Trip"
-                            className="form-control"
-                            style={{ fontSize: '0.85rem', padding: '0.45rem 0.65rem' }}
-                            value={groupOrPersonName}
-                            onChange={(e) => setGroupOrPersonName(e.target.value)}
-                          />
+                        {/* Friends' Names Input List */}
+                        <div style={{ marginBottom: '0.85rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
+                              Friends' Names ({equalFriendNames.length} {equalFriendNames.length === 1 ? 'Friend' : 'Friends'}):
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleAddEqualFriend}
+                              style={{
+                                background: '#dcfce7',
+                                border: '1px solid #86efac',
+                                color: '#15803d',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '0.2rem 0.5rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                              }}
+                            >
+                              <LuPlus size={13} /> Add Friend
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '170px', overflowY: 'auto', paddingRight: '0.2rem' }}>
+                            {equalFriendNames.map((name, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.45rem',
+                                  background: '#ffffff',
+                                  padding: '0.45rem 0.55rem',
+                                  borderRadius: 'var(--radius-md)',
+                                  border: '1px solid #cbd5e1',
+                                  boxSizing: 'border-box',
+                                  width: '100%',
+                                }}
+                              >
+                                <LuUser size={14} style={{ color: '#64748b', flexShrink: 0 }} />
+                                <input
+                                  type="text"
+                                  placeholder={`Friend ${idx + 1} Name (e.g. Rahul)`}
+                                  className="form-control"
+                                  style={{ flex: 1, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0, minWidth: 0 }}
+                                  value={name}
+                                  onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
+                                />
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                  ₹{perPersonOwed.toLocaleString('en-IN')}
+                                </span>
+                                {peopleCount > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveEqualFriend(idx)}
+                                    style={{
+                                      background: '#fee2e2',
+                                      border: 'none',
+                                      color: '#dc2626',
+                                      borderRadius: 'var(--radius-sm)',
+                                      width: '24px',
+                                      height: '24px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      flexShrink: 0,
+                                    }}
+                                    title={`Remove Friend ${idx + 1}`}
+                                  >
+                                    <LuTrash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </>
                     ) : (

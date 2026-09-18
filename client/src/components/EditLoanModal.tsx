@@ -192,7 +192,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
           {/* Paid / Settled Amount (Partial Settlement) */}
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label>Amount Settled / Paid So Far (₹)</label>
+              <label>Amount Settled (₹)</label>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: remainingNum > 0 ? '#dc2626' : '#059669' }}>
                 Remaining: ₹{remainingNum.toLocaleString('en-IN')}
               </span>
