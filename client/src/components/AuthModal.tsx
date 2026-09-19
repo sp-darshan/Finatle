@@ -29,6 +29,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSignUp(initialMode === 'signup');
   }, [initialMode, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      if (!document.querySelector('.modal-overlay')) {
+        document.body.classList.remove('modal-open');
+        document.documentElement.classList.remove('modal-open');
+      }
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {

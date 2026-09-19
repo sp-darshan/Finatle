@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ScanBillIcon, CategoryBadge, UsersGroupIcon, MinusIcon, PlusIcon } from './Icons';
 import { LuUpload, LuCamera, LuCheck, LuPlus, LuTrash2, LuUser, LuX, LuUsers, LuPenLine } from 'react-icons/lu';
 import { CategoryPicker } from './CategoryPicker';
@@ -78,6 +78,18 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      if (!document.querySelector('.modal-overlay')) {
+        document.body.classList.remove('modal-open');
+        document.documentElement.classList.remove('modal-open');
+      }
+    };
+  }, [isOpen]);
 
   const resetForm = () => {
     setScannedResult(null);

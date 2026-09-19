@@ -15,6 +15,7 @@ import { MobileDashboard } from './components/MobileDashboard';
 import { AddRecordModal } from './components/AddRecordModal';
 import type { RecordKind } from './components/AddRecordModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
+import type { EditTransactionAction } from './components/EditTransactionModal';
 import { EditLoanModal } from './components/EditLoanModal';
 import { BillScannerModal } from './components/BillScannerModal';
 import type { ScannedBillPayload } from './components/BillScannerModal';
@@ -162,6 +163,22 @@ export function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Lock background scroll when any modal or dialog is open
+  useEffect(() => {
+    const isAnyModalOpen = isAddRecordOpen || !!editingTransaction || !!editingLoan || isScannerOpen || isPWAOpen || isAuthOpen;
+    if (isAnyModalOpen) {
+      document.body.classList.add('modal-open');
+      document.documentElement.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+    }
+    return () => {
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+    };
+  }, [isAddRecordOpen, editingTransaction, editingLoan, isScannerOpen, isPWAOpen, isAuthOpen]);
 
   // Synchronize mobileNav when currentTab changes (e.g. via deep link or desktop click)
   useEffect(() => {
@@ -678,7 +695,7 @@ export function App() {
     }
   }, [token, user?.uid, showToast]);
 
-  const handleTransactionSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: TransactionItem; originalId?: string }) => {
+  const handleTransactionSuccess = useCallback(async (action?: EditTransactionAction) => {
     if (!action) {
       if (token) await fetchUserData(token, false);
       return;
@@ -686,6 +703,7 @@ export function App() {
 
     const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
     const prevTransactions = transactions;
+    const prevLoans = loans;
 
     if (action.type === 'delete' && action.originalId) {
       setTransactions((prev) => {
@@ -746,8 +764,146 @@ export function App() {
             showToast(err.message || 'Failed to update transaction. Reverted.', 'error');
           });
       }
+    } else if (action.type === 'convert_to_loan' && action.originalId && action.loanData) {
+      const { kind, apiPayload, optimisticData } = action.loanData;
+      // 1. Remove from transactions optimistically
+      setTransactions((prev) => {
+        const updated = prev.filter((t) => t.id !== action.originalId);
+        localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+      // 2. Add to loans optimistically
+      setLoans((prev) => {
+        const updated = [optimisticData, ...prev];
+        localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (token) {
+        const endpoint = kind === 'borrowed' ? '/api/finance/borrowed' : '/api/finance/lent';
+        Promise.all([
+          apiFetch(`/api/finance/transactions/${action.originalId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          apiFetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(apiPayload),
+          }),
+        ])
+          .then(async ([, createRes]) => {
+            if (!createRes.ok) {
+              const errData = await createRes.json().catch(() => ({}));
+              throw new Error(errData.message || errData.error || 'Failed to create loan record');
+            }
+            const data = await createRes.json();
+            if (data.loan) {
+              const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || optimisticData.id;
+              const realItem: LoanItem = {
+                ...optimisticData,
+                id: realLoanId,
+              };
+              setLoans((prev) => {
+                const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
+                localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            }
+            fetchUserData(token, false);
+            showToast(`Converted to ${kind === 'lent' ? 'Lent' : 'Borrowed'} record!`, 'success');
+          })
+          .catch((err) => {
+            console.error('[Convert to loan failed]:', err);
+            setTransactions(prevTransactions);
+            setLoans(prevLoans);
+            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
+            showToast(err.message || 'Failed to convert transaction.', 'error');
+          });
+      } else {
+        showToast(`Converted to ${kind === 'lent' ? 'Lent' : 'Borrowed'} record!`, 'success');
+      }
+    } else if (action.type === 'convert_to_split' && action.originalId && action.splitData) {
+      const { userShareTransaction, lentEntries } = action.splitData;
+
+      // 1. Update user share in transactions optimistically
+      if (userShareTransaction) {
+        setTransactions((prev) => {
+          const updated = prev.map((t) => (t.id === action.originalId ? userShareTransaction.optimisticData : t));
+          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        if (token) {
+          apiFetch(`/api/finance/transactions/${action.originalId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(userShareTransaction.apiPayload),
+          }).catch((err) => console.error('[Split update transaction share failed]:', err));
+        }
+      } else {
+        // No user share left (100% split to friends)
+        setTransactions((prev) => {
+          const updated = prev.filter((t) => t.id !== action.originalId);
+          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        if (token) {
+          apiFetch(`/api/finance/transactions/${action.originalId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch((err) => console.error('[Split delete full transaction failed]:', err));
+        }
+      }
+
+      // 2. Add friends' shares to loans optimistically
+      if (lentEntries && lentEntries.length > 0) {
+        const optimisticLoans = lentEntries.map((e) => e.optimisticData);
+        setLoans((prev) => {
+          const updated = [...optimisticLoans, ...prev];
+          localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        if (token) {
+          Promise.all(
+            lentEntries.map((e) =>
+              apiFetch('/api/finance/lent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(e.apiPayload),
+              })
+                .then(async (res) => {
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.loan) {
+                      const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || e.optimisticData.id;
+                      const realItem: LoanItem = {
+                        ...e.optimisticData,
+                        id: realLoanId,
+                      };
+                      setLoans((prev) => {
+                        const updated = prev.map((l) => (l.id === e.optimisticData.id ? realItem : l));
+                        localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                        return updated;
+                      });
+                    }
+                  }
+                })
+            )
+          )
+            .then(() => {
+              if (token) fetchUserData(token, false);
+            })
+            .catch((err) => console.error('[Split create lent loans failed]:', err));
+        }
+      }
+
+      showToast('Transaction split and recorded to loans!', 'success');
     }
-  }, [token, user?.uid, transactions, showToast]);
+  }, [token, user?.uid, transactions, loans, showToast]);
 
   const handleLoanSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => {
     if (!action) {

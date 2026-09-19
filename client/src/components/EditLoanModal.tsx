@@ -42,6 +42,18 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
     }
   }, [loan, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      if (!document.querySelector('.modal-overlay')) {
+        document.body.classList.remove('modal-open');
+        document.documentElement.classList.remove('modal-open');
+      }
+    };
+  }, [isOpen]);
+
   if (!isOpen || !loan) return null;
 
   const totalNum = parseFloat(amount) || 0;

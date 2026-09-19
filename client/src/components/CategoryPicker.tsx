@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDownIcon } from './Icons';
 import {
@@ -52,6 +52,18 @@ export const CategoryPicker: React.FC<CategoryPickerProps> = React.memo(({
   options,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      if (!document.querySelector('.modal-overlay')) {
+        document.body.classList.remove('modal-open');
+        document.documentElement.classList.remove('modal-open');
+      }
+    };
+  }, [isOpen]);
   const available = options?.length
     ? options.map((name) => {
         const found = CATEGORY_OPTIONS.find((c) => c.name.toLowerCase() === name.toLowerCase());

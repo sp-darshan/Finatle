@@ -50,6 +50,18 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      if (!document.querySelector('.modal-overlay')) {
+        document.body.classList.remove('modal-open');
+        document.documentElement.classList.remove('modal-open');
+      }
+    };
+  }, [isOpen]);
+
   const handleInstallClick = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();

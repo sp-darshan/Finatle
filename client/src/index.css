@@ -2782,6 +2782,15 @@ button.select-pill {
   }
 }
 
+/* Body lock when modal/dialog is open */
+body.modal-open,
+html.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  height: 100% !important;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -2795,6 +2804,8 @@ button.select-pill {
   padding: 1rem;
   animation: fadeIn 0.12s ease-out;
   will-change: opacity;
+  overflow: hidden !important;
+  touch-action: none;
 }
 
 .modal-card {
@@ -2805,9 +2816,48 @@ button.select-pill {
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-color);
   padding: 1.75rem;
   animation: modalScaleUp 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.modal-card::-webkit-scrollbar {
+  width: 5px;
+}
+
+.modal-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-card::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+
+.modal-card::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+.modal-card * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+.modal-card *::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.modal-card *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-card *::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
 }
 
 .modal-header {
@@ -3296,6 +3346,8 @@ button.select-pill {
     -webkit-backdrop-filter: none !important;
     background: rgba(15, 23, 42, 0.55);
     animation: fadeIn 0.08s ease-out;
+    overflow: hidden !important;
+    touch-action: none;
   }
 
   .modal-card {

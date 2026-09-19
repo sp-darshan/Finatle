@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CategoryPicker } from './CategoryPicker';
 import { LuX, LuUsers, LuPenLine, LuPlus, LuMinus, LuTrash2, LuUser } from 'react-icons/lu';
 
@@ -42,6 +42,18 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
   ]);
   
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    return () => {
+      if (!document.querySelector('.modal-overlay')) {
+        document.body.classList.remove('modal-open');
+        document.documentElement.classList.remove('modal-open');
+      }
+    };
+  }, [isOpen]);
 
   // Synchronously reset & align state when modal opens or initialKind changes
   if (isOpen !== prevIsOpen) {
