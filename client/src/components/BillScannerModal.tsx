@@ -653,223 +653,141 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                 </div>
               </div>
 
-                {/* SPLIT / LENT CONFIGURATION PANEL */}
-                {recordMode === 'SPLIT' && (
-                  <div
-                    style={{
-                      background: '#f0fdf4',
-                      border: '1.5px solid #a7f3d0',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: '0.9rem',
-                      marginTop: '0.5rem',
-                    }}
-                  >
-                    {/* Split Type Toggle */}
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                      <button
-                        type="button"
-                        className="select-pill"
-                        style={{
-                          flex: 1,
-                          justifyContent: 'center',
-                          fontSize: '0.78rem',
-                          background: splitType === 'EQUAL' ? '#10b981' : '#ffffff',
-                          color: splitType === 'EQUAL' ? '#ffffff' : '#334155',
-                          borderColor: splitType === 'EQUAL' ? '#10b981' : '#cbd5e1',
-                          fontWeight: 700,
-                        }}
-                        onClick={() => setSplitType('EQUAL')}
-                      >
-                        <LuUsers size={14} style={{ display: 'inline', marginRight: '0.35rem' }} /> Equal Split (Ate Together)
-                      </button>
-                      <button
-                        type="button"
-                        className="select-pill"
-                        style={{
-                          flex: 1,
-                          justifyContent: 'center',
-                          fontSize: '0.78rem',
-                          background: splitType === 'CUSTOM' ? '#10b981' : '#ffffff',
-                          color: splitType === 'CUSTOM' ? '#ffffff' : '#334155',
-                          borderColor: splitType === 'CUSTOM' ? '#10b981' : '#cbd5e1',
-                          fontWeight: 700,
-                        }}
-                        onClick={() => setSplitType('CUSTOM')}
-                      >
-                        <LuPenLine size={14} style={{ display: 'inline', marginRight: '0.35rem' }} /> Custom Lent Amount
-                      </button>
-                    </div>
+              {/* SPLIT / LENT CONFIGURATION PANEL */}
+              {recordMode === 'SPLIT' && (
+                <div
+                  style={{
+                    background: '#f0fdf4',
+                    border: '1.5px solid #a7f3d0',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '0.9rem',
+                    marginTop: '0.5rem',
+                  }}
+                >
+                  {/* Split Type Toggle */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="select-pill"
+                      style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        fontSize: '0.78rem',
+                        background: splitType === 'EQUAL' ? '#10b981' : '#ffffff',
+                        color: splitType === 'EQUAL' ? '#ffffff' : '#334155',
+                        borderColor: splitType === 'EQUAL' ? '#10b981' : '#cbd5e1',
+                        fontWeight: 700,
+                      }}
+                      onClick={() => setSplitType('EQUAL')}
+                    >
+                      <LuUsers size={14} style={{ display: 'inline', marginRight: '0.35rem' }} /> Equal Split
+                    </button>
+                    <button
+                      type="button"
+                      className="select-pill"
+                      style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        fontSize: '0.78rem',
+                        background: splitType === 'CUSTOM' ? '#10b981' : '#ffffff',
+                        color: splitType === 'CUSTOM' ? '#ffffff' : '#334155',
+                        borderColor: splitType === 'CUSTOM' ? '#10b981' : '#cbd5e1',
+                        fontWeight: 700,
+                      }}
+                      onClick={() => setSplitType('CUSTOM')}
+                    >
+                      <LuPenLine size={14} style={{ display: 'inline', marginRight: '0.35rem' }} /> Custom Split
+                    </button>
+                  </div>
 
-                    {splitType === 'EQUAL' ? (
-                      <>
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
-                              Total people sharing bill (including you):
-                            </label>
-                            <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700 }}>
-                              You + {peopleCount - 1} {peopleCount - 1 === 1 ? 'Friend' : 'Friends'}
-                            </span>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            {[2, 3, 4, 5, 6].map((num) => (
-                              <button
-                                key={num}
-                                type="button"
-                                className="select-pill"
-                                style={{
-                                  flex: 1,
-                                  justifyContent: 'center',
-                                  fontSize: '0.8rem',
-                                  padding: '0.35rem 0.2rem',
-                                  background: peopleCount === num ? '#047857' : '#ffffff',
-                                  color: peopleCount === num ? '#ffffff' : '#065f46',
-                                  borderColor: peopleCount === num ? '#047857' : '#6ee7b7',
-                                  fontWeight: 700,
-                                  minWidth: 0,
-                                }}
-                                onClick={() => handleSetPeopleCount(num)}
-                              >
-                                {num}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => handleSetPeopleCount(peopleCount - 1)}
-                              disabled={peopleCount <= 2}
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid #6ee7b7',
-                                background: '#ffffff',
-                                color: '#065f46',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: peopleCount <= 2 ? 'not-allowed' : 'pointer',
-                                opacity: peopleCount <= 2 ? 0.5 : 1,
-                                flexShrink: 0,
-                              }}
-                              title="Decrease people"
-                            >
-                              <MinusIcon size={13} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSetPeopleCount(peopleCount + 1)}
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid #6ee7b7',
-                                background: '#ffffff',
-                                color: '#065f46',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                              }}
-                              title="Increase people"
-                            >
-                              <PlusIcon size={13} />
-                            </button>
-                          </div>
+                  {splitType === 'EQUAL' ? (
+                    <>
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
+                            Total people sharing bill (including you):
+                          </label>
+                          <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700 }}>
+                            You + {peopleCount - 1} {peopleCount - 1 === 1 ? 'Friend' : 'Friends'}
+                          </span>
                         </div>
 
-                        {/* Friends' Names Input List */}
-                        <div style={{ marginBottom: '0.85rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
-                              Friends' Names ({equalFriendNames.length} {equalFriendNames.length === 1 ? 'Friend' : 'Friends'}):
-                            </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {[2, 3, 4, 5, 6].map((num) => (
                             <button
+                              key={num}
                               type="button"
-                              onClick={handleAddEqualFriend}
+                              className="select-pill"
                               style={{
-                                background: '#dcfce7',
-                                border: '1px solid #86efac',
-                                color: '#15803d',
-                                borderRadius: 'var(--radius-sm)',
-                                padding: '0.2rem 0.5rem',
-                                fontSize: '0.72rem',
+                                flex: 1,
+                                justifyContent: 'center',
+                                fontSize: '0.8rem',
+                                padding: '0.35rem 0.2rem',
+                                background: peopleCount === num ? '#047857' : '#ffffff',
+                                color: peopleCount === num ? '#ffffff' : '#065f46',
+                                borderColor: peopleCount === num ? '#047857' : '#6ee7b7',
                                 fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
+                                minWidth: 0,
                               }}
+                              onClick={() => handleSetPeopleCount(num)}
                             >
-                              <LuPlus size={13} /> Add Friend
+                              {num}
                             </button>
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '170px', overflowY: 'auto', paddingRight: '0.2rem' }}>
-                            {equalFriendNames.map((name, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.45rem',
-                                  background: '#ffffff',
-                                  padding: '0.45rem 0.55rem',
-                                  borderRadius: 'var(--radius-md)',
-                                  border: '1px solid #cbd5e1',
-                                  boxSizing: 'border-box',
-                                  width: '100%',
-                                }}
-                              >
-                                <LuUser size={14} style={{ color: '#64748b', flexShrink: 0 }} />
-                                <input
-                                  type="text"
-                                  placeholder={`Friend ${idx + 1} Name (e.g. Rahul)`}
-                                  className="form-control"
-                                  style={{ flex: 1, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0, minWidth: 0 }}
-                                  value={name}
-                                  onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
-                                />
-                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                  ₹{perPersonOwed.toLocaleString('en-IN')}
-                                </span>
-                                {peopleCount > 2 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveEqualFriend(idx)}
-                                    style={{
-                                      background: '#fee2e2',
-                                      border: 'none',
-                                      color: '#dc2626',
-                                      borderRadius: 'var(--radius-sm)',
-                                      width: '24px',
-                                      height: '24px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer',
-                                      flexShrink: 0,
-                                    }}
-                                    title={`Remove Friend ${idx + 1}`}
-                                  >
-                                    <LuTrash2 size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => handleSetPeopleCount(peopleCount - 1)}
+                            disabled={peopleCount <= 2}
+                            style={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid #6ee7b7',
+                              background: '#ffffff',
+                              color: '#065f46',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: peopleCount <= 2 ? 'not-allowed' : 'pointer',
+                              opacity: peopleCount <= 2 ? 0.5 : 1,
+                              flexShrink: 0,
+                            }}
+                            title="Decrease people"
+                          >
+                            <MinusIcon size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSetPeopleCount(peopleCount + 1)}
+                            style={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid #6ee7b7',
+                              background: '#ffffff',
+                              color: '#065f46',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                            title="Increase people"
+                          >
+                            <PlusIcon size={13} />
+                          </button>
                         </div>
-                      </>
-                    ) : (
-                      <div style={{ marginBottom: '0.65rem' }}>
+                      </div>
+
+                      {/* Friends' Names Input List */}
+                      <div style={{ marginBottom: '0.85rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                           <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
-                            People who owe you (Individual entries):
+                            Friends' Names ({equalFriendNames.length} {equalFriendNames.length === 1 ? 'Friend' : 'Friends'}):
                           </label>
                           <button
                             type="button"
-                            onClick={handleAddPerson}
+                            onClick={handleAddEqualFriend}
                             style={{
                               background: '#dcfce7',
                               border: '1px solid #86efac',
@@ -884,116 +802,198 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                               gap: '0.25rem',
                             }}
                           >
-                            <LuPlus size={13} /> Add Person
+                            <LuPlus size={13} /> Add Friend
                           </button>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '160px', overflowY: 'auto', paddingRight: '0.2rem' }}>
-                          {customPeople.map((person, index) => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '170px', overflowY: 'auto', paddingRight: '0.2rem' }}>
+                          {equalFriendNames.map((name, idx) => (
                             <div
-                              key={person.id}
+                              key={idx}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.45rem',
                                 background: '#ffffff',
-                                padding: '0.4rem 0.55rem',
+                                padding: '0.45rem 0.55rem',
                                 borderRadius: 'var(--radius-md)',
                                 border: '1px solid #cbd5e1',
+                                boxSizing: 'border-box',
+                                width: '100%',
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', color: '#64748b' }}>
-                                <LuUser size={15} />
-                              </div>
+                              <LuUser size={14} style={{ color: '#64748b', flexShrink: 0 }} />
                               <input
                                 type="text"
-                                placeholder={`Friend ${index + 1} Name (e.g. Rahul)`}
+                                placeholder={`Friend ${idx + 1} Name (e.g. Rahul)`}
                                 className="form-control"
-                                style={{ flex: 1.4, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0 }}
-                                value={person.name}
-                                onChange={(e) => handlePersonChange(person.id, 'name', e.target.value)}
+                                style={{ flex: 1, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0, minWidth: 0 }}
+                                value={name}
+                                onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
                               />
-                              <div style={{ position: 'relative', flex: 1 }}>
-                                <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>
-                                  ₹
-                                </span>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  placeholder="Amount"
-                                  className="form-control"
-                                  style={{ paddingLeft: '1.25rem', paddingRight: '0.4rem', fontSize: '0.82rem', paddingBlock: '0.35rem', margin: 0, fontWeight: 700 }}
-                                  value={person.amount}
-                                  onChange={(e) => handlePersonChange(person.id, 'amount', e.target.value)}
-                                />
-                              </div>
-                              {customPeople.length > 1 && (
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                ₹{perPersonOwed.toLocaleString('en-IN')}
+                              </span>
+                              {peopleCount > 2 && (
                                 <button
                                   type="button"
-                                  onClick={() => handleRemovePerson(person.id)}
+                                  onClick={() => handleRemoveEqualFriend(idx)}
                                   style={{
                                     background: '#fee2e2',
                                     border: 'none',
                                     color: '#dc2626',
                                     borderRadius: 'var(--radius-sm)',
-                                    width: '26px',
-                                    height: '26px',
+                                    width: '24px',
+                                    height: '24px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     cursor: 'pointer',
                                     flexShrink: 0,
                                   }}
-                                  title="Remove person"
+                                  title={`Remove Friend ${idx + 1}`}
                                 >
-                                  <LuTrash2 size={13} />
+                                  <LuTrash2 size={12} />
                                 </button>
                               )}
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {/* Live Split Calculation Breakdown */}
-                    <div
-                      style={{
-                        background: '#ffffff',
-                        border: '1px solid #6ee7b7',
-                        borderRadius: 'var(--radius-md)',
-                        padding: '0.65rem 0.85rem',
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '0.5rem',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Your Personal Expense</div>
-                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626' }}>
-                          ₹{computedUserShare.toLocaleString('en-IN')}
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Recorded to Transactions</div>
+                    </>
+                  ) : (
+                    <div style={{ marginBottom: '0.65rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', margin: 0 }}>
+                          People who owe you (Individual entries):
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleAddPerson}
+                          style={{
+                            background: '#dcfce7',
+                            border: '1px solid #86efac',
+                            color: '#15803d',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '0.2rem 0.5rem',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                          }}
+                        >
+                          <LuPlus size={13} /> Add Person
+                        </button>
                       </div>
 
-                      <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '0.5rem' }}>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                          {splitType === 'EQUAL'
-                            ? `Lent to ${peopleCount - 1} Friends`
-                            : `Lent to ${customPeople.length} ${customPeople.length === 1 ? 'Person' : 'People'}`}
-                        </div>
-                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>
-                          ₹{computedLentAmount.toLocaleString('en-IN')}
-                        </div>
-                        <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600 }}>
-                          {splitType === 'EQUAL'
-                            ? `(₹${perPersonOwed}/person) → Loans`
-                            : `Added as ${customPeople.length} individual ${customPeople.length === 1 ? 'loan' : 'loans'}`}
-                        </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '160px', overflowY: 'auto', paddingRight: '0.2rem' }}>
+                        {customPeople.map((person, index) => (
+                          <div
+                            key={person.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              background: '#ffffff',
+                              padding: '0.4rem 0.55rem',
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid #cbd5e1',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', color: '#64748b' }}>
+                              <LuUser size={15} />
+                            </div>
+                            <input
+                              type="text"
+                              placeholder={`Friend ${index + 1} Name (e.g. Rahul)`}
+                              className="form-control"
+                              style={{ flex: 1.4, fontSize: '0.82rem', padding: '0.35rem 0.5rem', margin: 0 }}
+                              value={person.name}
+                              onChange={(e) => handlePersonChange(person.id, 'name', e.target.value)}
+                            />
+                            <div style={{ position: 'relative', flex: 1 }}>
+                              <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>
+                                ₹
+                              </span>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                placeholder="Amount"
+                                className="form-control"
+                                style={{ paddingLeft: '1.25rem', paddingRight: '0.4rem', fontSize: '0.82rem', paddingBlock: '0.35rem', margin: 0, fontWeight: 700 }}
+                                value={person.amount}
+                                onChange={(e) => handlePersonChange(person.id, 'amount', e.target.value)}
+                              />
+                            </div>
+                            {customPeople.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePerson(person.id)}
+                                style={{
+                                  background: '#fee2e2',
+                                  border: 'none',
+                                  color: '#dc2626',
+                                  borderRadius: 'var(--radius-sm)',
+                                  width: '26px',
+                                  height: '26px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                }}
+                                title="Remove person"
+                              >
+                                <LuTrash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Split Calculation Breakdown */}
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #6ee7b7',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.65rem 0.85rem',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Your Personal Expense</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626' }}>
+                        ₹{computedUserShare.toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Recorded to Transactions</div>
+                    </div>
+
+                    <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '0.5rem' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                        {splitType === 'EQUAL'
+                          ? `Lent to ${peopleCount - 1} Friends`
+                          : `Lent to ${customPeople.length} ${customPeople.length === 1 ? 'Person' : 'People'}`}
+                      </div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>
+                        ₹{computedLentAmount.toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600 }}>
+                        {splitType === 'EQUAL'
+                          ? `(₹${perPersonOwed}/person) → Loans`
+                          : `Added as ${customPeople.length} individual ${customPeople.length === 1 ? 'loan' : 'loans'}`}
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
               {/* ACTION BUTTONS */}
               <div style={{ display: 'flex', gap: '0.65rem', marginTop: '1rem' }}>
@@ -1027,10 +1027,10 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     {submitting
                       ? 'Saving...'
                       : recordMode === 'SPLIT'
-                      ? `Save (₹${computedUserShare} Expense + ₹${computedLentAmount} Lent)`
-                      : recordMode === 'INCOME'
-                      ? `Confirm Income (₹${parsedTotal.toLocaleString('en-IN')})`
-                      : `Confirm Expense (₹${parsedTotal.toLocaleString('en-IN')})`}
+                        ? `Save (₹${computedUserShare} Expense + ₹${computedLentAmount} Lent)`
+                        : recordMode === 'INCOME'
+                          ? `Confirm Income (₹${parsedTotal.toLocaleString('en-IN')})`
+                          : `Confirm Expense (₹${parsedTotal.toLocaleString('en-IN')})`}
                   </span>
                 </button>
               </div>

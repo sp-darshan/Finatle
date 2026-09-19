@@ -91,6 +91,23 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   const [isPWAInstalled, setIsPWAInstalled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
+  const scrollToTop = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const selectors = ['.mobile-app-shell', '.mobile-view-wrapper', '.main-content', '.page-container', '#root'];
+    selectors.forEach((sel) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollTop = 0;
+    });
+  }, []);
+
+  // Scroll to top on section transitions
+  useEffect(() => {
+    scrollToTop();
+  }, [currentNav, scrollToTop]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -181,10 +198,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                   <div className="mobile-profile-name">{user?.name || userName}</div>
                   <div className="mobile-profile-email">{user?.email || 'User Account'}</div>
                 </div>
-                <button type="button" onClick={() => { setIsProfileOpen(false); onOpenSettings(); }}>
+                <button type="button" onClick={() => { setIsProfileOpen(false); onOpenSettings(); scrollToTop(); }}>
                   Settings
                 </button>
-                <button type="button" className="mobile-profile-logout" onClick={() => { setIsProfileOpen(false); onLogout(); }}>
+                <button type="button" className="mobile-profile-logout" onClick={() => { setIsProfileOpen(false); onLogout(); scrollToTop(); }}>
                   Sign Out
                 </button>
               </div>
@@ -217,6 +234,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => {
                   onSelectNav('home');
                   setIsDrawerOpen(false);
+                  scrollToTop();
                 }}
               >
                 <NavIcons.Dashboard active={currentNav === 'home'} />
@@ -227,6 +245,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => {
                   onSelectNav('transactions');
                   setIsDrawerOpen(false);
+                  scrollToTop();
                 }}
               >
                 <NavIcons.Transactions active={currentNav === 'transactions'} />
@@ -237,6 +256,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => {
                   onSelectNav('loans');
                   setIsDrawerOpen(false);
+                  scrollToTop();
                 }}
               >
                 <NavIcons.Loans active={currentNav === 'loans'} />
@@ -247,6 +267,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => {
                   onSelectNav('insights');
                   setIsDrawerOpen(false);
+                  scrollToTop();
                 }}
               >
                 <NavIcons.Analytics active={currentNav === 'insights'} />
@@ -257,6 +278,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => {
                   onSelectNav('budgets');
                   setIsDrawerOpen(false);
+                  scrollToTop();
                 }}
               >
                 <NavIcons.Budgets active={currentNav === 'budgets'} />
@@ -267,6 +289,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => {
                   onSelectNav('settings');
                   setIsDrawerOpen(false);
+                  scrollToTop();
                 }}
               >
                 <NavIcons.Settings active={currentNav === 'settings'} />
@@ -382,11 +405,17 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 <button
                   className="view-all-btn"
                   style={{ fontSize: '0.82rem' }}
-                  onClick={onOpenAllTransactions || (() => onSelectNav('transactions'))}
+                  onClick={() => {
+                    if (onOpenAllTransactions) {
+                      onOpenAllTransactions();
+                    } else {
+                      onSelectNav('transactions');
+                    }
+                    scrollToTop();
+                  }}
                 >
                   See All
                 </button>
-
               )}
             </div>
 
@@ -496,7 +525,14 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 <button
                   className="view-all-btn"
                   style={{ fontSize: '0.82rem' }}
-                  onClick={onOpenLoans}
+                  onClick={() => {
+                    if (onOpenLoans) {
+                      onOpenLoans();
+                    } else {
+                      onSelectNav('loans');
+                    }
+                    scrollToTop();
+                  }}
                 >
                   See All
                 </button>
@@ -1130,7 +1166,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
       <nav className="mobile-bottom-nav">
         <button
           className={`bottom-nav-item ${currentNav === 'home' ? 'active' : ''}`}
-          onClick={() => onSelectNav('home')}
+          onClick={() => {
+            onSelectNav('home');
+            scrollToTop();
+          }}
         >
           <NavIcons.Dashboard active={currentNav === 'home'} />
           <span>Home</span>
@@ -1138,7 +1177,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
         <button
           className={`bottom-nav-item ${currentNav === 'transactions' ? 'active' : ''}`}
-          onClick={() => onSelectNav('transactions')}
+          onClick={() => {
+            onSelectNav('transactions');
+            scrollToTop();
+          }}
         >
           <NavIcons.Transactions active={currentNav === 'transactions'} />
           <span>Transactions</span>
@@ -1146,7 +1188,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
         <button
           className={`bottom-nav-item ${currentNav === 'loans' ? 'active' : ''}`}
-          onClick={() => onSelectNav('loans')}
+          onClick={() => {
+            onSelectNav('loans');
+            scrollToTop();
+          }}
         >
           <NavIcons.Loans active={currentNav === 'loans'} />
           <span>Loans</span>
@@ -1154,7 +1199,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
         <button
           className={`bottom-nav-item ${currentNav === 'insights' ? 'active' : ''}`}
-          onClick={() => onSelectNav('insights')}
+          onClick={() => {
+            onSelectNav('insights');
+            scrollToTop();
+          }}
         >
           <NavIcons.Analytics active={currentNav === 'insights'} />
           <span>Insights</span>
@@ -1162,7 +1210,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
         <button
           className={`bottom-nav-item ${currentNav === 'budgets' ? 'active' : ''}`}
-          onClick={() => onSelectNav('budgets')}
+          onClick={() => {
+            onSelectNav('budgets');
+            scrollToTop();
+          }}
         >
           <NavIcons.Budgets active={currentNav === 'budgets'} />
           <span>Budgets</span>

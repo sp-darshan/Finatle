@@ -365,20 +365,48 @@ export function App() {
     };
   }, [currentTab]);
 
+  // Scroll to top on tab / section transition
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const selectors = ['.main-content', '.page-container', '.mobile-view-wrapper', '.mobile-app-shell', '#root'];
+    selectors.forEach((sel) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollTop = 0;
+    });
+  }, [currentTab]);
+
+  const scrollToTop = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const selectors = ['.main-content', '.page-container', '.mobile-view-wrapper', '.mobile-app-shell', '#root'];
+    selectors.forEach((sel) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollTop = 0;
+    });
+  }, []);
+
   const handleSelectTab = useCallback((tab: TabType) => {
     setCurrentTab(tab);
     setMobileNav(tabToMobileNav(tab));
-  }, []);
+    scrollToTop();
+  }, [scrollToTop]);
 
   const handleSelectMobileNav = useCallback((nav: string) => {
     setMobileNav(nav);
     setCurrentTab(mobileNavToTab(nav));
-  }, []);
+    scrollToTop();
+  }, [scrollToTop]);
 
   const handleOpenSettings = useCallback(() => {
     setCurrentTab('settings');
     setMobileNav('settings');
-  }, []);
+    scrollToTop();
+  }, [scrollToTop]);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
@@ -391,10 +419,11 @@ export function App() {
     setBudgets([]);
     setCurrentTab('dashboard');
     setMobileNav('home');
+    scrollToTop();
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', window.location.pathname);
     }
-  }, []);
+  }, [scrollToTop]);
 
   const saveBudget = useCallback((budget: BudgetLimit) => {
     setBudgets((previous) => {
@@ -1518,14 +1547,14 @@ export function App() {
                   <RecentTransactions
                     transactions={filteredTransactions}
                     limit={5}
-                    onViewAll={() => setCurrentTab('transactions')}
+                    onViewAll={() => handleSelectTab('transactions')}
                     onAddTransaction={() => openAdd('expense')}
                     onEditTransaction={handleEditTransaction}
                   />
                   <LoansSettlements
                     loans={filteredLoans}
                     limit={5}
-                    onViewAll={() => setCurrentTab('loans')}
+                    onViewAll={() => handleSelectTab('loans')}
                     onSettle={handleSettleLoan}
                     canSettle={canSettleLoan}
                     onAddNew={() => openAdd('lent')}
