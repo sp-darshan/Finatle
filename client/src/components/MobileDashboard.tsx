@@ -470,13 +470,13 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 onClick={() => setIsDrawerOpen(true)}
                 title="Tap to switch account"
               >
-                <LuWallet size={13} color="var(--primary)" />
-                <span>
+                <LuWallet size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
+                <span className="mobile-account-pill-text">
                   {selectedAccountId === 'ALL'
                     ? 'All Accounts'
                     : accounts.find((a) => (a.aid || a.id) === selectedAccountId)?.name || 'Account'}
                 </span>
-                <LuChevronDown size={13} color="var(--text-muted)" />
+                <LuChevronDown size={13} color="var(--text-muted)" style={{ flexShrink: 0 }} />
               </div>
             )}
           </section>

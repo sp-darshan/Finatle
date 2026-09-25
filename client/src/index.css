@@ -4441,21 +4441,47 @@ html.modal-open {
 .mobile-account-selector-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   background: var(--bg-card, #ffffff);
   border: 1.5px solid var(--border-color, #e2e8f0);
-  padding: 0.35rem 0.7rem;
+  padding: 0.24rem 0.52rem;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-primary);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 140px;
   transition: all var(--transition-fast);
 }
 
 .mobile-account-selector-pill:hover {
   border-color: var(--primary);
+}
+
+.mobile-account-selector-pill span,
+.mobile-account-selector-pill .mobile-account-pill-text {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 82px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+@media (min-width: 480px) {
+  .mobile-account-selector-pill {
+    max-width: 180px;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.65rem;
+  }
+  .mobile-account-selector-pill span,
+  .mobile-account-selector-pill .mobile-account-pill-text {
+    max-width: 120px;
+  }
 }
 
 /* ==========================================================================

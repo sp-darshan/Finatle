@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SearchIcon, BellIcon, ChevronDownIcon, ScanBillIcon } from './Icons';
-import { LuWallet, LuPlus } from 'react-icons/lu';
+import { LuWallet, LuPlus, LuChevronDown } from 'react-icons/lu';
 import { formatRupee } from '../lib/formatters';
 import type { AccountItem } from '../types/account.types';
 
@@ -85,13 +85,13 @@ export const TopBar: React.FC<TopBarProps> = React.memo(({
               onClick={() => setShowAccountMenu(!showAccountMenu)}
               style={{ cursor: 'pointer' }}
             >
-              <LuWallet size={14} color="var(--primary)" />
-              <span>
+              <LuWallet size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <span className="mobile-account-pill-text">
                 {selectedAccountId === 'ALL'
                   ? 'All Accounts'
                   : accounts.find((a) => (a.aid || a.id) === selectedAccountId)?.name || 'Account'}
               </span>
-              <ChevronDownIcon size={13} />
+              <LuChevronDown size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
             </button>
 
             {showAccountMenu && (
