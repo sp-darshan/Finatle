@@ -6,6 +6,7 @@ import { LuTarget, LuCircleAlert } from 'react-icons/lu';
 export interface BudgetLimit {
   category: string;
   limit: number;
+  period?: string;
 }
 
 interface BudgetManagerProps {
@@ -27,7 +28,7 @@ const STANDARD_CATEGORIES = [
   'Entertainment',
   'Health',
   'Salary',
-  'General',
+  'Groceries',
 ];
 
 export const BudgetManager: React.FC<BudgetManagerProps> = ({

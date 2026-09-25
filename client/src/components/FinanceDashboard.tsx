@@ -42,7 +42,7 @@ export function FinanceDashboard({ token, onOpenAuth }: FinanceDashboardProps) {
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('General');
+  const [category, setCategory] = useState('Groceries');
   const [personName, setPersonName] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [error, setError] = useState('');
@@ -120,7 +120,7 @@ export function FinanceDashboard({ token, onOpenAuth }: FinanceDashboardProps) {
     ...(summary?.transactions || []).map((transaction) => ({
       key: `transaction-${transaction.tid}`,
       title: transaction.description || transaction.category || 'Transaction',
-      detail: transaction.category || 'General',
+      detail: transaction.category || 'Groceries',
       date: transaction.occurredAt,
       amount: Number(transaction.amount),
       prefix: transaction.type === 'INCOME' ? '+' : '-',
@@ -177,7 +177,7 @@ export function FinanceDashboard({ token, onOpenAuth }: FinanceDashboardProps) {
             )}
             {kind !== 'transaction' && <label className="form-label">Person<input className="form-input" value={personName} onChange={(event) => setPersonName(event.target.value)} placeholder="Who is involved?" required /></label>}
             <label className="form-label">Amount<input className="form-input" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" required /></label>
-            {kind === 'transaction' && <label className="form-label">Category<select className="form-select" value={category} onChange={(event) => setCategory(event.target.value)}><option>General</option><option>Food</option><option>Housing</option><option>Transport</option><option>Salary</option><option>Shopping</option></select></label>}
+            {kind === 'transaction' && <label className="form-label">Category<select className="form-select" value={category} onChange={(event) => setCategory(event.target.value)}><option>Groceries</option><option>Food</option><option>Housing</option><option>Transport</option><option>Salary</option><option>Shopping</option></select></label>}
             {kind !== 'transaction' && <label className="form-label">Due date<input className="form-input" type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>}
             <label className="form-label">Note<textarea className="form-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a note" rows={3} /></label>
             {error && <p className="form-error">{error}</p>}

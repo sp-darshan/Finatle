@@ -4,15 +4,16 @@ import { ChevronDownIcon } from './Icons';
 import {
   LuUtensils,
   LuShoppingBag,
+  LuShoppingCart,
   LuPlane,
   LuZap,
   LuFilm,
   LuTrendingUp,
-  LuFolder,
   LuPlus,
   LuDumbbell,
   LuGraduationCap,
   LuHeartPulse,
+  LuFolder,
   LuX,
 } from 'react-icons/lu';
 import { FaHouse } from 'react-icons/fa6';
@@ -32,7 +33,7 @@ const CATEGORY_OPTIONS: {
   { name: 'Health', icon: LuDumbbell, tone: 'emerald' },
   { name: 'Education', icon: LuGraduationCap, tone: 'indigo' },
   { name: 'Medical', icon: LuHeartPulse, tone: 'coral' },
-  { name: 'General', icon: LuFolder, tone: 'slate' },
+  { name: 'Groceries', icon: LuShoppingCart, tone: 'purple' },
   { name: 'Other', icon: LuPlus, tone: 'indigo' },
 ];
 

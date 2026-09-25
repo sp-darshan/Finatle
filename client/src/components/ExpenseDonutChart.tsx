@@ -31,7 +31,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Education': '#3B82F6', // Royal Blue (220°)
   'Medical': '#EF4444', // Crimson Red (0°)
   'Salary': '#059669', // Dark Mint
-  'General': '#64748B', // Cool Slate
+  'Groceries': '#8B5CF6', // Electric Purple
+  'Grocery': '#8B5CF6',
+  'General': '#8B5CF6', // Cool Slate / Groceries
   'Other': '#6366F1', // Indigo
   'Others': '#6366F1',
 };
@@ -74,7 +76,7 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
 }) => {
   const [timeRange, setTimeRange] = useState('This Month');
 
-  const radius = 65;
+  const radius = 75;
   const circumference = 2 * Math.PI * radius;
   let cumulativeOffset = 0;
 
@@ -96,7 +98,7 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
   });
 
   return (
-    <div className="dashboard-card">
+    <div className="dashboard-card expense-breakdown-card">
       <div className="card-header">
         <h3>Expense Breakdown</h3>
         <select
@@ -123,14 +125,14 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
         <div className="donut-container">
           {/* Donut Graphic */}
           <div className="donut-svg-wrap">
-            <svg width="170" height="170" viewBox="0 0 170 170" style={{ transform: 'rotate(-90deg)' }}>
+            <svg width="190" height="190" viewBox="0 0 190 190" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
               <circle
-                cx="85"
-                cy="85"
+                cx="95"
+                cy="95"
                 r={radius}
                 fill="transparent"
                 stroke="#f1f5f9"
-                strokeWidth="22"
+                strokeWidth="24"
               />
               {resolvedCategories.map((cat, idx) => {
                 const rawLength = (cat.percentage / 100) * circumference;
@@ -142,12 +144,12 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
                 return (
                   <circle
                     key={idx}
-                    cx="85"
-                    cy="85"
+                    cx="95"
+                    cy="95"
                     r={radius}
                     fill="transparent"
                     stroke={cat.resolvedColor}
-                    strokeWidth="22"
+                    strokeWidth="24"
                     strokeDasharray={strokeDasharray}
                     strokeDashoffset={strokeDashoffset}
                     strokeLinecap={resolvedCategories.length === 1 ? 'round' : 'butt'}

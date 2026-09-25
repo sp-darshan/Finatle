@@ -279,7 +279,7 @@ export function App() {
           const mapped: TransactionItem[] = sorted.map((t: any) => ({
             id: t.tid,
             name: cleanSplitText(t.description) || t.category || 'Transaction',
-            category: t.category || 'General',
+            category: (t.category === 'General' || !t.category) ? 'Groceries' : t.category,
             date: new Date(t.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             amount: Number(t.amount),
             type: t.type,
@@ -341,6 +341,17 @@ export function App() {
         if (refreshLoans) {
           setLoans(mappedLoans);
           localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(mappedLoans));
+        }
+
+        // Category Budgets from DB
+        if (data.budgets && Array.isArray(data.budgets)) {
+          const mappedBudgets: BudgetLimit[] = data.budgets.map((b: any) => ({
+            category: (b.category === 'General' || !b.category) ? 'Groceries' : b.category,
+            limit: Number(b.limit),
+            period: b.period || 'monthly',
+          }));
+          setBudgets(mappedBudgets);
+          localStorage.setItem(`finatle_budgets_${uid}`, JSON.stringify(mappedBudgets));
         }
       }
     } catch {
@@ -442,26 +453,63 @@ export function App() {
     }
   }, [scrollToTop]);
 
-  const saveBudget = useCallback((budget: BudgetLimit) => {
-    setBudgets((previous) => {
-      const filtered = previous.filter((item) => item.category.toLowerCase() !== budget.category.toLowerCase());
-      const next = [...filtered, budget];
-      const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
-      return next;
-    });
-  }, [user?.uid]);
+  const saveBudget = useCallback(async (budget: BudgetLimit) => {
+    const updatedCategory = (budget.category === 'General' || !budget.category) ? 'Groceries' : budget.category;
+    const cleanBudget = { ...budget, category: updatedCategory };
 
-  const deleteBudget = useCallback((category: string) => {
     setBudgets((previous) => {
-      const next = previous.filter((item) => item.category.toLowerCase() !== category.toLowerCase());
+      const filtered = previous.filter((item) => item.category.toLowerCase() !== cleanBudget.category.toLowerCase());
+      const next = [...filtered, cleanBudget];
       const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
       localStorage.setItem(storageKey, JSON.stringify(next));
       localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
       return next;
     });
-  }, [user?.uid]);
+
+    if (token) {
+      try {
+        await apiFetch('/api/finance/budgets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: cleanBudget.category,
+            limit: cleanBudget.limit,
+            period: cleanBudget.period || 'monthly',
+          }),
+        });
+      } catch (err) {
+        console.warn('[Budget] Failed to sync budget to database:', err);
+      }
+    }
+  }, [user?.uid, token]);
+
+  const deleteBudget = useCallback(async (category: string) => {
+    const targetCategory = (category === 'General' || !category) ? 'Groceries' : category;
+
+    setBudgets((previous) => {
+      const next = previous.filter((item) => item.category.toLowerCase() !== targetCategory.toLowerCase());
+      const storageKey = user?.uid ? `finatle_budgets_${user.uid}` : 'finatle_budgets_local';
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      localStorage.setItem('finatle_budgets_local', JSON.stringify(next));
+      return next;
+    });
+
+    if (token) {
+      try {
+        await apiFetch(`/api/finance/budgets/${encodeURIComponent(targetCategory)}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (err) {
+        console.warn('[Budget] Failed to delete budget from database:', err);
+      }
+    }
+  }, [user?.uid, token]);
 
 
   const handleAddRecordSuccess = useCallback(async (payload?: { kind: string; apiPayload?: any; optimisticData?: any; splitData?: any }) => {
@@ -613,7 +661,7 @@ export function App() {
               const realItem: TransactionItem = {
                 id: realTxId,
                 name: cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction',
-                category: data.transaction.category || 'General',
+                category: (data.transaction.category === 'General' || !data.transaction.category) ? 'Groceries' : data.transaction.category,
                 date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                 amount: Number(data.transaction.amount),
                 type: data.transaction.type,
@@ -1433,7 +1481,7 @@ export function App() {
     transactions
       .filter((t) => t.type === 'EXPENSE')
       .forEach((t) => {
-        const cat = t.category || 'General';
+        const cat = (t.category === 'General' || !t.category) ? 'Groceries' : t.category;
         map[cat] = (map[cat] || 0) + Number(t.amount);
       });
 
@@ -1545,6 +1593,7 @@ export function App() {
             onDeleteAccount={handleLogout}
             transactions={filteredTransactions}
             loans={filteredLoans}
+            totalIncome={totalIncome}
             totalExpense={totalExpense}
             expenseCategories={expenseCategories}
             onOpenAddModal={openAdd}

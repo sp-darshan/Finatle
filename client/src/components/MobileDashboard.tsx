@@ -21,7 +21,16 @@ import {
   type BudgetLimit,
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
-import { LuReceipt, LuX, LuPlus, LuChevronDown, LuChevronUp, LuShoppingBag } from 'react-icons/lu';
+import {
+  LuReceipt,
+  LuX,
+  LuPlus,
+  LuChevronDown,
+  LuChevronUp,
+  LuShoppingBag,
+  LuTrendingUp,
+  LuWallet,
+} from 'react-icons/lu';
 import { useGreeting } from '../lib/greeting';
 
 
@@ -35,6 +44,7 @@ interface MobileDashboardProps {
   onDeleteAccount?: () => void;
   transactions: TransactionItem[];
   loans?: LoanItem[];
+  totalIncome?: number;
   totalExpense?: number;
   expenseCategories?: CategoryExpense[];
   budgets: BudgetLimit[];
@@ -66,6 +76,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   onDeleteAccount,
   transactions = [],
   loans = [],
+  totalIncome,
   totalExpense = 0,
   expenseCategories = [],
   budgets,
@@ -135,6 +146,24 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
     const abs = Math.abs(Math.round(val)).toLocaleString('en-IN');
     return isNeg ? `-₹${abs}` : `₹${abs}`;
   };
+
+  const computedIncome = React.useMemo(() => {
+    if (typeof totalIncome === 'number') return totalIncome;
+    return transactions.filter((t) => t.type === 'INCOME').reduce((acc, t) => acc + Number(t.amount), 0);
+  }, [transactions, totalIncome]);
+
+  const computedExpense = React.useMemo(() => {
+    if (typeof totalExpense === 'number' && totalExpense > 0) return totalExpense;
+    return transactions.filter((t) => t.type === 'EXPENSE').reduce((acc, t) => acc + Number(t.amount), 0);
+  }, [transactions, totalExpense]);
+
+  const totalLent = React.useMemo(() => {
+    return (loans || []).filter((l) => l.kind === 'lent' && l.status !== 'PAID').reduce((acc, l) => acc + Number(l.amount), 0);
+  }, [loans]);
+
+  const totalBorrowed = React.useMemo(() => {
+    return (loans || []).filter((l) => l.kind === 'borrowed' && l.status !== 'PAID').reduce((acc, l) => acc + Number(l.amount), 0);
+  }, [loans]);
 
   const topTransactions = React.useMemo(() => transactions.slice(0, 5), [transactions]);
   const pendingLoans = React.useMemo(() => loans.slice(0, 5), [loans]);
@@ -354,6 +383,83 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
             </div>
           </div>
 
+          {/* 4 Financial Metric Cards (Income, Expense, Lent, Borrowed) */}
+          <div className="mobile-metrics-grid">
+            <div
+              className="mobile-metric-card income"
+              onClick={() => onOpenAddModal('income')}
+              style={{ cursor: 'pointer' }}
+              title="Add Income"
+            >
+              <div className="metric-header-mini">
+                <div className="metric-icon-circle income">
+                  <LuTrendingUp size={13} />
+                </div>
+                <span>Income</span>
+              </div>
+              <div className="metric-amount income">
+                +{formatRupee(computedIncome)}
+              </div>
+            </div>
+
+            <div
+              className="mobile-metric-card expense"
+              onClick={() => onOpenAddModal('expense')}
+              style={{ cursor: 'pointer' }}
+              title="Add Expense"
+            >
+              <div className="metric-header-mini">
+                <div className="metric-icon-circle expense">
+                  <MinusIcon size={13} />
+                </div>
+                <span>Expense</span>
+              </div>
+              <div className="metric-amount expense">
+                -{formatRupee(computedExpense)}
+              </div>
+            </div>
+
+            <div
+              className="mobile-metric-card lent"
+              onClick={() => {
+                if (onOpenLoans) onOpenLoans();
+                else onSelectNav('loans');
+              }}
+              style={{ cursor: 'pointer' }}
+              title="View Money Lent"
+            >
+              <div className="metric-header-mini">
+                <div className="metric-icon-circle lent">
+                  <UsersGroupIcon size={13} />
+                </div>
+                <span>Lent (Owed)</span>
+              </div>
+              <div className="metric-amount lent">
+                {formatRupee(totalLent)}
+              </div>
+            </div>
+
+            <div
+              className="mobile-metric-card borrowed"
+              onClick={() => {
+                if (onOpenLoans) onOpenLoans();
+                else onSelectNav('loans');
+              }}
+              style={{ cursor: 'pointer' }}
+              title="View Money Borrowed"
+            >
+              <div className="metric-header-mini">
+                <div className="metric-icon-circle borrowed">
+                  <LuWallet size={13} />
+                </div>
+                <span>You Owe</span>
+              </div>
+              <div className="metric-amount borrowed">
+                {formatRupee(totalBorrowed)}
+              </div>
+            </div>
+          </div>
+
           {/* Quick Action Buttons */}
           <div className="mobile-actions-grid">
             <button
@@ -518,7 +624,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
           </section>
 
           {/* Loans & Settlements Section */}
-          <section className="mobile-section" style={{ paddingBottom: '0.5rem' }}>
+          <section className="mobile-section">
             <div className="mobile-sec-header">
               <h4>Loans & Settlements</h4>
               {loans.length > 0 && (
@@ -564,7 +670,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 <ChevronRightIcon size={18} />
               </div>
             ) : (
-              <div className="loans-list" style={{ marginBottom: '1rem' }}>
+              <div className="loans-list">
                 {pendingLoans.map((item) => {
                   const isLent = item.kind === 'lent';
                   const isSplit = item.kind === 'split';
@@ -671,7 +777,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
       {/* VIEW 2: ALL TRANSACTIONS */}
       {currentNav === 'transactions' && (
-        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+        <section className="mobile-section">
           <div className="mobile-sec-header">
             <h4>Transactions</h4>
             <button
@@ -832,7 +938,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
       {/* VIEW: ALL LOANS & SPLITS */}
       {currentNav === 'loans' && (
-        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+        <section className="mobile-section">
           <div className="mobile-sec-header" style={{ marginBottom: '0.65rem' }}>
             <h4 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Loans & Group Splits</h4>
           </div>
@@ -1122,34 +1228,65 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
       {/* VIEW 3: INSIGHTS */}
       {currentNav === 'insights' && (
-        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+        <section className="mobile-section">
           <div className="mobile-sec-header">
             <h4>Financial Insights</h4>
           </div>
-          <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
-          <div style={{ marginTop: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
-            <h5 style={{ fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Monthly Summary</h5>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
-              <span>Total Expenses</span>
-              <span style={{ fontWeight: 700, color: 'var(--expense)' }}>{formatRupee(totalExpense)}</span>
+          <ExpenseDonutChart totalExpense={computedExpense} categories={expenseCategories} />
+
+          {/* Comprehensive Monthly Summary Card */}
+          <div className="mobile-monthly-summary-card">
+            <div className="summary-card-header">
+              <h5>Monthly Summary</h5>
+              <span className="summary-period-badge">All Time Overview</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', fontSize: '0.85rem' }}>
-              <span>Active Balance</span>
-              <span style={{ fontWeight: 700, color: 'var(--primary-dark)' }}>{formatRupee(balance)}</span>
+
+            <div className="summary-metrics-grid">
+              <div className="summary-stat-box income">
+                <span className="stat-label">Total Income</span>
+                <strong className="stat-value income">+{formatRupee(computedIncome)}</strong>
+              </div>
+              <div className="summary-stat-box expense">
+                <span className="stat-label">Total Expenses</span>
+                <strong className="stat-value expense">-{formatRupee(computedExpense)}</strong>
+              </div>
+              <div className="summary-stat-box lent">
+                <span className="stat-label">Money Lent</span>
+                <strong className="stat-value lent">{formatRupee(totalLent)}</strong>
+              </div>
+              <div className="summary-stat-box borrowed">
+                <span className="stat-label">Money Borrowed</span>
+                <strong className="stat-value borrowed">{formatRupee(totalBorrowed)}</strong>
+              </div>
+            </div>
+
+            <div className="summary-footer-row">
+              <div className="summary-balance-item">
+                <span>Net Cash Flow:</span>
+                <strong style={{ color: (computedIncome - computedExpense) >= 0 ? '#059669' : '#dc2626' }}>
+                  {formatRupee(computedIncome - computedExpense)}
+                </strong>
+              </div>
+              <div className="summary-balance-item">
+                <span>Active Balance:</span>
+                <strong style={{ color: 'var(--primary-dark, #065f46)' }}>
+                  {formatRupee(balanceView === 'net' ? balance : (actualBalance ?? balance))}
+                </strong>
+              </div>
             </div>
           </div>
         </section>
       )}
 
       {currentNav === 'budgets' && (
-        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+        <section className="mobile-section">
           <div className="mobile-sec-header"><h4>Budgets</h4></div>
           <BudgetManager categories={Object.keys(spending)} spending={spending} budgets={budgets} onSave={onSaveBudget} onDelete={onDeleteBudget} />
         </section>
       )}
 
       {currentNav === 'settings' && (
-        <section className="mobile-section" style={{ paddingBottom: '5.5rem' }}>
+        <section className="mobile-section">
           <SettingsView
             user={user || null}
             token={token || null}

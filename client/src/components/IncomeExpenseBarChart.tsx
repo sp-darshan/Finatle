@@ -10,18 +10,21 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
   transactions = [],
 }) => {
   const [range, setRange] = useState('Last 6 Months');
-  const [hoveredBar, setHoveredBar] = useState<{ month: string; type: string; val: number } | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-  // Group transactions by month (last 6 months)
+  // Group transactions by month
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const now = new Date();
 
-  // Generate last 6 months list
-  const monthlyData: { month: string; income: number; expenses: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
+  // Determine number of months to display based on range
+  const monthsCount = range === 'Last 3 Months' ? 3 : range === 'This Year' ? (now.getMonth() + 1) : 6;
+
+  // Generate months list
+  const monthlyData: { month: string; year: number; income: number; expenses: number }[] = [];
+  for (let i = monthsCount - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const mName = monthNames[d.getMonth()];
-    monthlyData.push({ month: mName, income: 0, expenses: 0 });
+    monthlyData.push({ month: mName, year: d.getFullYear(), income: 0, expenses: 0 });
   }
 
   // Aggregate user transactions into months
@@ -30,7 +33,8 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
     const d = new Date(t.date);
     if (!isNaN(d.getTime())) {
       const mName = monthNames[d.getMonth()];
-      const entry = monthlyData.find((m) => m.month === mName);
+      const y = d.getFullYear();
+      const entry = monthlyData.find((m) => m.month === mName && m.year === y);
       if (entry) {
         if (t.type === 'INCOME') entry.income += Number(t.amount);
         else entry.expenses += Number(t.amount);
@@ -44,8 +48,10 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
     1000
   );
 
+  const activeItem = hoveredIdx !== null ? monthlyData[hoveredIdx] : null;
+
   return (
-    <div className="dashboard-card">
+    <div className="dashboard-card income-expense-card">
       <div className="card-header">
         <h3>Income vs Expenses</h3>
         <select className="select-pill" value={range} onChange={(e) => setRange(e.target.value)}>
@@ -65,43 +71,75 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
         </div>
       ) : (
         <div className="bar-chart-wrap">
+          {/* Main Bar Chart Canvas */}
           <div className="bar-chart-canvas">
-            {monthlyData.map((item, idx) => {
-              const incomeHeight = item.income > 0 ? Math.max(6, (item.income / maxVal) * 125) : 0;
-              const expenseHeight = item.expenses > 0 ? Math.max(6, (item.expenses / maxVal) * 125) : 0;
+            {/* Background horizontal gridlines spanning 100% width */}
+            <div className="bar-gridlines" aria-hidden="true">
+              <div className="bar-gridline"><span className="gridline-val">₹{Math.round(maxVal).toLocaleString('en-IN')}</span></div>
+              <div className="bar-gridline"><span className="gridline-val">₹{Math.round(maxVal / 2).toLocaleString('en-IN')}</span></div>
+              <div className="bar-gridline"><span className="gridline-val">₹0</span></div>
+            </div>
 
-              return (
-                <div className="bar-group" key={idx}>
-                  <div className="bars-pair">
-                    {/* Income bar */}
-                    <div
-                      className="bar-column bar-income"
-                      style={{ height: `${incomeHeight}px`, opacity: incomeHeight === 0 ? 0.2 : 1 }}
-                      onMouseEnter={() => setHoveredBar({ month: item.month, type: 'Income', val: item.income })}
-                      onMouseLeave={() => setHoveredBar(null)}
-                      title={`${item.month} Income: ₹${item.income.toLocaleString('en-IN')}`}
-                    />
-                    {/* Expense bar */}
-                    <div
-                      className="bar-column bar-expense"
-                      style={{ height: `${expenseHeight}px`, opacity: expenseHeight === 0 ? 0.2 : 1 }}
-                      onMouseEnter={() => setHoveredBar({ month: item.month, type: 'Expense', val: item.expenses })}
-                      onMouseLeave={() => setHoveredBar(null)}
-                      title={`${item.month} Expenses: ₹${item.expenses.toLocaleString('en-IN')}`}
-                    />
+            {/* Bars container spanning 100% width */}
+            <div className="bar-groups-container">
+              {monthlyData.map((item, idx) => {
+                const incomePct = item.income > 0 ? Math.min(100, (item.income / maxVal) * 100) : 0;
+                const expensePct = item.expenses > 0 ? Math.min(100, (item.expenses / maxVal) * 100) : 0;
+                const isHovered = hoveredIdx === idx;
+
+                return (
+                  <div
+                    className={`bar-group ${isHovered ? 'hovered' : ''}`}
+                    key={idx}
+                    onMouseEnter={() => setHoveredIdx(idx)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                  >
+                    <div className="bars-pair">
+                      {/* Income bar */}
+                      <div className="bar-track">
+                        <div
+                          className="bar-column bar-income"
+                          style={{
+                            height: `${incomePct > 0 ? Math.max(4, incomePct) : 0}%`,
+                            opacity: item.income === 0 ? 0.15 : 1,
+                          }}
+                          title={`${item.month} Income: ₹${item.income.toLocaleString('en-IN')}`}
+                        />
+                      </div>
+                      {/* Expense bar */}
+                      <div className="bar-track">
+                        <div
+                          className="bar-column bar-expense"
+                          style={{
+                            height: `${expensePct > 0 ? Math.max(4, expensePct) : 0}%`,
+                            opacity: item.expenses === 0 ? 0.15 : 1,
+                          }}
+                          title={`${item.month} Expenses: ₹${item.expenses.toLocaleString('en-IN')}`}
+                        />
+                      </div>
+                    </div>
+                    <span className="bar-month-label">{item.month}</span>
                   </div>
-                  <span className="bar-month-label">{item.month}</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           {/* Hover info or chart legend */}
           <div className="bar-chart-legend">
-            {hoveredBar ? (
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                {hoveredBar.month} {hoveredBar.type}: ₹{hoveredBar.val.toLocaleString('en-IN')}
-              </span>
+            {activeItem ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{activeItem.month}:</span>
+                <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                  Income ₹{activeItem.income.toLocaleString('en-IN')}
+                </span>
+                <span style={{ color: '#ef4444', fontWeight: 700 }}>
+                  Expense ₹{activeItem.expenses.toLocaleString('en-IN')}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                  Net: {(activeItem.income - activeItem.expenses >= 0 ? '+' : '')}₹{(activeItem.income - activeItem.expenses).toLocaleString('en-IN')}
+                </span>
+              </div>
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

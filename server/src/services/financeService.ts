@@ -15,7 +15,7 @@ export class FinanceService {
       return cached;
     }
 
-    const [account, transactions, moneyLent, moneyBorrowed] = await Promise.all([
+    const [account, transactions, moneyLent, moneyBorrowed, budgets] = await Promise.all([
       prisma.account.findUnique({ where: { uid: userId } }),
       prisma.transaction.findMany({
         where: { uid: userId },
@@ -31,6 +31,10 @@ export class FinanceService {
         where: { uid: userId },
         orderBy: [{ borrowedAt: 'desc' }, { createdAt: 'desc' }],
       }),
+      prisma.budget.findMany({
+        where: { uid: userId },
+        orderBy: { category: 'asc' },
+      }),
     ]);
 
     const cleanText = (text?: string | null) =>
@@ -41,6 +45,12 @@ export class FinanceService {
       transactions: transactions.map((t) => ({ ...t, description: cleanText(t.description) })),
       moneyLent: moneyLent.map((l) => ({ ...l, description: cleanText(l.description) })),
       moneyBorrowed: moneyBorrowed.map((b) => ({ ...b, description: cleanText(b.description) })),
+      budgets: budgets.map((b) => ({
+        id: b.id,
+        category: b.category,
+        limit: Number(b.limit),
+        period: b.period,
+      })),
     };
 
     // Store in cache with 30s TTL

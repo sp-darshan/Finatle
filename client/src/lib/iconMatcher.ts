@@ -118,6 +118,14 @@ const BRAND_DIRECTORY: {
   { keywords: ['zepto'], domain: 'zeptonow.com', icon: LuShoppingCart, badgeBg: '#FDF4FF', badgeBorder: '#F5D0FE', badgeColor: '#7C3AED' },
   { keywords: ['bigbasket', 'bbdaily'], domain: 'bigbasket.com', icon: LuShoppingCart, badgeBg: '#F0FDF4', badgeBorder: '#BBF7D0', badgeColor: '#84C225' },
 
+  // Fuel & Petrol Pumps
+  { keywords: ['petrol', 'fuel', 'diesel', 'cng', 'gas station'], domain: '', icon: LuFuel, badgeBg: '#FEF3C7', badgeBorder: '#FDE68A', badgeColor: '#B45309' },
+  { keywords: ['shell', 'shell petrol'], domain: 'shell.com', icon: LuFuel, badgeBg: '#FFFBEB', badgeBorder: '#FDE68A', badgeColor: '#DD1D21' },
+  { keywords: ['hpcl', 'hp petrol', 'hindustan petroleum'], domain: 'hindustanpetroleum.com', icon: LuFuel, badgeBg: '#EFF6FF', badgeBorder: '#BFDBFE', badgeColor: '#004A99' },
+  { keywords: ['bpcl', 'bharat petroleum', 'speed petrol'], domain: 'bharatpetroleum.in', icon: LuFuel, badgeBg: '#FEF9C3', badgeBorder: '#FEF08A', badgeColor: '#005A9C' },
+  { keywords: ['indianoil', 'indian oil', 'iocl', 'xp95'], domain: 'iocl.com', icon: LuFuel, badgeBg: '#FFF7ED', badgeBorder: '#FFEDD5', badgeColor: '#F37021' },
+  { keywords: ['nayara', 'essar petrol'], domain: 'nayaraenergy.com', icon: LuFuel, badgeBg: '#ECFDF5', badgeBorder: '#A7F3D0', badgeColor: '#006A4E' },
+
   // Travel & Rides
   { keywords: ['uber'], domain: 'uber.com', icon: SiUber, badgeBg: '#F1F5F9', badgeBorder: '#CBD5E1', badgeColor: '#000000' },
   { keywords: ['ola', 'olacabs'], domain: 'olacabs.com', icon: LuCar, badgeBg: '#FEF9C3', badgeBorder: '#FEF08A', badgeColor: '#B45309' },
@@ -187,31 +195,83 @@ const BRAND_DIRECTORY: {
  * to a brand logo (with web domain for favicon fetching) or rich semantic React Icon.
  */
 export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
-  const combined = `${textOrDesc} ${category}`.toLowerCase().trim();
+  const normCategory = (category || '').trim().toLowerCase();
+  const desc = (textOrDesc || '').trim().toLowerCase();
+  const combined = `${desc} ${normCategory}`.trim();
 
-  // 1. Check Brand Directory First
-  for (const brand of BRAND_DIRECTORY) {
-    for (const keyword of brand.keywords) {
-      const regex = new RegExp(`(^|\\b|\\s|[-_/])${keyword.replace('.', '\\.')}(\\b|\\s|[-_/]|$)`, 'i');
-      if (regex.test(combined) || combined.includes(keyword)) {
-        return {
-          type: 'brand',
-          icon: brand.icon,
-          domain: brand.domain,
-          bgTone: 'brand',
-          badgeBg: brand.badgeBg,
-          badgeBorder: brand.badgeBorder,
-          badgeColor: brand.badgeColor,
-        };
+  // 1. Check Brand Directory First in description / merchant name
+  if (desc) {
+    for (const brand of BRAND_DIRECTORY) {
+      for (const keyword of brand.keywords) {
+        const regex = new RegExp(`(^|\\b|\\s|[-_/])${keyword.replace('.', '\\.')}(\\b|\\s|[-_/]|$)`, 'i');
+        if (regex.test(desc)) {
+          return {
+            type: 'brand',
+            icon: brand.icon,
+            domain: brand.domain,
+            bgTone: 'brand',
+            badgeBg: brand.badgeBg,
+            badgeBorder: brand.badgeBorder,
+            badgeColor: brand.badgeColor,
+          };
+        }
       }
     }
   }
 
-  // 2. Semantic Keyword & Category Matchers
-  // Food & Dining
-  if (/food|dining|restaurant|cafe|coffee|tea|lunch|dinner|breakfast|snack|bakery|biryani|pizza|burger|sushi|dhaba|canteen|bar|pub/i.test(combined)) {
-    const isCoffee = /coffee|tea|cafe|chai|starbucks|brew/i.test(combined);
-    const isPizza = /pizza|slice|domino|hut/i.test(combined);
+  // 2. High-Priority Direct Keyword Overrides (Overrides default category if description is explicit)
+  // Fuel & Petrol
+  if (/\b(petrol|fuel|diesel|cng|gasoline|gas station|hpcl|bpcl|ioc|iocl|shell|indianoil|nayara|speed petrol|power petrol|xp95)\b/i.test(desc) || normCategory === 'fuel' || normCategory === 'petrol') {
+    return {
+      type: 'category',
+      icon: LuFuel,
+      bgTone: 'amber',
+      badgeBg: '#FEF3C7',
+      badgeBorder: '#FDE68A',
+      badgeColor: '#B45309',
+    };
+  }
+
+  // Rides & Cabs
+  if (/\b(uber|ola|rapido|taxi|cab|auto|rickshaw)\b/i.test(desc)) {
+    return {
+      type: 'category',
+      icon: LuCar,
+      bgTone: 'amber',
+      badgeBg: '#FEF9C3',
+      badgeBorder: '#FEF08A',
+      badgeColor: '#B45309',
+    };
+  }
+
+  // Flights & Airlines
+  if (/\b(flight|airline|indigo|air india|airport|boarding|emirates|vistara|spicejet|airasia|akasa)\b/i.test(desc)) {
+    return {
+      type: 'category',
+      icon: LuPlane,
+      bgTone: 'amber',
+      badgeBg: '#EFF6FF',
+      badgeBorder: '#BFDBFE',
+      badgeColor: '#001B94',
+    };
+  }
+
+  // Trains & Metro
+  if (/\b(train|railway|irctc|metro|subway)\b/i.test(desc)) {
+    return {
+      type: 'category',
+      icon: FaTrainSubway,
+      bgTone: 'amber',
+      badgeBg: '#EFF6FF',
+      badgeBorder: '#BFDBFE',
+      badgeColor: '#003366',
+    };
+  }
+
+  // 3. Direct Declared Category Handling (Guaranteed 100% accurate category icon)
+  if (normCategory === 'dining' || normCategory === 'food' || normCategory === 'food & dining') {
+    const isCoffee = /\b(coffee|tea|cafe|chai|starbucks|brew)\b/i.test(desc);
+    const isPizza = /\b(pizza|slice|domino|hut)\b/i.test(desc);
     return {
       type: 'category',
       icon: isCoffee ? LuCoffee : isPizza ? LuPizza : LuUtensils,
@@ -222,12 +282,155 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
     };
   }
 
-  // Shopping & Retail & Grocery
-  if (/shopping|grocery|mart|store|supermarket|clothes|dress|shirt|pants|shoe|sneaker|electronics|gadget|laptop|phone|gift|mall|retail/i.test(combined)) {
-    const isCart = /grocery|mart|supermarket|vegetable|fruit|milk/i.test(combined);
+  if (normCategory === 'groceries' || normCategory === 'grocery' || normCategory === 'general') {
     return {
       type: 'category',
-      icon: isCart ? LuShoppingCart : LuShoppingBag,
+      icon: LuShoppingCart,
+      bgTone: 'purple',
+      badgeBg: '#F3E8FF',
+      badgeBorder: '#E9D5FF',
+      badgeColor: '#7E22CE',
+    };
+  }
+
+  if (normCategory === 'shopping') {
+    return {
+      type: 'category',
+      icon: LuShoppingBag,
+      bgTone: 'blue',
+      badgeBg: '#DBEAFE',
+      badgeBorder: '#BFDBFE',
+      badgeColor: '#2563EB',
+    };
+  }
+
+  if (normCategory === 'rent' || normCategory === 'housing' || normCategory === 'rent & housing') {
+    return {
+      type: 'category',
+      icon: FaHouse,
+      bgTone: 'teal',
+      badgeBg: '#CCFBF1',
+      badgeBorder: '#99F6E4',
+      badgeColor: '#0F766E',
+    };
+  }
+
+  if (normCategory === 'travel' || normCategory === 'transport') {
+    const isFuel = /\b(fuel|petrol|diesel|gas|cng)\b/i.test(desc);
+    const isFlight = /\b(flight|airplane|airline|airport|air)\b/i.test(desc);
+    const isTrain = /\b(train|railway|metro|irctc)\b/i.test(desc);
+    return {
+      type: 'category',
+      icon: isFuel ? LuFuel : isFlight ? LuPlane : isTrain ? FaTrainSubway : LuCar,
+      bgTone: 'amber',
+      badgeBg: '#FEF3C7',
+      badgeBorder: '#FDE68A',
+      badgeColor: '#B45309',
+    };
+  }
+
+  if (normCategory === 'utilities') {
+    const isWater = /\b(water|plumbing|droplet)\b/i.test(desc);
+    const isWifi = /\b(wifi|broadband|internet|fiber|cable)\b/i.test(desc);
+    return {
+      type: 'category',
+      icon: isWater ? LuDroplets : isWifi ? LuWifi : LuZap,
+      bgTone: 'cyan',
+      badgeBg: '#CFFAFE',
+      badgeBorder: '#A5F3FC',
+      badgeColor: '#0891B2',
+    };
+  }
+
+  if (normCategory === 'entertainment') {
+    const isGame = /\b(game|gaming|ps5|xbox|steam)\b/i.test(desc);
+    const isMusic = /\b(music|song|album|concert|spotify)\b/i.test(desc);
+    return {
+      type: 'category',
+      icon: isGame ? LuGamepad2 : isMusic ? LuMusic : LuFilm,
+      bgTone: 'coral',
+      badgeBg: '#FFE4E6',
+      badgeBorder: '#FECDD3',
+      badgeColor: '#BE123C',
+    };
+  }
+
+  if (normCategory === 'health' || normCategory === 'fitness' || normCategory === 'health & fitness' || normCategory === 'gym') {
+    return {
+      type: 'category',
+      icon: LuDumbbell,
+      bgTone: 'emerald',
+      badgeBg: '#DCFCE7',
+      badgeBorder: '#86EFAC',
+      badgeColor: '#15803D',
+    };
+  }
+
+  if (normCategory === 'medical') {
+    return {
+      type: 'category',
+      icon: LuHeartPulse,
+      bgTone: 'coral',
+      badgeBg: '#FFE4E6',
+      badgeBorder: '#FECDD3',
+      badgeColor: '#E11D48',
+    };
+  }
+
+  if (normCategory === 'education') {
+    return {
+      type: 'category',
+      icon: LuGraduationCap,
+      bgTone: 'indigo',
+      badgeBg: '#E0E7FF',
+      badgeBorder: '#C7D2FE',
+      badgeColor: '#4338CA',
+    };
+  }
+
+  if (normCategory === 'salary' || normCategory === 'income') {
+    return {
+      type: 'category',
+      icon: LuTrendingUp,
+      bgTone: 'emerald',
+      badgeBg: '#ECFDF5',
+      badgeBorder: '#A7F3D0',
+      badgeColor: '#059669',
+    };
+  }
+
+  // 3. Fallback Semantic Keyword Matching (when category is Other / unassigned)
+  // Groceries & Supermarkets
+  if (/\b(grocer|grocery|groceries|supermarket|mart|vegetable|veggie|veggies|fruit|fruits|milk|dairy|ration|provision|kirana|bazaar|mandi|bigbasket|blinkit|zepto|instamart|dmart|jiomart|safal|reliance fresh)\b/i.test(combined)) {
+    return {
+      type: 'category',
+      icon: LuShoppingCart,
+      bgTone: 'purple',
+      badgeBg: '#F3E8FF',
+      badgeBorder: '#E9D5FF',
+      badgeColor: '#7E22CE',
+    };
+  }
+
+  // Food & Dining
+  if (/\b(food|dining|restaurant|cafe|coffee|tea|lunch|dinner|breakfast|snack|bakery|biryani|pizza|burger|sushi|dhaba|canteen|bar|pub)\b/i.test(combined)) {
+    const isCoffee = /\b(coffee|tea|cafe|chai|starbucks|brew)\b/i.test(combined);
+    const isPizza = /\b(pizza|slice|domino|hut)\b/i.test(combined);
+    return {
+      type: 'category',
+      icon: isCoffee ? LuCoffee : isPizza ? LuPizza : LuUtensils,
+      bgTone: 'green',
+      badgeBg: '#D1FAE5',
+      badgeBorder: '#A7F3D0',
+      badgeColor: '#047857',
+    };
+  }
+
+  // Shopping & Retail
+  if (/\b(shopping|retail|clothes|dress|shirt|pants|shoe|sneaker|electronics|gadget|laptop|phone|gift|mall)\b/i.test(combined)) {
+    return {
+      type: 'category',
+      icon: LuShoppingBag,
       bgTone: 'blue',
       badgeBg: '#DBEAFE',
       badgeBorder: '#BFDBFE',
@@ -236,10 +439,10 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Travel & Transport
-  if (/travel|transport|flight|airplane|airline|train|railway|metro|bus|cab|taxi|uber|ola|rapido|fuel|petrol|diesel|gasoline|parking|toll|tollgate|trip|vacation|hotel|stay/i.test(combined)) {
-    const isFuel = /fuel|petrol|diesel|gas station|cng/i.test(combined);
-    const isFlight = /flight|airplane|airline|airport|air/i.test(combined);
-    const isTrain = /train|railway|metro|irctc/i.test(combined);
+  if (/\b(travel|transport|flight|airplane|airline|train|railway|metro|bus|cab|taxi|uber|ola|rapido|fuel|petrol|diesel|gasoline|parking|toll|tollgate|trip|vacation|hotel|stay)\b/i.test(combined)) {
+    const isFuel = /\b(fuel|petrol|diesel|gas station|cng)\b/i.test(combined);
+    const isFlight = /\b(flight|airplane|airline|airport|air)\b/i.test(combined);
+    const isTrain = /\b(train|railway|metro|irctc)\b/i.test(combined);
     return {
       type: 'category',
       icon: isFuel ? LuFuel : isFlight ? LuPlane : isTrain ? FaTrainSubway : LuCar,
@@ -251,10 +454,10 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Housing & Rent & Utilities
-  if (/rent|housing|home|house|apartment|flat|maintenance|electricity|power|bescom|water|wifi|broadband|internet|cylinder|gas|pipe/i.test(combined)) {
-    const isPower = /electricity|power|energy|electric|bescom/i.test(combined);
-    const isWater = /water|plumbing|droplet/i.test(combined);
-    const isWifi = /wifi|broadband|internet|fiber|cable/i.test(combined);
+  if (/\b(rent|housing|home|house|apartment|flat|maintenance|electricity|power|bescom|water|wifi|broadband|internet|cylinder|gas|pipe)\b/i.test(combined)) {
+    const isPower = /\b(electricity|power|energy|electric|bescom)\b/i.test(combined);
+    const isWater = /\b(water|plumbing|droplet)\b/i.test(combined);
+    const isWifi = /\b(wifi|broadband|internet|fiber|cable)\b/i.test(combined);
     return {
       type: 'category',
       icon: isPower ? LuZap : isWater ? LuDroplets : isWifi ? LuWifi : FaHouse,
@@ -266,9 +469,9 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Entertainment & Gaming & Movies
-  if (/entertainment|movie|cinema|film|pvr|inox|theatre|game|gaming|steam|playstation|xbox|music|concert|party|club|pub|ott|streaming/i.test(combined)) {
-    const isGame = /game|gaming|ps5|xbox|steam/i.test(combined);
-    const isMusic = /music|song|album|concert|spotify/i.test(combined);
+  if (/\b(entertainment|movie|cinema|film|pvr|inox|theatre|game|gaming|steam|playstation|xbox|music|concert|party|club|pub|ott|streaming)\b/i.test(combined)) {
+    const isGame = /\b(game|gaming|ps5|xbox|steam)\b/i.test(combined);
+    const isMusic = /\b(music|song|album|concert|spotify)\b/i.test(combined);
     return {
       type: 'category',
       icon: isGame ? LuGamepad2 : isMusic ? LuMusic : LuFilm,
@@ -280,9 +483,9 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Health, Medical & Fitness
-  if (/health|medical|doctor|medicine|pharma|pharmacy|hospital|clinic|dentist|tablet|pill|gym|fitness|workout|cult|trainer/i.test(combined)) {
-    const isGym = /gym|fitness|workout|cult|exercise/i.test(combined);
-    const isPill = /pharmacy|medicine|pill|drug|tablet|1mg/i.test(combined);
+  if (/\b(health|medical|doctor|medicine|pharma|pharmacy|hospital|clinic|dentist|tablet|pill|gym|fitness|workout|cult|trainer)\b/i.test(combined)) {
+    const isGym = /\b(gym|fitness|workout|cult|exercise)\b/i.test(combined);
+    const isPill = /\b(pharmacy|medicine|pill|drug|tablet|1mg)\b/i.test(combined);
     return {
       type: 'category',
       icon: isGym ? LuDumbbell : isPill ? LuPill : LuHeartPulse,
@@ -294,7 +497,7 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Income, Salary & Investments
-  if (/salary|income|dividend|bonus|stipend|freelance|client|interest|cashback|refund|profit|crypto|stock|shares|mutual fund/i.test(combined)) {
+  if (/\b(salary|income|dividend|bonus|stipend|freelance|client|interest|cashback|refund|profit|crypto|stock|shares|mutual fund)\b/i.test(combined)) {
     return {
       type: 'category',
       icon: LuTrendingUp,
@@ -306,7 +509,7 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Education & Learning
-  if (/education|tuition|course|udemy|coursera|college|school|university|book|exam|training/i.test(combined)) {
+  if (/\b(education|tuition|course|udemy|coursera|college|school|university|book|exam|training)\b/i.test(combined)) {
     return {
       type: 'category',
       icon: LuGraduationCap,
@@ -318,7 +521,7 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Loans, People & Splits
-  if (/lend|lent|borrow|borrowed|loan|debt|split|settle|friend|mom|dad|brother|sister|roommate/i.test(combined)) {
+  if (/\b(lend|lent|borrow|borrowed|loan|debt|split|settle|friend|mom|dad|brother|sister|roommate)\b/i.test(combined)) {
     return {
       type: 'category',
       icon: LuUsers,
@@ -329,7 +532,7 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
     };
   }
 
-  // Default fallback
+  // 4. Default fallback
   return {
     type: 'generic',
     icon: LuCircleDollarSign,
