@@ -12,6 +12,7 @@ import {
 import { LuCircleAlert, LuInfo, LuFileSpreadsheet, LuFileJson, LuX, LuCheck } from 'react-icons/lu';
 import { apiFetch } from '../lib/api';
 import type { TransactionItem } from './RecentTransactions';
+import { CustomDropdown } from './CustomDropdown';
 
 interface SettingsUser {
   uid: string;
@@ -575,19 +576,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <strong>Primary Display Currency</strong>
                 <p>Default currency symbol used across transactions, budgets, and charts</p>
               </div>
-              <select
-                className="select-pill"
+              <CustomDropdown
+                variant="pill"
+                size="sm"
+                align="right"
                 value={currency}
-                onChange={(e) => {
-                  setCurrency(e.target.value);
-                  localStorage.setItem('finatle_pref_currency', e.target.value);
+                onChange={(val) => {
+                  setCurrency(val);
+                  localStorage.setItem('finatle_pref_currency', val);
                 }}
-              >
-                <option value="INR (₹)">₹ INR (Indian Rupee)</option>
-                <option value="USD ($)">$ USD (US Dollar)</option>
-                <option value="EUR (€)">€ EUR (Euro)</option>
-                <option value="GBP (£)">£ GBP (British Pound)</option>
-              </select>
+                options={[
+                  { value: 'INR (₹)', label: '₹ INR (Indian Rupee)' },
+                  { value: 'USD ($)', label: '$ USD (US Dollar)' },
+                  { value: 'EUR (€)', label: '€ EUR (Euro)' },
+                  { value: 'GBP (£)', label: '£ GBP (British Pound)' },
+                ]}
+                aria-label="Primary Display Currency"
+              />
             </div>
 
             <div className="settings-pref-row settings-pref-row-switch">

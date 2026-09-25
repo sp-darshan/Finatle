@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ScanBillIcon, CategoryBadge, UsersGroupIcon, MinusIcon, PlusIcon } from './Icons';
 import { LuUpload, LuCamera, LuCheck, LuPlus, LuTrash2, LuUser, LuX, LuUsers, LuPenLine } from 'react-icons/lu';
 import { CategoryPicker } from './CategoryPicker';
+import { formatRupee } from '../lib/formatters';
 import { apiFetch } from '../lib/api';
 
 export interface CustomLentPerson {
@@ -185,7 +186,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     setBillDate(today);
     setRecordMode('EXPENSE');
     setCustomPeople([
-      { id: '1', name: '', amount: String(Math.round((data.amount || 0) * 0.5)) },
+      { id: '1', name: '', amount: String(Math.round((data.amount || 0) * 0.5 * 100) / 100) },
     ]);
   };
 
@@ -557,7 +558,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Amount</div>
                     <strong style={{ fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 800 }}>
-                      ₹{parsedTotal.toLocaleString('en-IN')}
+                      {formatRupee(parsedTotal)}
                     </strong>
                   </div>
                 </div>
@@ -574,7 +575,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }} title={item.name}>
                             • {item.name}
                           </span>
-                          <span style={{ fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>₹{item.price.toLocaleString('en-IN')}</span>
+                          <span style={{ fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatRupee(item.price)}</span>
                         </div>
                       ))}
                     </div>
@@ -844,7 +845,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                                 onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
                               />
                               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                ₹{perPersonOwed.toLocaleString('en-IN')}
+                                {formatRupee(perPersonOwed)}
                               </span>
                               {peopleCount > 2 && (
                                 <button
@@ -983,7 +984,7 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     <div>
                       <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Your Personal Expense</div>
                       <div style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626' }}>
-                        ₹{computedUserShare.toLocaleString('en-IN')}
+                        {formatRupee(computedUserShare)}
                       </div>
                       <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Recorded to Transactions</div>
                     </div>
@@ -995,11 +996,11 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                           : `Lent to ${customPeople.length} ${customPeople.length === 1 ? 'Person' : 'People'}`}
                       </div>
                       <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>
-                        ₹{computedLentAmount.toLocaleString('en-IN')}
+                        {formatRupee(computedLentAmount)}
                       </div>
                       <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600 }}>
                         {splitType === 'EQUAL'
-                          ? `(₹${perPersonOwed}/person) → Loans`
+                          ? `(${formatRupee(perPersonOwed)}/person) → Loans`
                           : `Added as ${customPeople.length} individual ${customPeople.length === 1 ? 'loan' : 'loans'}`}
                       </div>
                     </div>
@@ -1039,10 +1040,10 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                     {submitting
                       ? 'Saving...'
                       : recordMode === 'SPLIT'
-                        ? `Save (₹${computedUserShare} Expense + ₹${computedLentAmount} Lent)`
+                        ? `Save (${formatRupee(computedUserShare)} Expense + ${formatRupee(computedLentAmount)} Lent)`
                         : recordMode === 'INCOME'
-                          ? `Confirm Income (₹${parsedTotal.toLocaleString('en-IN')})`
-                          : `Confirm Expense (₹${parsedTotal.toLocaleString('en-IN')})`}
+                          ? `Confirm Income (${formatRupee(parsedTotal)})`
+                          : `Confirm Expense (${formatRupee(parsedTotal)})`}
                   </span>
                 </button>
               </div>

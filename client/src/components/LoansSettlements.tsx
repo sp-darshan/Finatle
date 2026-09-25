@@ -1,6 +1,7 @@
 import React from 'react';
 import { PencilEditIcon, UsersGroupIcon } from './Icons';
 import { LuHandshake } from 'react-icons/lu';
+import { formatRupee } from '../lib/formatters';
 
 export interface LoanItem {
   id: string;
@@ -12,6 +13,7 @@ export interface LoanItem {
   paidAmount?: number;
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'PARTIAL';
   statusLabel?: string;
+  accountId?: string | null;
   date?: string;
   dueDate?: string | null;
 }
@@ -33,7 +35,6 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
   onAddNew,
   onEditLoan,
 }) => {
-  const formatRupee = (val: number) => `₹${Math.round(val).toLocaleString('en-IN')}`;
   const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
 
   const maxItems = limit !== undefined ? limit : (onViewAll ? 5 : undefined);

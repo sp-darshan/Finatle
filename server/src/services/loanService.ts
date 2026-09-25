@@ -26,8 +26,31 @@ export class LoanService {
       : 0;
     const status = numericPaid >= amount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
 
+    let targetAccount = dto.accountId
+      ? await prisma.account.findFirst({ where: { aid: dto.accountId, uid: userId } })
+      : await prisma.account.findFirst({ where: { uid: userId, isDefault: true } });
+
+    if (!targetAccount) {
+      targetAccount = await prisma.account.findFirst({ where: { uid: userId } });
+    }
+
+    if (!targetAccount) {
+      targetAccount = await prisma.account.create({
+        data: {
+          uid: userId,
+          name: 'Cash',
+          type: 'CASH',
+          balance: 0,
+          initialBalance: 0,
+          color: '#10b981',
+          isDefault: true,
+        },
+      });
+    }
+
     const data = {
       uid: userId,
+      accountId: targetAccount.aid,
       personName: sanitizedPerson,
       amount: new Prisma.Decimal(amount),
       paidAmount: new Prisma.Decimal(numericPaid),
@@ -36,26 +59,27 @@ export class LoanService {
       status: status as any,
     };
 
-    const state = await CalculationService.getFinancialState(userId);
+    const state = await CalculationService.getFinancialState(userId, targetAccount.aid);
     const loanImpact = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
     const netSavingsImpact = kind === 'lent' ? loanImpact : 0;
 
     if (CalculationService.violatesBalanceRules(state.netSavings + netSavingsImpact, state.actualBalance + loanImpact)) {
-      throw new BadRequestError('Insufficient balance for this loan.');
+      throw new BadRequestError('Insufficient balance in this account for this loan.');
     }
 
     const balanceChange = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
     const result = await prisma.$transaction(async (tx) => {
       const loan = kind === 'lent'
         ? await tx.moneyLent.create({ data: data as any })
-        : await tx.moneyBorrowed.create({ data });
-      const account = await tx.account.upsert({
-        where: { uid: userId },
-        create: { uid: userId, balance: new Prisma.Decimal(balanceChange) },
-        update: { balance: { increment: new Prisma.Decimal(balanceChange) } },
+        : await tx.moneyBorrowed.create({ data: data as any });
+
+      const account = await tx.account.update({
+        where: { aid: targetAccount.aid },
+        data: { balance: { increment: new Prisma.Decimal(balanceChange) } },
       });
+
       const loanId = kind === 'lent' ? (loan as any).lid : (loan as any).bid;
-      return { loan: { ...loan, id: loanId, lid: (loan as any).lid, bid: (loan as any).bid }, account };
+      return { loan: { ...loan, id: loanId, lid: (loan as any).lid, bid: (loan as any).bid, accountId: targetAccount.aid }, account };
     });
 
     await cacheService.invalidateUserFinance(userId);
@@ -95,9 +119,10 @@ export class LoanService {
       }
 
       const repaymentChange = newPaid - oldPaid;
-      const state = await CalculationService.getFinancialState(userId);
+      const targetAccountId = lent.accountId || undefined;
+      const state = await CalculationService.getFinancialState(userId, targetAccountId);
       if (CalculationService.violatesBalanceRules(state.netSavings + repaymentChange, state.actualBalance + repaymentChange)) {
-        throw new BadRequestError('Insufficient balance to reopen this lent record.');
+        throw new BadRequestError('Insufficient balance in this account to reopen this lent record.');
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -105,11 +130,30 @@ export class LoanService {
           where: { lid: lent.lid },
           data: { status: newStatus as any, paidAmount: new Prisma.Decimal(newPaid) },
         });
+
+        let targetAccount = targetAccountId
+          ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
+          : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
+
+        if (!targetAccount) {
+          targetAccount = await tx.account.create({
+            data: {
+              uid: userId,
+              name: 'Cash',
+              type: 'CASH',
+              balance: 0,
+              initialBalance: 0,
+              color: '#10b981',
+              isDefault: true,
+            },
+          });
+        }
+
         const account = await tx.account.update({
-          where: { uid: userId },
+          where: { aid: targetAccount.aid },
           data: { balance: { increment: new Prisma.Decimal(repaymentChange) } },
         });
-        return { loan: { ...loan, id: loan.lid, lid: loan.lid }, account };
+        return { loan: { ...loan, id: loan.lid, lid: loan.lid, accountId: targetAccount.aid }, account };
       });
 
       await cacheService.invalidateUserFinance(userId);
@@ -141,9 +185,10 @@ export class LoanService {
       }
 
       const repaymentChange = -(newPaid - oldPaid);
-      const state = await CalculationService.getFinancialState(userId);
+      const targetAccountId = borrowed.accountId || undefined;
+      const state = await CalculationService.getFinancialState(userId, targetAccountId);
       if (CalculationService.violatesBalanceRules(state.netSavings, state.actualBalance + repaymentChange)) {
-        throw new BadRequestError('Insufficient balance to repay this borrowed record.');
+        throw new BadRequestError('Insufficient balance in this account to repay this borrowed record.');
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -151,11 +196,30 @@ export class LoanService {
           where: { bid: borrowed.bid },
           data: { status: newStatus as any, paidAmount: new Prisma.Decimal(newPaid) },
         });
+
+        let targetAccount = targetAccountId
+          ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
+          : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
+
+        if (!targetAccount) {
+          targetAccount = await tx.account.create({
+            data: {
+              uid: userId,
+              name: 'Cash',
+              type: 'CASH',
+              balance: 0,
+              initialBalance: 0,
+              color: '#10b981',
+              isDefault: true,
+            },
+          });
+        }
+
         const account = await tx.account.update({
-          where: { uid: userId },
+          where: { aid: targetAccount.aid },
           data: { balance: { increment: new Prisma.Decimal(repaymentChange) } },
         });
-        return { loan: { ...loan, id: loan.bid, bid: loan.bid }, account };
+        return { loan: { ...loan, id: loan.bid, bid: loan.bid, accountId: targetAccount.aid }, account };
       });
 
       await cacheService.invalidateUserFinance(userId);
@@ -172,7 +236,7 @@ export class LoanService {
   static async updateLoan(userId: string | undefined, loanId: string, dto: UpdateLoanDto) {
     if (!userId) throw new UnauthorizedError();
 
-    const { personName, amount, description, dueAt, status, kind, paidAmount } = dto;
+    const { personName, amount, description, dueAt, status, kind, paidAmount, accountId } = dto;
 
     const lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
     const borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
@@ -184,6 +248,8 @@ export class LoanService {
     const existing = lent || borrowed!;
     const existingKind = lent ? 'lent' : 'borrowed';
     const targetKind = kind && (kind === 'lent' || kind === 'borrowed') ? kind : existingKind;
+
+    const targetAccountId = accountId !== undefined ? accountId : existing.accountId;
 
     const newAmount = amount !== undefined && !isNaN(Number(amount)) && Number(amount) > 0
       ? Number(amount)
@@ -211,12 +277,12 @@ export class LoanService {
     const newEffect = targetKind === 'lent' ? newPaid - newAmount : newAmount - newPaid;
     const balanceDelta = newEffect - oldEffect;
 
-    const state = await CalculationService.getFinancialState(userId);
+    const state = await CalculationService.getFinancialState(userId, targetAccountId || undefined);
     const oldNetEffect = existingKind === 'lent' ? oldEffect : 0;
     const newNetEffect = targetKind === 'lent' ? newEffect : 0;
 
     if (CalculationService.violatesBalanceRules(state.netSavings + newNetEffect - oldNetEffect, state.actualBalance + balanceDelta)) {
-      throw new BadRequestError('Insufficient balance to update this loan.');
+      throw new BadRequestError('Insufficient balance in this account to update this loan.');
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -232,6 +298,7 @@ export class LoanService {
               description: newDescription,
               dueAt: newDueAt,
               status: newStatus as any,
+              accountId: targetAccountId || null,
             },
           });
         } else {
@@ -244,6 +311,7 @@ export class LoanService {
               description: newDescription,
               dueAt: newDueAt,
               status: newStatus as any,
+              accountId: targetAccountId || null,
             },
           });
         }
@@ -260,6 +328,7 @@ export class LoanService {
               description: newDescription,
               dueAt: newDueAt,
               status: newStatus as any,
+              accountId: targetAccountId || null,
             },
           });
         } else {
@@ -274,19 +343,37 @@ export class LoanService {
               description: newDescription,
               dueAt: newDueAt,
               status: newStatus as any,
+              accountId: targetAccountId || null,
             },
           });
         }
       }
 
-      const account = await tx.account.upsert({
-        where: { uid: userId },
-        create: { uid: userId, balance: new Prisma.Decimal(balanceDelta) },
-        update: { balance: { increment: new Prisma.Decimal(balanceDelta) } },
+      let targetAccount = targetAccountId
+        ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
+        : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
+
+      if (!targetAccount) {
+        targetAccount = await tx.account.create({
+          data: {
+            uid: userId,
+            name: 'Cash',
+            type: 'CASH',
+            balance: 0,
+            initialBalance: 0,
+            color: '#10b981',
+            isDefault: true,
+          },
+        });
+      }
+
+      const account = await tx.account.update({
+        where: { aid: targetAccount.aid },
+        data: { balance: { increment: new Prisma.Decimal(balanceDelta) } },
       });
 
       const updatedId = (updatedLoan as any).lid || (updatedLoan as any).bid;
-      return { loan: { ...updatedLoan, id: updatedId, lid: (updatedLoan as any).lid, bid: (updatedLoan as any).bid }, account };
+      return { loan: { ...updatedLoan, id: updatedId, lid: (updatedLoan as any).lid, bid: (updatedLoan as any).bid, accountId: targetAccount.aid }, account };
     });
 
     await cacheService.invalidateUserFinance(userId);
@@ -314,10 +401,11 @@ export class LoanService {
     const oldEffect = existingKind === 'lent' ? oldPaid - oldAmountNum : oldAmountNum - oldPaid;
     const balanceDelta = -oldEffect;
 
-    const state = await CalculationService.getFinancialState(userId);
+    const targetAccountId = existing.accountId || undefined;
+    const state = await CalculationService.getFinancialState(userId, targetAccountId);
     const netSavingsDelta = existingKind === 'lent' ? -oldEffect : 0;
     if (CalculationService.violatesBalanceRules(state.netSavings + netSavingsDelta, state.actualBalance + balanceDelta)) {
-      throw new BadRequestError('Insufficient balance to delete this loan.');
+      throw new BadRequestError('Insufficient balance in this account to delete this loan.');
     }
 
     await prisma.$transaction(async (tx) => {
@@ -326,8 +414,27 @@ export class LoanService {
       } else {
         await tx.moneyBorrowed.delete({ where: { bid: loanId } });
       }
+
+      let targetAccount = targetAccountId
+        ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
+        : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
+
+      if (!targetAccount) {
+        targetAccount = await tx.account.create({
+          data: {
+            uid: userId,
+            name: 'Cash',
+            type: 'CASH',
+            balance: 0,
+            initialBalance: 0,
+            color: '#10b981',
+            isDefault: true,
+          },
+        });
+      }
+
       await tx.account.update({
-        where: { uid: userId },
+        where: { aid: targetAccount.aid },
         data: { balance: { increment: new Prisma.Decimal(balanceDelta) } },
       });
     });

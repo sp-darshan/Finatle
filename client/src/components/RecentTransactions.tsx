@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CategoryBadge, PencilEditIcon } from './Icons';
 import { LuReceipt, LuChevronDown, LuChevronUp, LuShoppingBag } from 'react-icons/lu';
+import { formatRupee } from '../lib/formatters';
 
 export interface TransactionBreakdownItem {
   id?: string;
@@ -16,6 +17,7 @@ export interface TransactionItem {
   date: string;
   amount: number;
   type: 'INCOME' | 'EXPENSE';
+  accountId?: string | null;
   items?: TransactionBreakdownItem[];
 }
 
@@ -35,10 +37,6 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = React.memo(
   onEditTransaction,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const formatRupee = (amount: number) => {
-    return `₹${Math.abs(amount).toLocaleString('en-IN')}`;
-  };
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -165,7 +163,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = React.memo(
                               )}
                             </div>
                             <span className="breakdown-item-price">
-                              ₹{Number(item.price).toLocaleString('en-IN')}
+                              {formatRupee(item.price)}
                             </span>
                           </div>
                         ))}

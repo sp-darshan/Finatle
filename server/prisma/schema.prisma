@@ -20,7 +20,7 @@ model User {
   age       Int?     // User age
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  account   Account?
+  accounts  Account[]
   transactions Transaction[]
   moneyLent MoneyLent[]
   moneyBorrowed MoneyBorrowed[]
@@ -30,19 +30,31 @@ model User {
 }
 
 model Account {
-  aid       String   @id @default(uuid())
-  uid       String   @unique
-  balance   Decimal  @default(0) @db.Decimal(14, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  aid           String        @id @default(uuid())
+  uid           String
+  name          String        @default("Cash")
+  type          AccountType   @default(CASH)
+  balance       Decimal       @default(0) @db.Decimal(14, 2)
+  initialBalance Decimal      @default(0) @db.Decimal(14, 2)
+  accountNumber String?
+  institution   String?
+  color         String?       @default("#10b981")
+  isDefault     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  transactions  Transaction[]
+  moneyLent     MoneyLent[]
+  moneyBorrowed MoneyBorrowed[]
 
+  @@index([uid])
   @@map("accounts")
 }
 
 model Transaction {
   tid         String            @id @default(uuid())
   uid         String
+  accountId   String?
   type        TransactionType
   amount      Decimal           @db.Decimal(14, 2)
   description String?
@@ -51,9 +63,11 @@ model Transaction {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   user        User              @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  account     Account?          @relation(fields: [accountId], references: [aid], onDelete: SetNull)
   items       TransactionItem[]
 
   @@index([uid, occurredAt])
+  @@index([accountId])
   @@map("transactions")
 }
 
@@ -73,6 +87,7 @@ model TransactionItem {
 model MoneyLent {
   lid                   String       @id @default(uuid())
   uid                   String
+  accountId             String?
   personName            String
   amount                Decimal      @db.Decimal(14, 2)
   paidAmount            Decimal      @default(0) @db.Decimal(14, 2)
@@ -90,14 +105,17 @@ model MoneyLent {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
   user                  User         @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  account               Account?     @relation(fields: [accountId], references: [aid], onDelete: SetNull)
 
   @@index([uid, status])
+  @@index([accountId])
   @@map("money_lent")
 }
 
 model MoneyBorrowed {
   bid         String       @id @default(uuid())
   uid         String
+  accountId   String?
   personName  String
   amount      Decimal      @db.Decimal(14, 2)
   paidAmount  Decimal      @default(0) @db.Decimal(14, 2)
@@ -108,8 +126,10 @@ model MoneyBorrowed {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   user        User         @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  account     Account?     @relation(fields: [accountId], references: [aid], onDelete: SetNull)
 
   @@index([uid, status])
+  @@index([accountId])
   @@map("money_borrowed")
 }
 
@@ -139,6 +159,15 @@ model Budget {
   @@index([uid])
   @@map("budgets")
 }
+
+enum AccountType {
+  CASH
+  BANK
+  WALLET
+  SAVINGS
+  OTHER
+}
+
 
 
 

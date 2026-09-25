@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { FaChartSimple } from 'react-icons/fa6';
+import { formatRupee } from '../lib/formatters';
 import type { TransactionItem } from './RecentTransactions';
+import { CustomDropdown } from './CustomDropdown';
 
 interface IncomeExpenseBarChartProps {
   transactions?: TransactionItem[];
@@ -54,11 +56,15 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
     <div className="dashboard-card income-expense-card">
       <div className="card-header">
         <h3>Income vs Expenses</h3>
-        <select className="select-pill" value={range} onChange={(e) => setRange(e.target.value)}>
-          <option>Last 6 Months</option>
-          <option>Last 3 Months</option>
-          <option>This Year</option>
-        </select>
+        <CustomDropdown
+          variant="pill"
+          size="sm"
+          align="right"
+          value={range}
+          onChange={setRange}
+          options={['Last 6 Months', 'Last 3 Months', 'This Year']}
+          aria-label="Filter chart period"
+        />
       </div>
 
       {totalActivity === 0 ? (
@@ -75,9 +81,9 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
           <div className="bar-chart-canvas">
             {/* Background horizontal gridlines spanning 100% width */}
             <div className="bar-gridlines" aria-hidden="true">
-              <div className="bar-gridline"><span className="gridline-val">₹{Math.round(maxVal).toLocaleString('en-IN')}</span></div>
-              <div className="bar-gridline"><span className="gridline-val">₹{Math.round(maxVal / 2).toLocaleString('en-IN')}</span></div>
-              <div className="bar-gridline"><span className="gridline-val">₹0</span></div>
+              <div className="bar-gridline"><span className="gridline-val">{formatRupee(maxVal)}</span></div>
+              <div className="bar-gridline"><span className="gridline-val">{formatRupee(maxVal / 2)}</span></div>
+              <div className="bar-gridline"><span className="gridline-val">{formatRupee(0)}</span></div>
             </div>
 
             {/* Bars container spanning 100% width */}
@@ -103,7 +109,7 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
                             height: `${incomePct > 0 ? Math.max(4, incomePct) : 0}%`,
                             opacity: item.income === 0 ? 0.15 : 1,
                           }}
-                          title={`${item.month} Income: ₹${item.income.toLocaleString('en-IN')}`}
+                          title={`${item.month} Income: ${formatRupee(item.income)}`}
                         />
                       </div>
                       {/* Expense bar */}
@@ -114,7 +120,7 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
                             height: `${expensePct > 0 ? Math.max(4, expensePct) : 0}%`,
                             opacity: item.expenses === 0 ? 0.15 : 1,
                           }}
-                          title={`${item.month} Expenses: ₹${item.expenses.toLocaleString('en-IN')}`}
+                          title={`${item.month} Expenses: ${formatRupee(item.expenses)}`}
                         />
                       </div>
                     </div>
@@ -131,13 +137,13 @@ export const IncomeExpenseBarChart: React.FC<IncomeExpenseBarChartProps> = React
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{activeItem.month}:</span>
                 <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                  Income ₹{activeItem.income.toLocaleString('en-IN')}
+                  Income {formatRupee(activeItem.income)}
                 </span>
                 <span style={{ color: '#ef4444', fontWeight: 700 }}>
-                  Expense ₹{activeItem.expenses.toLocaleString('en-IN')}
+                  Expense {formatRupee(activeItem.expenses)}
                 </span>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                  Net: {(activeItem.income - activeItem.expenses >= 0 ? '+' : '')}₹{(activeItem.income - activeItem.expenses).toLocaleString('en-IN')}
+                  Net: {formatRupee(activeItem.income - activeItem.expenses)}
                 </span>
               </div>
             ) : (

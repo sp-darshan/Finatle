@@ -16,6 +16,7 @@ export interface CreateTransactionDto {
   amount: number | string;
   description?: string | null;
   category?: string | null;
+  accountId?: string | null;
   occurredAt?: string | Date;
   items?: CreateTransactionItemDto[];
 }
@@ -25,6 +26,7 @@ export interface UpdateTransactionDto {
   amount?: number | string;
   description?: string | null;
   category?: string | null;
+  accountId?: string | null;
   occurredAt?: string | Date;
   items?: CreateTransactionItemDto[];
 }
@@ -35,6 +37,7 @@ export interface CreateLoanDto {
   paidAmount?: number | string;
   description?: string | null;
   dueAt?: string | Date | null;
+  accountId?: string | null;
 }
 
 export interface UpdateLoanDto {
@@ -45,6 +48,7 @@ export interface UpdateLoanDto {
   dueAt?: string | Date | null;
   status?: LoanStatus | 'PENDING' | 'PAID' | 'OVERDUE' | 'PARTIAL';
   kind?: 'lent' | 'borrowed';
+  accountId?: string | null;
 }
 
 export interface UpdateLoanStatusDto {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CategoryPicker } from './CategoryPicker';
 import { CategoryBadge, TrashIcon, PencilEditIcon } from './Icons';
 import { LuTarget, LuCircleAlert } from 'react-icons/lu';
+import { formatRupee } from '../lib/formatters';
 
 export interface BudgetLimit {
   category: string;
@@ -16,8 +17,6 @@ interface BudgetManagerProps {
   onSave: (budget: BudgetLimit) => void;
   onDelete: (category: string) => void;
 }
-
-const formatRupee = (value: number) => `₹${Math.round(value).toLocaleString('en-IN')}`;
 
 const STANDARD_CATEGORIES = [
   'Dining',
@@ -201,7 +200,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
                         <LuCircleAlert size={14} /> Monthly limit exceeded
                       </span>
                     ) : (
-                      `₹${Math.round(remaining).toLocaleString('en-IN')} remaining`
+                      `${formatRupee(remaining)} remaining`
                     )}
                   </small>
                   

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LuX, LuBanknote, LuLandmark, LuWallet, LuPiggyBank, LuCreditCard, LuTrash2, LuCheck } from 'react-icons/lu';
 import type { AccountItem, AccountType } from '../types/account.types';
 
@@ -43,9 +43,16 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = React.memo(({
   const [color, setColor] = useState('#3b82f6');
   const [isDefault, setIsDefault] = useState(false);
   const [error, setError] = useState('');
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setIsConfirmingDelete(false);
+      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+      return;
+    }
+    setIsConfirmingDelete(false);
     document.body.classList.add('modal-open');
     document.documentElement.classList.add('modal-open');
 
@@ -106,6 +113,23 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = React.memo(({
 
     onSaveAccount(account);
     onClose();
+  };
+
+  const handleDelete = () => {
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = setTimeout(() => {
+        setIsConfirmingDelete(false);
+      }, 4000);
+      return;
+    }
+
+    if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+    if (editingAccount && onDeleteAccount) {
+      onDeleteAccount(editingAccount.id);
+      onClose();
+    }
   };
 
   const SelectedIcon = ACCOUNT_TYPES.find((t) => t.type === type)?.icon || LuLandmark;
@@ -380,29 +404,24 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = React.memo(({
             {editingAccount && onDeleteAccount && (
               <button
                 type="button"
-                className="btn-danger-ghost"
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete "${editingAccount.name}"?`)) {
-                    onDeleteAccount(editingAccount.id);
-                    onClose();
-                  }
-                }}
+                onClick={handleDelete}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.4rem',
-                  color: '#ef4444',
-                  background: 'transparent',
+                  background: isConfirmingDelete ? '#dc2626' : '#fee2e2',
+                  color: isConfirmingDelete ? '#ffffff' : '#dc2626',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '6px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  padding: '0.55rem 0.85rem',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  transition: 'all 0.2s ease',
                 }}
               >
                 <LuTrash2 size={16} />
-                Delete
+                <span>{isConfirmingDelete ? 'Confirm Delete?' : 'Delete'}</span>
               </button>
             )}
 

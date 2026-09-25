@@ -25,6 +25,10 @@ import { BudgetManager } from './components/BudgetManager';
 import type { BudgetLimit } from './components/BudgetManager';
 import { SettingsView } from './components/SettingsView';
 import { Toast } from './components/Toast';
+import { AddAccountModal } from './components/AddAccountModal';
+import { CustomDropdown } from './components/CustomDropdown';
+import { DEFAULT_ACCOUNTS, getStoredAccounts, saveStoredAccounts } from './types/account.types';
+import type { AccountItem } from './types/account.types';
 import { apiFetch } from './lib/api';
 import { useGreeting } from './lib/greeting';
 
@@ -86,6 +90,7 @@ export function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dashboardDateRange, setDashboardDateRange] = useState('This Month');
   const [isMobileScreen, setIsMobileScreen] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth <= 768;
@@ -135,6 +140,38 @@ export function App() {
       return [];
     }
   });
+  const [accounts, setAccounts] = useState<AccountItem[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_ACCOUNTS;
+    try {
+      const u = localStorage.getItem('user');
+      const uid = u ? JSON.parse(u).uid : null;
+      return getStoredAccounts(uid);
+    } catch {
+      return DEFAULT_ACCOUNTS;
+    }
+  });
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<AccountItem | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | 'ALL'>(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    try {
+      const u = localStorage.getItem('user');
+      const uid = u ? JSON.parse(u).uid : 'default';
+      const saved = localStorage.getItem(`finatle_selected_account_${uid}`) || localStorage.getItem('finatle_selected_account');
+      return (saved as string | 'ALL') || 'ALL';
+    } catch {
+      return 'ALL';
+    }
+  });
+
+  // Sync selectedAccountId to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+    localStorage.setItem(`finatle_selected_account_${uid}`, selectedAccountId);
+    localStorage.setItem('finatle_selected_account', selectedAccountId);
+  }, [selectedAccountId, user?.uid]);
+
   const [budgets, setBudgets] = useState<BudgetLimit[]>([]);
   const [toast, setToast] = useState<{ message: string; type?: 'error' | 'success' | 'info'; id: number } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -283,6 +320,7 @@ export function App() {
             date: new Date(t.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             amount: Number(t.amount),
             type: t.type,
+            accountId: t.accountId || null,
             items: Array.isArray(t.items)
               ? t.items.map((it: any) => ({
                   id: it.id,
@@ -312,6 +350,7 @@ export function App() {
               subtext: cleanSplitText(l.description) || 'Personal expense',
               amount,
               paidAmount: paid,
+              accountId: l.accountId || null,
               date: l.lentAt,
               dueDate: l.dueAt,
               status: l.status,
@@ -331,6 +370,7 @@ export function App() {
               subtext: cleanSplitText(b.description) || 'Personal loan',
               amount,
               paidAmount: paid,
+              accountId: b.accountId || null,
               date: b.borrowedAt,
               dueDate: b.dueAt,
               status: b.status,
@@ -352,6 +392,26 @@ export function App() {
           }));
           setBudgets(mappedBudgets);
           localStorage.setItem(`finatle_budgets_${uid}`, JSON.stringify(mappedBudgets));
+        }
+
+        // Accounts from DB
+        if (data.accounts && Array.isArray(data.accounts)) {
+          const mappedAccounts: AccountItem[] = data.accounts.map((a: any) => ({
+            id: a.aid || a.id,
+            aid: a.aid,
+            name: a.name,
+            type: a.type,
+            balance: Number(a.balance ?? a.initialBalance ?? 0),
+            initialBalance: Number(a.initialBalance ?? 0),
+            color: a.color || '#3b82f6',
+            accountNumber: a.accountNumber || undefined,
+            institution: a.institution || undefined,
+            isDefault: Boolean(a.isDefault),
+            createdAt: a.createdAt,
+            updatedAt: a.updatedAt,
+          }));
+          setAccounts(mappedAccounts);
+          saveStoredAccounts(mappedAccounts, uid);
         }
       }
     } catch {
@@ -511,6 +571,107 @@ export function App() {
     }
   }, [user?.uid, token]);
 
+  const handleOpenAddAccount = useCallback(() => {
+    setEditingAccount(null);
+    setIsAddAccountOpen(true);
+  }, []);
+
+  const handleEditAccount = useCallback((acc: AccountItem) => {
+    setEditingAccount(acc);
+    setIsAddAccountOpen(true);
+  }, []);
+
+  const handleCloseAccountModal = useCallback(() => {
+    setIsAddAccountOpen(false);
+    setEditingAccount(null);
+  }, []);
+
+  const handleSaveAccount = useCallback(async (account: AccountItem) => {
+    const isEdit = accounts.some((a) => (a.aid && a.aid === account.id) || a.id === account.id || (account.aid && a.aid === account.aid));
+    const targetId = account.aid || account.id;
+
+    if (token) {
+      try {
+        const endpoint = isEdit ? `/api/finance/accounts/${targetId}` : '/api/finance/accounts';
+        const method = isEdit ? 'PUT' : 'POST';
+        const res = await apiFetch(endpoint, {
+          method,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            name: account.name,
+            type: account.type,
+            initialBalance: account.initialBalance,
+            accountNumber: account.accountNumber,
+            institution: account.institution,
+            color: account.color,
+            isDefault: account.isDefault,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || data.error || 'Failed to save account');
+        }
+        await fetchUserData(token);
+        showToast(isEdit ? 'Account updated!' : 'Account created!', 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to save account', 'error');
+      }
+    } else {
+      // Local state fallback
+      setAccounts((prev) => {
+        let updated: AccountItem[];
+        if (isEdit) {
+          updated = prev.map((a) => (a.id === account.id || a.aid === account.id ? { ...a, ...account } : a));
+        } else {
+          updated = [...prev, { ...account, balance: account.initialBalance }];
+        }
+        if (account.isDefault) {
+          updated = updated.map((a) => ({
+            ...a,
+            isDefault: (a.id === account.id || a.aid === account.id),
+          }));
+        }
+        const uid = user?.uid || null;
+        saveStoredAccounts(updated, uid);
+        return updated;
+      });
+      showToast(isEdit ? 'Account updated!' : 'Account created!', 'success');
+    }
+  }, [accounts, token, user?.uid, showToast]);
+
+  const handleDeleteAccount = useCallback(async (accountId: string) => {
+    if (token) {
+      try {
+        const res = await apiFetch(`/api/finance/accounts/${accountId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || data.error || 'Failed to delete account');
+        }
+        await fetchUserData(token);
+        showToast('Account deleted', 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete account', 'error');
+      }
+    } else {
+      setAccounts((prev) => {
+        if (prev.length <= 1) {
+          showToast('Cannot delete your only account', 'error');
+          return prev;
+        }
+        const updated = prev.filter((a) => a.id !== accountId && a.aid !== accountId);
+        if (!updated.some((a) => a.isDefault)) {
+          updated[0].isDefault = true;
+        }
+        const uid = user?.uid || null;
+        saveStoredAccounts(updated, uid);
+        return updated;
+      });
+      showToast('Account deleted', 'success');
+    }
+  }, [token, user?.uid, showToast]);
 
   const handleAddRecordSuccess = useCallback(async (payload?: { kind: string; apiPayload?: any; optimisticData?: any; splitData?: any }) => {
     if (!payload) {
@@ -526,11 +687,22 @@ export function App() {
 
       // 1. Add split transaction for the user
       if (userShareTransaction) {
+        const txAccountId = userShareTransaction.optimisticData.accountId || userShareTransaction.apiPayload?.accountId;
+        const optWithAccount: TransactionItem = {
+          ...userShareTransaction.optimisticData,
+          accountId: txAccountId,
+        };
+
         setTransactions((prev) => {
-          const updated = [userShareTransaction.optimisticData as TransactionItem, ...prev];
+          const updated = [optWithAccount, ...prev];
           localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
           return updated;
         });
+
+        if (txAccountId) {
+          const delta = -Number(userShareTransaction.optimisticData.amount);
+          setAccounts((prev) => prev.map((a) => (a.aid === txAccountId || a.id === txAccountId) ? { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + delta } : a));
+        }
 
         if (token) {
           apiFetch('/api/finance/transactions', {
@@ -552,6 +724,7 @@ export function App() {
                 date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : userShareTransaction.optimisticData.date,
                 amount: Number(data.transaction?.amount ?? userShareTransaction.optimisticData.amount),
                 type: data.transaction?.type || userShareTransaction.optimisticData.type,
+                accountId: data.transaction?.accountId || txAccountId,
               };
               setTransactions((prev) => {
                 const updated = prev.map((t) => (t.id === userShareTransaction.optimisticData.id ? realItem : t));
@@ -567,6 +740,10 @@ export function App() {
                 localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
                 return updated;
               });
+              if (txAccountId) {
+                const delta = Number(userShareTransaction.optimisticData.amount);
+                setAccounts((prev) => prev.map((a) => (a.aid === txAccountId || a.id === txAccountId) ? { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + delta } : a));
+              }
               showToast(err.message || 'Failed to save split transaction. Reverted.', 'error');
             });
         }
@@ -635,11 +812,22 @@ export function App() {
     }
 
     if (kind === 'transaction' && optimisticData) {
+      const txAccountId = optimisticData.accountId || apiPayload?.accountId;
+      const optWithAccount: TransactionItem = {
+        ...optimisticData,
+        accountId: txAccountId,
+      };
+
       setTransactions((prev) => {
-        const updated = [optimisticData as TransactionItem, ...prev];
+        const updated = [optWithAccount, ...prev];
         localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
         return updated;
       });
+
+      if (txAccountId) {
+        const delta = optimisticData.type === 'INCOME' ? Number(optimisticData.amount) : -Number(optimisticData.amount);
+        setAccounts((prev) => prev.map((a) => (a.aid === txAccountId || a.id === txAccountId) ? { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + delta } : a));
+      }
 
       if (token && apiPayload) {
         apiFetch('/api/finance/transactions', {
@@ -665,6 +853,7 @@ export function App() {
                 date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                 amount: Number(data.transaction.amount),
                 type: data.transaction.type,
+                accountId: data.transaction.accountId || txAccountId,
               };
               setTransactions((prev) => {
                 const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
@@ -681,6 +870,10 @@ export function App() {
               localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
               return updated;
             });
+            if (txAccountId) {
+              const delta = optimisticData.type === 'INCOME' ? -Number(optimisticData.amount) : Number(optimisticData.amount);
+              setAccounts((prev) => prev.map((a) => (a.aid === txAccountId || a.id === txAccountId) ? { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + delta } : a));
+            }
             showToast(err.message || 'Unable to save transaction. Reverted.', 'error');
           });
       }
@@ -796,6 +989,7 @@ export function App() {
             amount: updatedData.amount,
             description: updatedData.name,
             category: updatedData.category,
+            accountId: updatedData.accountId,
           }),
         })
           .then(async (res) => {
@@ -1371,27 +1565,39 @@ export function App() {
     }
   }, [token, user, showToast]);
 
+  // Filter transactions strictly by selected account (if not 'ALL')
+  const accountTransactions = useMemo(() => {
+    if (selectedAccountId === 'ALL' || !selectedAccountId) return transactions;
+    return transactions.filter((t) => t.accountId === selectedAccountId);
+  }, [transactions, selectedAccountId]);
+
   // Filter transactions according to search input (memoized)
   const filteredTransactions = useMemo(() => {
-    if (!searchQuery.trim()) return transactions;
+    if (!searchQuery.trim()) return accountTransactions;
     const query = searchQuery.toLowerCase();
-    return transactions.filter(
+    return accountTransactions.filter(
       (t) => t.name.toLowerCase().includes(query) || t.category.toLowerCase().includes(query)
     );
-  }, [transactions, searchQuery]);
+  }, [accountTransactions, searchQuery]);
+
+  // Filter loans strictly by selected account (if not 'ALL')
+  const accountLoans = useMemo(() => {
+    if (selectedAccountId === 'ALL' || !selectedAccountId) return loans;
+    return loans.filter((l) => l.accountId === selectedAccountId);
+  }, [loans, selectedAccountId]);
 
   const filteredLoans = useMemo(() => {
-    if (!searchQuery.trim()) return loans;
+    if (!searchQuery.trim()) return accountLoans;
     const query = searchQuery.toLowerCase();
-    return loans.filter(
+    return accountLoans.filter(
       (l) =>
         l.title.toLowerCase().includes(query) ||
         l.personName.toLowerCase().includes(query) ||
         l.subtext.toLowerCase().includes(query)
     );
-  }, [loans, searchQuery]);
+  }, [accountLoans, searchQuery]);
 
-  // Calculate real metrics strictly from DB records (memoized)
+  // Calculate real metrics strictly from DB records for the selected account (memoized)
   const {
     totalIncome,
     totalExpense,
@@ -1400,15 +1606,15 @@ export function App() {
     pendingSettlementsTotal,
     settlementDetails,
   } = useMemo(() => {
-    const inc = transactions
+    const inc = accountTransactions
       .filter((t) => t.type === 'INCOME')
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const exp = transactions
+    const exp = accountTransactions
       .filter((t) => t.type === 'EXPENSE')
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const lentOut = loans
+    const lentOut = accountLoans
       .filter((l) => l.kind === 'lent')
       .reduce(
         (sum, l) =>
@@ -1421,7 +1627,7 @@ export function App() {
         0
       );
 
-    const borrowedOut = loans
+    const borrowedOut = accountLoans
       .filter((l) => l.kind === 'borrowed')
       .reduce(
         (sum, l) =>
@@ -1434,19 +1640,27 @@ export function App() {
         0
       );
 
-    const savings = Math.max(0, inc - exp - lentOut);
-    const actBal = Math.max(0, inc - exp - lentOut + borrowedOut);
+    const activeAccount = selectedAccountId !== 'ALL'
+      ? accounts.find((a) => (a.aid || a.id) === selectedAccountId)
+      : null;
 
-    const pendingTotal = loans.reduce((sum, l) => {
+    const totalInitialBalance = activeAccount
+      ? Number(activeAccount.initialBalance || 0)
+      : accounts.reduce((sum, a) => sum + Number(a.initialBalance || 0), 0);
+
+    const savings = totalInitialBalance + inc - exp - lentOut;
+    const actBal = totalInitialBalance + inc - exp - lentOut + borrowedOut;
+
+    const pendingTotal = accountLoans.reduce((sum, l) => {
       const paid = Number(
         l.paidAmount !== undefined ? l.paidAmount : l.status === 'PAID' ? l.amount : 0
       );
       return sum + Math.max(0, Number(l.amount) - paid);
     }, 0);
 
-    const pCount = loans.filter((l) => l.status !== 'PAID').length;
-    const lCount = loans.filter((l) => l.kind === 'lent' && l.status !== 'PAID').length;
-    const bCount = loans.filter((l) => l.kind === 'borrowed' && l.status !== 'PAID').length;
+    const pCount = accountLoans.filter((l) => l.status !== 'PAID').length;
+    const lCount = accountLoans.filter((l) => l.kind === 'lent' && l.status !== 'PAID').length;
+    const bCount = accountLoans.filter((l) => l.kind === 'borrowed' && l.status !== 'PAID').length;
 
     const details =
       pCount > 0
@@ -1466,7 +1680,7 @@ export function App() {
       borrowedCount: bCount,
       settlementDetails: details,
     };
-  }, [transactions, loans]);
+  }, [accountTransactions, accountLoans, selectedAccountId, accounts]);
 
   const canSettleLoan = useCallback(
     (loan: LoanItem) =>
@@ -1478,7 +1692,7 @@ export function App() {
   // Compute category breakdown strictly from real DB expenses (memoized)
   const { categoryMap, expenseCategories, expenseSpending } = useMemo(() => {
     const map: Record<string, number> = {};
-    transactions
+    accountTransactions
       .filter((t) => t.type === 'EXPENSE')
       .forEach((t) => {
         const cat = (t.category === 'General' || !t.category) ? 'Groceries' : t.category;
@@ -1497,7 +1711,7 @@ export function App() {
       expenseCategories: cats,
       expenseSpending: map,
     };
-  }, [transactions, totalExpense]);
+  }, [accountTransactions, totalExpense]);
 
   const openAdd = useCallback((kind: RecordKind = 'expense') => {
     setAddRecordKind(kind);
@@ -1591,6 +1805,11 @@ export function App() {
               localStorage.setItem('user', JSON.stringify(updatedUser));
             }}
             onDeleteAccount={handleLogout}
+            accounts={accounts}
+            selectedAccountId={selectedAccountId}
+            onSelectAccount={setSelectedAccountId}
+            onOpenAddAccount={handleOpenAddAccount}
+            onEditAccount={handleEditAccount}
             transactions={filteredTransactions}
             loans={filteredLoans}
             totalIncome={totalIncome}
@@ -1624,11 +1843,21 @@ export function App() {
           onAuthSuccess={handleAuthSuccess}
         />
 
+        <AddAccountModal
+          isOpen={isAddAccountOpen}
+          onClose={handleCloseAccountModal}
+          onSaveAccount={handleSaveAccount}
+          onDeleteAccount={handleDeleteAccount}
+          editingAccount={editingAccount}
+        />
+
         <AddRecordModal
           isOpen={isAddRecordOpen}
           onClose={handleCloseAdd}
           initialKind={addRecordKind}
           token={token}
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
           onSuccess={handleAddRecordSuccess}
         />
 
@@ -1636,6 +1865,7 @@ export function App() {
           isOpen={!!editingTransaction}
           onClose={handleCloseEditTransaction}
           transaction={editingTransaction}
+          accounts={accounts}
           token={token}
           onSuccess={handleTransactionSuccess}
         />
@@ -1644,6 +1874,7 @@ export function App() {
           isOpen={!!editingLoan}
           onClose={handleCloseEditLoan}
           loan={editingLoan}
+          accounts={accounts}
           token={token}
           onSuccess={handleLoanSuccess}
         />
@@ -1673,13 +1904,18 @@ export function App() {
 
   return (
     <div className="app-layout">
-      {/* 1. Desktop Sidebar */}
+      {/* 1. Desktop Sidebar with integrated Accounts */}
       <Sidebar
         currentTab={currentTab}
         onSelectTab={(tab) => {
           handleSelectTab(tab);
           if (tab === 'loans') setIsAddRecordOpen(false);
         }}
+        accounts={accounts}
+        selectedAccountId={selectedAccountId}
+        onSelectAccount={setSelectedAccountId}
+        onAddAccount={handleOpenAddAccount}
+        onEditAccount={handleEditAccount}
       />
 
       {/* 2. Main Content Container */}
@@ -1692,6 +1928,10 @@ export function App() {
           onLogout={handleLogout}
           onOpenSettings={handleOpenSettings}
           onOpenScanner={() => setIsScannerOpen(true)}
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
+          onSelectAccount={setSelectedAccountId}
+          onOpenAddAccount={handleOpenAddAccount}
         />
 
         <main className="page-container">
@@ -1712,18 +1952,20 @@ export function App() {
                     >
                       <span>+ Add Record</span>
                     </button>
-                    <select
-                      className="select-pill"
-                      defaultValue="This Month"
+                    <CustomDropdown
+                      variant="pill"
+                      size="sm"
+                      value={dashboardDateRange}
+                      onChange={setDashboardDateRange}
+                      options={[
+                        'This Month',
+                        'Last Month',
+                        'This Quarter',
+                        'This Year',
+                        'All Time',
+                      ]}
                       aria-label="Filter date range"
-                      style={{ height: '36px' }}
-                    >
-                      <option value="This Month">This Month</option>
-                      <option value="Last Month">Last Month</option>
-                      <option value="This Quarter">This Quarter</option>
-                      <option value="This Year">This Year</option>
-                      <option value="All Time">All Time</option>
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -1744,7 +1986,7 @@ export function App() {
                 {/* Charts Grid */}
                 <div className="charts-grid">
                   <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
-                  <IncomeExpenseBarChart transactions={transactions} />
+                  <IncomeExpenseBarChart transactions={accountTransactions} />
                 </div>
 
                 {/* Bottom Row: Transactions & Loans/Settlements */}
@@ -1872,11 +2114,21 @@ export function App() {
         onAuthSuccess={handleAuthSuccess}
       />
 
+      <AddAccountModal
+        isOpen={isAddAccountOpen}
+        onClose={handleCloseAccountModal}
+        onSaveAccount={handleSaveAccount}
+        onDeleteAccount={handleDeleteAccount}
+        editingAccount={editingAccount}
+      />
+
       <AddRecordModal
         isOpen={isAddRecordOpen}
         onClose={handleCloseAdd}
         initialKind={addRecordKind}
         token={token}
+        accounts={accounts}
+        selectedAccountId={selectedAccountId}
         onSuccess={handleAddRecordSuccess}
       />
 
@@ -1884,6 +2136,7 @@ export function App() {
         isOpen={!!editingTransaction}
         onClose={handleCloseEditTransaction}
         transaction={editingTransaction}
+        accounts={accounts}
         token={token}
         onSuccess={handleTransactionSuccess}
       />
@@ -1892,6 +2145,7 @@ export function App() {
         isOpen={!!editingLoan}
         onClose={handleCloseEditLoan}
         loan={editingLoan}
+        accounts={accounts}
         token={token}
         onSuccess={handleLoanSuccess}
       />

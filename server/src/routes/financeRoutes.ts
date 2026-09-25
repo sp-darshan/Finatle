@@ -8,6 +8,7 @@ import {
 import transactionRoutes from './transactionRoutes';
 import loanRoutes from './loanRoutes';
 import budgetRoutes from './budgetRoutes';
+import accountRoutes from './accountRoutes';
 import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
@@ -21,6 +22,9 @@ router.get('/summary', asyncHandler(getFinanceSummary));
 
 // Bill and receipt AI scanner endpoint
 router.post('/scan-bill', asyncHandler(scanBill));
+
+// Mount accounts sub-routes
+router.use('/accounts', accountRoutes);
 
 // Mount budget sub-routes
 router.use('/budgets', budgetRoutes);

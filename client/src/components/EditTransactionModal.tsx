@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PencilEditIcon, TrashIcon, MinusIcon, PlusIcon } from './Icons';
-import { LuX, LuUsers, LuPenLine, LuPlus, LuTrash2, LuUser } from 'react-icons/lu';
+import { LuX, LuUsers, LuPenLine, LuPlus, LuTrash2, LuUser, LuWallet } from 'react-icons/lu';
 import type { TransactionItem } from './RecentTransactions';
 import type { LoanItem } from './LoansSettlements';
+import type { AccountItem } from './Sidebar';
+import { formatRupee } from '../lib/formatters';
 import { CategoryPicker } from './CategoryPicker';
+import { CustomDropdown } from './CustomDropdown';
 
 export type EditTransactionAction = {
   type: 'update' | 'delete' | 'convert_to_loan' | 'convert_to_split';
@@ -30,6 +33,7 @@ interface EditTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   transaction: TransactionItem | null;
+  accounts?: AccountItem[];
   token?: string | null;
   onSuccess: (action?: EditTransactionAction) => void | Promise<void>;
 }
@@ -44,9 +48,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   isOpen,
   onClose,
   transaction,
+  accounts = [],
   onSuccess,
 }) => {
   const [mode, setMode] = useState<'EXPENSE' | 'INCOME' | 'LENT' | 'BORROWED' | 'SPLIT'>('EXPENSE');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Dining');
@@ -69,6 +75,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   useEffect(() => {
     if (transaction) {
       setMode(transaction.type === 'INCOME' ? 'INCOME' : 'EXPENSE');
+      const defaultAccId = accounts.find((a) => a.isDefault)?.aid || accounts.find((a) => a.isDefault)?.id || accounts[0]?.aid || accounts[0]?.id || '';
+      setSelectedAccountId(transaction.accountId || defaultAccId);
       setAmount(String(transaction.amount || ''));
       setDescription(transaction.name || '');
       setCategory(transaction.category || 'Dining');
@@ -82,7 +90,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setError(null);
       setIsConfirmingDelete(false);
     }
-  }, [transaction, isOpen]);
+  }, [transaction, accounts, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -199,6 +207,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         amount: parsedAmount,
         name: description.trim() || (mode === 'INCOME' ? 'Income' : resolvedCategory),
         category: resolvedCategory,
+        accountId: selectedAccountId || undefined,
       };
 
       onSuccess({
@@ -219,6 +228,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         amount: parsedAmount,
         description: subtext,
         dueAt: dueAt || undefined,
+        accountId: selectedAccountId || undefined,
       };
       const optimisticData: LoanItem = {
         id: `temp-loan-${Date.now()}`,
@@ -230,6 +240,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         paidAmount: 0,
         status: 'PENDING',
         statusLabel: 'Yet to pay',
+        accountId: selectedAccountId || undefined,
         date: new Date().toISOString(),
         dueDate: dueAt || undefined,
       };
@@ -256,6 +267,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         amount: parsedAmount,
         description: subtext,
         dueAt: dueAt || undefined,
+        accountId: selectedAccountId || undefined,
       };
       const optimisticData: LoanItem = {
         id: `temp-loan-${Date.now()}`,
@@ -267,6 +279,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         paidAmount: 0,
         status: 'PENDING',
         statusLabel: 'Yet to receive',
+        accountId: selectedAccountId || undefined,
         date: new Date().toISOString(),
         dueDate: dueAt || undefined,
       };
@@ -301,6 +314,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             amount: perPersonOwed,
             description: lentTitle,
             dueAt: dueAt || undefined,
+            accountId: selectedAccountId || undefined,
           },
           optimisticData: {
             id: tempId,
@@ -312,6 +326,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             paidAmount: 0,
             status: 'PENDING',
             statusLabel: 'Yet to receive',
+            accountId: selectedAccountId || undefined,
             date: new Date().toISOString(),
             dueDate: dueAt || undefined,
           },
@@ -324,6 +339,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           amount: equalUserShare,
           description: itemTitle,
           category: resolvedCategory,
+          accountId: selectedAccountId || undefined,
         },
         optimisticData: {
           ...transaction,
@@ -332,6 +348,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           category: resolvedCategory,
           amount: equalUserShare,
           type: 'EXPENSE' as const,
+          accountId: selectedAccountId || undefined,
         },
       } : undefined;
 
@@ -359,7 +376,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       }
 
       if (customTotalLent > parsedAmount) {
-        setError(`Total lent amount (₹${customTotalLent.toLocaleString('en-IN')}) cannot exceed bill amount (₹${parsedAmount.toLocaleString('en-IN')}).`);
+        setError(`Total lent amount (${formatRupee(customTotalLent)}) cannot exceed bill amount (${formatRupee(parsedAmount)}).`);
         return;
       }
 
@@ -372,6 +389,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           amount: p.amount,
           description: lentTitle,
           dueAt: dueAt || undefined,
+          accountId: selectedAccountId || undefined,
         },
         optimisticData: {
           id: `temp-split-${Date.now()}-${idx}`,
@@ -383,6 +401,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           paidAmount: 0,
           status: 'PENDING' as const,
           statusLabel: 'Yet to receive',
+          accountId: selectedAccountId || undefined,
           date: new Date().toISOString(),
           dueDate: dueAt || undefined,
         },
@@ -394,6 +413,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           amount: customUserShare,
           description: itemTitle,
           category: resolvedCategory,
+          accountId: selectedAccountId || undefined,
         },
         optimisticData: {
           ...transaction,
@@ -402,6 +422,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           category: resolvedCategory,
           amount: customUserShare,
           type: 'EXPENSE' as const,
+          accountId: selectedAccountId || undefined,
         },
       } : undefined;
 
@@ -497,6 +518,29 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit}>
+          {/* Account Selector (Cash, SBI, HDFC, Wallets, etc.) */}
+          {accounts.length > 0 && (
+            <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <LuWallet size={14} color="var(--primary)" />
+                <span>Account</span>
+              </label>
+              <CustomDropdown
+                variant="form"
+                value={selectedAccountId}
+                onChange={setSelectedAccountId}
+                options={accounts.map((acc) => ({
+                  value: acc.aid || acc.id || '',
+                  label: acc.name,
+                  badge: acc.type,
+                  sublabel: `${acc.accountNumber ? `•••• ${acc.accountNumber} • ` : ''}Balance: ${formatRupee(Number(acc.balance ?? acc.initialBalance ?? 0))}`,
+                }))}
+                icon={<LuWallet size={16} />}
+                placeholder="Select an account"
+                aria-label="Select account"
+              />
+            </div>
+          )}
           {/* 1. LENT MODE (Single Person) */}
           {mode === 'LENT' && (
             <>
@@ -851,7 +895,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                             onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
                           />
                           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            ₹{perPersonOwed.toLocaleString('en-IN')}
+                            {formatRupee(perPersonOwed)}
                           </span>
                           {peopleCount > 2 && (
                             <button
@@ -991,7 +1035,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Your Personal Expense</div>
                   <div style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626' }}>
-                    ₹{computedUserShare.toLocaleString('en-IN')}
+                    {formatRupee(computedUserShare)}
                   </div>
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Updated in Transactions</div>
                 </div>
@@ -1003,11 +1047,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                       : `Lent to ${customPeople.length} ${customPeople.length === 1 ? 'Person' : 'People'}`}
                   </div>
                   <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>
-                    ₹{computedLentAmount.toLocaleString('en-IN')}
+                    {formatRupee(computedLentAmount)}
                   </div>
                   <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600 }}>
                     {splitType === 'EQUAL'
-                      ? `(₹${perPersonOwed}/person) → Loans`
+                      ? `(${formatRupee(perPersonOwed)}/person) → Loans`
                       : `Added as ${customPeople.length} loan ${customPeople.length === 1 ? 'entry' : 'entries'}`}
                   </div>
                 </div>

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { FaChartPie } from 'react-icons/fa6';
+import { formatRupee } from '../lib/formatters';
+import { CustomDropdown } from './CustomDropdown';
 
 export interface CategoryExpense {
   name: string;
@@ -101,16 +103,15 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
     <div className="dashboard-card expense-breakdown-card">
       <div className="card-header">
         <h3>Expense Breakdown</h3>
-        <select
-          className="select-pill"
+        <CustomDropdown
+          variant="pill"
+          size="sm"
+          align="right"
           value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-        >
-          <option>This Month</option>
-          <option>Last Month</option>
-          <option>This Quarter</option>
-          <option>This Year</option>
-        </select>
+          onChange={setTimeRange}
+          options={['This Month', 'Last Month', 'This Quarter', 'This Year']}
+          aria-label="Filter expense time range"
+        />
       </div>
 
       {!hasData ? (
@@ -161,7 +162,7 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
 
             {/* Center text */}
             <div className="donut-center-text">
-              <strong>₹{Math.round(totalExpense).toLocaleString('en-IN')}</strong>
+              <strong>{formatRupee(totalExpense)}</strong>
               <span>Total Expenses</span>
             </div>
           </div>
@@ -179,7 +180,7 @@ export const ExpenseDonutChart: React.FC<ExpenseDonutChartProps> = React.memo(({
                 </div>
                 <div className="legend-right">
                   {item.amount > 0 && (
-                    <span className="legend-amount">₹{Math.round(item.amount).toLocaleString('en-IN')}</span>
+                    <span className="legend-amount">{formatRupee(item.amount)}</span>
                   )}
                   <span className="legend-pct">
                     {Number.isInteger(item.percentage) ? `${item.percentage}%` : `${item.percentage.toFixed(1)}%`}

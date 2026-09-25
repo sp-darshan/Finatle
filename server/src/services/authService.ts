@@ -49,13 +49,18 @@ export class AuthService {
           password: hashedPassword,
           name: sanitizedName,
           age: parsedAge,
-          account: {
+          accounts: {
             create: {
+              name: 'Cash',
+              type: 'CASH',
               balance: 0,
+              initialBalance: 0,
+              color: '#10b981',
+              isDefault: true,
             },
           },
         },
-        include: { account: true },
+        include: { accounts: true },
       });
 
       const token = generateToken({ userId: newUser.uid, email: newUser.email });
@@ -69,7 +74,7 @@ export class AuthService {
           name: newUser.name,
           phone: newUser.phone ?? null,
           age: newUser.age,
-          account: newUser.account,
+          accounts: newUser.accounts,
           createdAt: newUser.createdAt,
         },
       };
@@ -93,7 +98,17 @@ export class AuthService {
         phone: null,
         age: parsedAge,
         createdAt: new Date().toISOString(),
-        account: { balance: 0 },
+        accounts: [
+          {
+            aid: 'mock-acc-1',
+            name: 'Cash',
+            type: 'CASH',
+            balance: 0,
+            initialBalance: 0,
+            color: '#10b981',
+            isDefault: true,
+          },
+        ],
       };
       inMemoryUsers.push(fallbackUser);
 
@@ -108,7 +123,7 @@ export class AuthService {
           name: fallbackUser.name,
           phone: fallbackUser.phone ?? null,
           age: fallbackUser.age,
-          account: fallbackUser.account,
+          accounts: fallbackUser.accounts,
           createdAt: fallbackUser.createdAt,
         },
       };

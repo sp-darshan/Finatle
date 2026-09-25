@@ -16,11 +16,13 @@ import {
 import type { TransactionItem } from './RecentTransactions';
 import { ExpenseDonutChart, type CategoryExpense } from './ExpenseDonutChart';
 import type { LoanItem } from './LoansSettlements';
+import { formatRupee } from '../lib/formatters';
 import {
   BudgetManager,
   type BudgetLimit,
 } from './BudgetManager';
 import { SettingsView } from './SettingsView';
+import type { AccountItem } from '../types/account.types';
 import {
   LuReceipt,
   LuX,
@@ -30,6 +32,7 @@ import {
   LuShoppingBag,
   LuTrendingUp,
   LuWallet,
+  LuPencil,
 } from 'react-icons/lu';
 import { useGreeting } from '../lib/greeting';
 
@@ -42,6 +45,11 @@ interface MobileDashboardProps {
   token?: string | null;
   onUpdateUser?: (user: any) => void;
   onDeleteAccount?: () => void;
+  accounts?: AccountItem[];
+  selectedAccountId?: string | 'ALL';
+  onSelectAccount?: (id: string | 'ALL') => void;
+  onOpenAddAccount?: () => void;
+  onEditAccount?: (acc: AccountItem) => void;
   transactions: TransactionItem[];
   loans?: LoanItem[];
   totalIncome?: number;
@@ -74,6 +82,11 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   token,
   onUpdateUser,
   onDeleteAccount,
+  accounts = [],
+  selectedAccountId = 'ALL',
+  onSelectAccount,
+  onOpenAddAccount,
+  onEditAccount,
   transactions = [],
   loans = [],
   totalIncome,
@@ -141,11 +154,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
     setIsPWAInstalled(isStandalone);
   }, []);
 
-  const formatRupee = (val: number) => {
-    const isNeg = val < 0;
-    const abs = Math.abs(Math.round(val)).toLocaleString('en-IN');
-    return isNeg ? `-₹${abs}` : `₹${abs}`;
-  };
+
 
   const computedIncome = React.useMemo(() => {
     if (typeof totalIncome === 'number') return totalIncome;
@@ -326,9 +335,108 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
               </button>
             </nav>
 
+            {/* Accounts in Mobile Drawer */}
+            {accounts.length > 0 && onSelectAccount && (
+              <div className="sidebar-accounts-section" style={{ marginTop: '0.75rem', maxHeight: 220 }}>
+                <div className="sidebar-accounts-header">
+                  <span className="sidebar-section-title">ACCOUNTS</span>
+                  {onOpenAddAccount && (
+                    <button
+                      type="button"
+                      className="sidebar-add-account-btn"
+                      onClick={() => {
+                        setIsDrawerOpen(false);
+                        onOpenAddAccount();
+                      }}
+                      title="Add Account"
+                    >
+                      <LuPlus size={13} />
+                      <span>Add</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="sidebar-accounts-list">
+                  {/* All Accounts */}
+                  <div
+                    className={`sidebar-account-row ${selectedAccountId === 'ALL' ? 'active' : ''}`}
+                    onClick={() => {
+                      onSelectAccount('ALL');
+                      setIsDrawerOpen(false);
+                    }}
+                  >
+                    <div className="sidebar-account-left">
+                      <div
+                        className="sidebar-account-icon"
+                        style={{
+                          background: 'var(--bg-secondary, #f1f5f9)',
+                          color: 'var(--text-secondary, #475569)',
+                          border: '1px solid var(--border-color, #e2e8f0)',
+                        }}
+                      >
+                        <LuWallet size={14} />
+                      </div>
+                      <div className="sidebar-account-info">
+                        <span className="sidebar-account-name">All Accounts</span>
+                        <span className="sidebar-account-sub">Combined</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Individual accounts */}
+                  {accounts.map((acc) => {
+                    const isSelected = selectedAccountId === (acc.aid || acc.id);
+                    const cardColor = acc.color || '#3b82f6';
+
+                    return (
+                      <div
+                        key={acc.aid || acc.id}
+                        className={`sidebar-account-row ${isSelected ? 'active' : ''}`}
+                        onClick={() => {
+                          onSelectAccount(acc.aid || acc.id);
+                          setIsDrawerOpen(false);
+                        }}
+                      >
+                        <div className="sidebar-account-left">
+                          <div
+                            className="sidebar-account-icon"
+                            style={{ background: `${cardColor}18`, color: cardColor }}
+                          >
+                            <LuWallet size={14} />
+                          </div>
+                          <div className="sidebar-account-info">
+                            <span className="sidebar-account-name">{acc.name}</span>
+                            <span className="sidebar-account-sub">
+                              {acc.accountNumber || acc.type.toLowerCase()}
+                            </span>
+                          </div>
+                        </div>
+                        {onEditAccount && (
+                          <div className="sidebar-account-right">
+                            <button
+                              type="button"
+                              className="sidebar-account-edit-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsDrawerOpen(false);
+                                onEditAccount(acc);
+                              }}
+                              title="Edit"
+                            >
+                              <LuPencil size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Install Mobile App button: ONLY shown in mobile drawer if NOT yet installed */}
             {!isPWAInstalled && (
-              <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)' }}>
+              <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
                 <button
                   className="pwa-badge-btn"
                   onClick={() => {
@@ -348,10 +456,29 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
       {/* VIEW 1: HOME */}
       {currentNav === 'home' && (
         <>
-          {/* Greeting */}
-          <section className="mobile-greeting-sec">
-            <h3>{greeting},<br />{userName}!</h3>
-            <p>{dateString} • {timeString}</p>
+          {/* Greeting & Account Switcher Bar */}
+          <section className="mobile-greeting-sec" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+            <div>
+              <h3>{greeting},<br />{userName}!</h3>
+              <p>{dateString} • {timeString}</p>
+            </div>
+
+            {/* Account Switcher Pill on Mobile */}
+            {accounts.length > 0 && onSelectAccount && (
+              <div
+                className="mobile-account-selector-pill"
+                onClick={() => setIsDrawerOpen(true)}
+                title="Tap to switch account"
+              >
+                <LuWallet size={13} color="var(--primary)" />
+                <span>
+                  {selectedAccountId === 'ALL'
+                    ? 'All Accounts'
+                    : accounts.find((a) => (a.aid || a.id) === selectedAccountId)?.name || 'Account'}
+                </span>
+                <LuChevronDown size={13} color="var(--text-muted)" />
+              </div>
+            )}
           </section>
 
           {/* Total / Actual Balance Card */}
@@ -609,7 +736,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                                   )}
                                 </div>
                                 <span className="breakdown-item-price">
-                                  ₹{Number(item.price).toLocaleString('en-IN')}
+                                  {formatRupee(item.price)}
                                 </span>
                               </div>
                             ))}
@@ -921,7 +1048,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                                 )}
                               </div>
                               <span className="breakdown-item-price">
-                                ₹{Number(item.price).toLocaleString('en-IN')}
+                                {formatRupee(item.price)}
                               </span>
                             </div>
                           ))}

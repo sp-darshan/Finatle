@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { CategoryPicker } from './CategoryPicker';
-import { LuX, LuUsers, LuPenLine, LuPlus, LuMinus, LuTrash2, LuUser } from 'react-icons/lu';
+import { LuX, LuUsers, LuPenLine, LuPlus, LuMinus, LuTrash2, LuUser, LuWallet } from 'react-icons/lu';
+import { formatRupee } from '../lib/formatters';
+import type { AccountItem } from '../types/account.types';
+import { CustomDropdown } from './CustomDropdown';
 
 export type RecordKind = 'expense' | 'income' | 'lent' | 'borrowed' | 'split';
 
@@ -15,6 +18,8 @@ interface AddRecordModalProps {
   onClose: () => void;
   initialKind?: RecordKind;
   token?: string | null;
+  accounts?: AccountItem[];
+  selectedAccountId?: string | 'ALL';
   onSuccess: (newRecord?: any) => void | Promise<void>;
 }
 
@@ -22,6 +27,8 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
   isOpen,
   onClose,
   initialKind = 'expense',
+  accounts = [],
+  selectedAccountId = 'ALL',
   onSuccess,
 }) => {
   const [kind, setKind] = useState<RecordKind>(initialKind);
@@ -32,6 +39,13 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
   const [otherCategory, setOtherCategory] = useState('');
   const [personName, setPersonName] = useState('');
   const [dueAt, setDueAt] = useState('');
+  
+  const isSpecificAccount = Boolean(selectedAccountId && selectedAccountId !== 'ALL');
+  const [modalAccountId, setModalAccountId] = useState<string>(() => {
+    if (isSpecificAccount) return selectedAccountId as string;
+    const defaultAcc = accounts.find((a) => a.isDefault) || accounts[0];
+    return defaultAcc ? (defaultAcc.aid || defaultAcc.id) : '';
+  });
   
   // Split mode state
   const [splitType, setSplitType] = useState<'EQUAL' | 'CUSTOM'>('EQUAL');
@@ -69,6 +83,12 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
       setDueAt('');
       setSplitPeopleCount('4');
       setEqualFriendNames(['', '', '']);
+      if (isSpecificAccount) {
+        setModalAccountId(selectedAccountId as string);
+      } else {
+        const defaultAcc = accounts.find((a) => a.isDefault) || accounts[0];
+        setModalAccountId(defaultAcc ? (defaultAcc.aid || defaultAcc.id) : '');
+      }
     }
   }
 
@@ -150,6 +170,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
     }
 
     const selectedCategory = category === 'Other' ? otherCategory.trim() || 'Other' : category;
+    const effectiveAccountId = isSpecificAccount ? (selectedAccountId as string) : modalAccountId;
 
     if (kind === 'expense' || kind === 'income') {
       const apiPayload = {
@@ -157,6 +178,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         amount: numericAmount,
         description: title.trim() || (kind === 'income' ? 'Income' : selectedCategory),
         category: selectedCategory,
+        accountId: effectiveAccountId || undefined,
       };
 
       const optimisticData = {
@@ -166,6 +188,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         amount: numericAmount,
         type: (kind === 'income' ? 'INCOME' : 'EXPENSE') as 'INCOME' | 'EXPENSE',
+        accountId: effectiveAccountId || undefined,
       };
 
       onSuccess({
@@ -181,6 +204,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         amount: numericAmount,
         description: title.trim() || undefined,
         dueAt: dueAt || undefined,
+        accountId: effectiveAccountId || undefined,
       };
 
       const optimisticData = {
@@ -193,6 +217,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         paidAmount: 0,
         status: 'PENDING' as const,
         statusLabel: kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+        accountId: effectiveAccountId || undefined,
         date: new Date().toISOString(),
         dueDate: dueAt || undefined,
       };
@@ -219,6 +244,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               amount: equalPerPerson,
               description: lentTitle,
               dueAt: dueAt || undefined,
+              accountId: effectiveAccountId || undefined,
             },
             optimisticData: {
               id: tempId,
@@ -230,6 +256,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               paidAmount: 0,
               status: 'PENDING' as const,
               statusLabel: 'Yet to receive',
+              accountId: effectiveAccountId || undefined,
               date: new Date().toISOString(),
               dueDate: dueAt || undefined,
             },
@@ -242,6 +269,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             amount: equalUserShare,
             description: itemTitle,
             category: selectedCategory,
+            accountId: effectiveAccountId || undefined,
           },
           optimisticData: {
             id: `temp-t-${Date.now()}`,
@@ -250,6 +278,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             amount: equalUserShare,
             type: 'EXPENSE' as const,
+            accountId: effectiveAccountId || undefined,
           },
         } : undefined;
 
@@ -275,7 +304,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         }
 
         if (customTotalLent > numericAmount) {
-          setError(`Total lent amount (₹${customTotalLent.toLocaleString('en-IN')}) cannot exceed total bill amount (₹${numericAmount.toLocaleString('en-IN')}).`);
+          setError(`Total lent amount (${formatRupee(customTotalLent)}) cannot exceed total bill amount (${formatRupee(numericAmount)}).`);
           return;
         }
 
@@ -290,6 +319,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               amount: p.amount,
               description: lentTitle,
               dueAt: dueAt || undefined,
+              accountId: effectiveAccountId || undefined,
             },
             optimisticData: {
               id: tempId,
@@ -301,6 +331,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               paidAmount: 0,
               status: 'PENDING' as const,
               statusLabel: 'Yet to receive',
+              accountId: effectiveAccountId || undefined,
               date: new Date().toISOString(),
               dueDate: dueAt || undefined,
             },
@@ -313,6 +344,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             amount: customUserShare,
             description: itemTitle,
             category: selectedCategory,
+            accountId: effectiveAccountId || undefined,
           },
           optimisticData: {
             id: `temp-t-${Date.now()}`,
@@ -321,6 +353,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             amount: customUserShare,
             type: 'EXPENSE' as const,
+            accountId: effectiveAccountId || undefined,
           },
         } : undefined;
 
@@ -387,6 +420,30 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
         </div>
 
         <form onSubmit={handleSubmit}>
+          {/* Account Selector (Only shown in 'All Accounts' mode; in specific account mode, it is automatically assigned without asking) */}
+          {accounts.length > 0 && !isSpecificAccount && (
+            <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <LuWallet size={14} color="var(--primary)" />
+                <span>Account</span>
+              </label>
+              <CustomDropdown
+                variant="form"
+                value={modalAccountId}
+                onChange={setModalAccountId}
+                options={accounts.map((acc) => ({
+                  value: acc.aid || acc.id || '',
+                  label: acc.name,
+                  badge: acc.type,
+                  sublabel: `${acc.accountNumber ? `•••• ${acc.accountNumber} • ` : ''}Balance: ${formatRupee(Number(acc.balance ?? acc.initialBalance ?? 0))}`,
+                }))}
+                icon={<LuWallet size={16} />}
+                placeholder="Select an account"
+                aria-label="Select account"
+              />
+            </div>
+          )}
+
           {/* Amount input */}
           <div className="form-group">
             <label>{kind === 'split' ? 'Total Bill Amount (₹)' : 'Amount (₹)'}</label>
@@ -679,7 +736,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                             onChange={(e) => handleEqualFriendNameChange(idx, e.target.value)}
                           />
                           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>
-                            ₹{equalPerPerson.toLocaleString('en-IN')}
+                            {formatRupee(equalPerPerson)}
                           </span>
                           {count > 2 && (
                             <button
@@ -817,7 +874,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Your Personal Expense</div>
                   <div style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626' }}>
-                    ₹{(splitType === 'EQUAL' ? equalUserShare : customUserShare).toLocaleString('en-IN')}
+                    {formatRupee(splitType === 'EQUAL' ? equalUserShare : customUserShare)}
                   </div>
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Recorded to Transactions</div>
                 </div>
@@ -825,7 +882,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
                 <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '0.5rem' }}>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Total Lent to Friends</div>
                   <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>
-                    ₹{(splitType === 'EQUAL' ? equalTotalLent : customTotalLent).toLocaleString('en-IN')}
+                    {formatRupee(splitType === 'EQUAL' ? equalTotalLent : customTotalLent)}
                   </div>
                   <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600 }}>
                     {splitType === 'EQUAL'

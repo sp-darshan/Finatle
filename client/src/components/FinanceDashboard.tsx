@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
+import { CustomDropdown } from './CustomDropdown';
 
 type Transaction = {
   tid: string;
@@ -177,7 +178,17 @@ export function FinanceDashboard({ token, onOpenAuth }: FinanceDashboardProps) {
             )}
             {kind !== 'transaction' && <label className="form-label">Person<input className="form-input" value={personName} onChange={(event) => setPersonName(event.target.value)} placeholder="Who is involved?" required /></label>}
             <label className="form-label">Amount<input className="form-input" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" required /></label>
-            {kind === 'transaction' && <label className="form-label">Category<select className="form-select" value={category} onChange={(event) => setCategory(event.target.value)}><option>Groceries</option><option>Food</option><option>Housing</option><option>Transport</option><option>Salary</option><option>Shopping</option></select></label>}
+            {kind === 'transaction' && (
+              <div className="form-label">
+                <span>Category</span>
+                <CustomDropdown
+                  variant="form"
+                  value={category}
+                  onChange={setCategory}
+                  options={['Groceries', 'Food', 'Housing', 'Transport', 'Salary', 'Shopping']}
+                />
+              </div>
+            )}
             {kind !== 'transaction' && <label className="form-label">Due date<input className="form-input" type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>}
             <label className="form-label">Note<textarea className="form-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add a note" rows={3} /></label>
             {error && <p className="form-error">{error}</p>}
@@ -205,5 +216,37 @@ export function FinanceDashboard({ token, onOpenAuth }: FinanceDashboardProps) {
 }
 
 function LoanList({ title, loans, onStatus }: { title: string; loans: Loan[]; onStatus: (id: string, status: Loan['status']) => void }) {
-  return <div className="glass-panel ledger-panel"><div className="section-heading"><h2>{title}</h2><span className="count-badge">{loans.length}</span></div>{!loans.length ? <p className="empty-state">Nothing here yet.</p> : loans.map((loan) => { const loanId = loan.lid || loan.bid || ''; return <div className="ledger-row" key={loanId}><div><strong>{loan.personName}</strong><small>{loan.dueAt ? `Due ${new Date(loan.dueAt).toLocaleDateString()}` : 'No due date'} · {loan.status.toLowerCase()}</small></div><div className="row-actions"><strong>{money(loan.amount)}</strong><select className="status-select" value={loan.status} onChange={(event) => onStatus(loanId, event.target.value as Loan['status'])}><option>PENDING</option><option>PAID</option><option>OVERDUE</option></select></div></div>; })}</div>;
+  return (
+    <div className="glass-panel ledger-panel">
+      <div className="section-heading">
+        <h2>{title}</h2>
+        <span className="count-badge">{loans.length}</span>
+      </div>
+      {!loans.length ? (
+        <p className="empty-state">Nothing here yet.</p>
+      ) : (
+        loans.map((loan) => {
+          const loanId = loan.lid || loan.bid || '';
+          return (
+            <div className="ledger-row" key={loanId}>
+              <div>
+                <strong>{loan.personName}</strong>
+                <small>{loan.dueAt ? `Due ${new Date(loan.dueAt).toLocaleDateString()}` : 'No due date'} · {loan.status.toLowerCase()}</small>
+              </div>
+              <div className="row-actions">
+                <strong>{money(loan.amount)}</strong>
+                <CustomDropdown
+                  variant="compact"
+                  size="sm"
+                  value={loan.status}
+                  onChange={(val) => onStatus(loanId, val as Loan['status'])}
+                  options={['PENDING', 'PAID', 'OVERDUE']}
+                />
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 }

@@ -2,13 +2,17 @@ export type AccountType = 'CASH' | 'BANK' | 'WALLET' | 'SAVINGS' | 'OTHER';
 
 export interface AccountItem {
   id: string;
+  aid?: string;
   name: string;
   type: AccountType;
+  balance?: number;
   initialBalance: number;
   color?: string;
   accountNumber?: string;
+  institution?: string;
   isDefault?: boolean;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export const DEFAULT_ACCOUNTS: AccountItem[] = [

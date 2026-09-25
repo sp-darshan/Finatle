@@ -5,6 +5,7 @@ import {
   SavingsCardIcon,
   SettlementsCardIcon,
 } from './Icons';
+import { formatRupee } from '../lib/formatters';
 
 interface MetricCardsProps {
   income: number;
@@ -25,11 +26,6 @@ export const MetricCards: React.FC<MetricCardsProps> = React.memo(({
   settlementDetails = '0 pending settlements',
   onCardClick,
 }) => {
-  const formatRupee = (val: number) => {
-    const isNeg = val < 0;
-    const abs = Math.abs(Math.round(val)).toLocaleString('en-IN');
-    return isNeg ? `-₹${abs}` : `₹${abs}`;
-  };
 
   return (
     <section className="metrics-grid">

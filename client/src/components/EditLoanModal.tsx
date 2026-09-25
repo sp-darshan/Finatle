@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LuX, LuCheck } from 'react-icons/lu';
+import { LuX, LuCheck, LuWallet } from 'react-icons/lu';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { LoanItem } from './LoansSettlements';
+import type { AccountItem } from './Sidebar';
+import { formatRupee } from '../lib/formatters';
+import { CustomDropdown } from './CustomDropdown';
 
 interface EditLoanModalProps {
   isOpen: boolean;
   onClose: () => void;
   loan: LoanItem | null;
+  accounts?: AccountItem[];
   token?: string | null;
   onSuccess: (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => void | Promise<void>;
 }
@@ -15,9 +19,11 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   isOpen,
   onClose,
   loan,
+  accounts = [],
   onSuccess,
 }) => {
   const [kind, setKind] = useState<'lent' | 'borrowed'>('lent');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [personName, setPersonName] = useState('');
   const [amount, setAmount] = useState('');
   const [paidAmount, setPaidAmount] = useState('0');
@@ -31,6 +37,8 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   useEffect(() => {
     if (loan) {
       setKind(loan.kind === 'borrowed' ? 'borrowed' : 'lent');
+      const defaultAccId = accounts.find((a) => a.isDefault)?.aid || accounts.find((a) => a.isDefault)?.id || accounts[0]?.aid || accounts[0]?.id || '';
+      setSelectedAccountId(loan.accountId || defaultAccId);
       setPersonName(loan.personName || '');
       setAmount(String(loan.amount || ''));
       setPaidAmount(String(loan.paidAmount !== undefined ? loan.paidAmount : (loan.status === 'PAID' ? loan.amount : 0)));
@@ -40,7 +48,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       setError('');
       setIsConfirmingDelete(false);
     }
-  }, [loan, isOpen]);
+  }, [loan, accounts, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,6 +94,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       description: description.trim(),
       dueAt: dueAt || undefined,
       status: computedStatus,
+      accountId: selectedAccountId || undefined,
     };
 
     const optimisticData: LoanItem = {
@@ -98,6 +107,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       paidAmount: numericPaid,
       status: computedStatus,
       statusLabel: computedStatus === 'PAID' ? 'Settled' : computedStatus === 'PARTIAL' ? `Part (₹${numericPaid})` : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+      accountId: selectedAccountId || undefined,
       dueDate: dueAt || undefined,
     };
 
@@ -112,7 +122,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
 
   const handleSetPaidPreset = (fraction: number) => {
     if (totalNum > 0) {
-      const val = Math.round(totalNum * fraction);
+      const val = Math.round(totalNum * fraction * 100) / 100;
       setPaidAmount(String(val));
       if (val >= totalNum) setStatus('PAID');
       else if (val > 0) setStatus('PARTIAL');
@@ -172,6 +182,29 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit}>
+          {/* Account Selector */}
+          {accounts.length > 0 && (
+            <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <LuWallet size={14} color="var(--primary)" />
+                <span>Account</span>
+              </label>
+              <CustomDropdown
+                variant="form"
+                value={selectedAccountId}
+                onChange={setSelectedAccountId}
+                options={accounts.map((acc) => ({
+                  value: acc.aid || acc.id || '',
+                  label: acc.name,
+                  badge: acc.type,
+                  sublabel: `${acc.accountNumber ? `•••• ${acc.accountNumber} • ` : ''}Balance: ${formatRupee(Number(acc.balance ?? acc.initialBalance ?? 0))}`,
+                }))}
+                icon={<LuWallet size={16} />}
+                placeholder="Select an account"
+                aria-label="Select account"
+              />
+            </div>
+          )}
           {/* Person / Friend Name */}
           <div className="form-group">
             <label>Person / Contact Name</label>
@@ -206,7 +239,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <label>Amount Settled (₹)</label>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: remainingNum > 0 ? '#dc2626' : '#059669' }}>
-                Remaining: ₹{remainingNum.toLocaleString('en-IN')}
+                Remaining: {formatRupee(remainingNum)}
               </span>
             </div>
             <input
@@ -241,7 +274,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                 style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem' }}
                 onClick={() => handleSetPaidPreset(0.5)}
               >
-                50% (₹{Math.round(totalNum * 0.5).toLocaleString('en-IN')})
+                50% ({formatRupee(totalNum * 0.5)})
               </button>
               <button
                 type="button"

@@ -11,4 +11,5 @@ export const ENV = {
   JWT_SECRET: process.env.JWT_SECRET || 'fallback-secret-key-do-not-use-in-prod',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  REDIS_URL: process.env.REDIS_URL || process.env.REDIS_TLS_URL || '',
 };
