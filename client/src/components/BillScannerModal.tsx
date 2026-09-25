@@ -202,14 +202,6 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== idx) return item;
-        if (field === 'price') {
-          const p = parseFloat(val);
-          return { ...item, price: isNaN(p) ? 0 : p };
-        }
-        if (field === 'quantity') {
-          const q = parseInt(val, 10);
-          return { ...item, quantity: isNaN(q) || q < 1 ? 1 : q };
-        }
         return { ...item, [field]: val };
       })
     );
@@ -687,51 +679,68 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   </div>
 
                   {isEditingItems ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                      <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingRight: '0.2rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.2rem' }}>
                         {items.map((item, idx) => (
-                          <div key={idx} className="receipt-item-row">
-                            <input
-                              type="text"
-                              placeholder={`Item ${idx + 1} name`}
-                              className="receipt-item-input"
-                              value={item.name}
-                              onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
-                            />
-                            <input
-                              type="number"
-                              min="1"
-                              placeholder="Qty"
-                              className="receipt-item-input"
-                              style={{ textAlign: 'center', padding: '0.38rem 0.25rem' }}
-                              value={item.quantity || 1}
-                              onChange={(e) => handleUpdateItem(idx, 'quantity', e.target.value)}
-                              title="Quantity"
-                            />
-                            <div style={{ position: 'relative' }}>
-                              <span style={{ position: 'absolute', left: '0.45rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 700 }}>
-                                ₹
-                              </span>
+                          <div key={idx} className="receipt-item-card">
+                            <div className="receipt-item-main-row">
                               <input
-                                type="number"
-                                step="any"
-                                min="0"
-                                placeholder="Price"
-                                className="receipt-item-input"
-                                style={{ paddingLeft: '1.15rem', paddingRight: '0.3rem', fontWeight: 700 }}
-                                value={item.price || ''}
-                                onChange={(e) => handleUpdateItem(idx, 'price', e.target.value)}
+                                type="text"
+                                placeholder={`Item ${idx + 1} name (e.g. Milk, Bread...)`}
+                                className="receipt-item-name-input"
+                                value={item.name}
+                                onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
+                                autoFocus={idx === items.length - 1 && !item.name}
                               />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(idx)}
+                                className="receipt-delete-item-btn"
+                                title="Remove item"
+                              >
+                                <LuTrash2 size={13} />
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              className="receipt-delete-item-btn"
-                              title="Remove item"
-                            >
-                              <LuTrash2 size={13} />
-                            </button>
-                          </div>
+
+                            <div className="receipt-item-sub-row">
+                              <div className="receipt-qty-box">
+                                <span className="receipt-label-tiny">Qty:</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  placeholder="1"
+                                  className="receipt-item-qty-input"
+                                  value={item.quantity ?? 1}
+                                  onChange={(e) => handleUpdateItem(idx, 'quantity', e.target.value)}
+                                  title="Quantity"
+                                />
+                              </div>
+
+                              <div className="receipt-price-box">
+                                <span className="receipt-label-tiny">Price:</span>
+                                <div className="receipt-price-input-wrap">
+                                  <span className="receipt-currency-prefix">₹</span>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    placeholder="0"
+                                    className="receipt-item-price-input"
+                                    value={item.price ?? ''}
+                                    onChange={(e) => handleUpdateItem(idx, 'price', e.target.value)}
+                                    title="Price per unit"
+                                  />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="receipt-line-total">
+                                <span className="receipt-label-tiny">Item Total</span>
+                                <span className="receipt-total-val">
+                                  {formatRupee((Number(item.price) || 0) * (Number(item.quantity) || 1))}
+                                </span>
+                              </div>
+                            </div>
                         ))}
                       </div>
 

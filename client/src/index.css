@@ -4886,7 +4886,7 @@ select.form-select:hover {
 }
 
 /* ==========================================================================
-   Receipt Breakdown & Line Item Editor (Premium Micro-UI)
+   Receipt Breakdown & Line Item Editor (Spacious & Clean Layout)
    ========================================================================== */
 
 .receipt-breakdown-card {
@@ -4894,15 +4894,14 @@ select.form-select:hover {
   margin-bottom: 0.85rem;
   border: 1px solid #e2e8f0;
   border-radius: var(--radius-lg, 12px);
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  background: #f8fafc;
   padding: 0.85rem 0.95rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
 }
 
 .receipt-breakdown-card:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .receipt-breakdown-header {
@@ -4911,13 +4910,13 @@ select.form-select:hover {
   justify-content: space-between;
   cursor: pointer;
   user-select: none;
-  gap: 0.5rem;
+  gap: 0.65rem;
 }
 
 .receipt-icon-badge {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
   color: #059669;
   display: flex;
@@ -4925,71 +4924,169 @@ select.form-select:hover {
   justify-content: center;
   flex-shrink: 0;
   border: 1px solid rgba(16, 185, 129, 0.25);
-  box-shadow: 0 2px 5px rgba(5, 150, 105, 0.12);
+  box-shadow: 0 2px 5px rgba(5, 150, 105, 0.1);
 }
 
-.receipt-sync-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.65rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #047857;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border: 1px solid #a7f3d0;
-  border-radius: 9999px;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.12);
-  transition: all 0.18s ease;
-}
-
-.receipt-sync-btn:hover {
-  background: #a7f3d0;
-  color: #065f46;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.2);
-}
-
-.receipt-sync-btn:active {
-  transform: translateY(0);
-}
-
-.receipt-item-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) 58px 88px 30px;
-  gap: 0.4rem;
-  align-items: center;
+.receipt-item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   background: #ffffff;
-  padding: 0.45rem 0.55rem;
-  border-radius: var(--radius-md, 8px);
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.receipt-item-row:focus-within {
+.receipt-item-card:focus-within {
   border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12);
 }
 
-.receipt-item-input {
+.receipt-item-main-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
-  font-size: 0.8rem;
-  padding: 0.38rem 0.5rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+}
+
+.receipt-item-name-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.45rem 0.65rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 7px;
   background: #f8fafc;
-  color: var(--text-primary, #0f172a);
+  color: #0f172a;
   font-family: inherit;
   outline: none;
   transition: all 0.15s ease;
   box-sizing: border-box;
 }
 
-.receipt-item-input:focus {
+.receipt-item-name-input:focus {
   background: #ffffff;
   border-color: #10b981;
+}
+
+.receipt-item-sub-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.65rem;
+}
+
+.receipt-qty-box {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.receipt-price-box {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 130px;
+}
+
+.receipt-label-tiny {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.receipt-item-qty-input {
+  width: 48px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.35rem 0.3rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.receipt-item-qty-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12);
+}
+
+.receipt-price-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  width: 100%;
+  min-width: 90px;
+  transition: all 0.15s ease;
+}
+
+.receipt-price-input-wrap:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12);
+}
+
+.receipt-currency-prefix {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #047857;
+  background: #ecfdf5;
+  border-right: 1.5px solid #cbd5e1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.receipt-item-price-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 0.35rem 0.45rem;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.receipt-line-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 0.8rem;
+  background: #f8fafc;
+  padding: 0.38rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
+  margin-top: 0.1rem;
+}
+
+.receipt-total-val {
+  font-weight: 800;
+  color: #059669;
+  font-size: 0.88rem;
 }
 
 .btn-add-item-premium {
@@ -5027,8 +5124,8 @@ select.form-select:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.32rem 0.7rem;
-  font-size: 0.74rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #047857;
   background: #ecfdf5;

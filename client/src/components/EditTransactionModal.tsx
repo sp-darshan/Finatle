@@ -205,14 +205,6 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== index) return item;
-        if (field === 'price') {
-          const p = parseFloat(val);
-          return { ...item, price: isNaN(p) ? 0 : p };
-        }
-        if (field === 'quantity') {
-          const q = parseInt(val, 10);
-          return { ...item, quantity: isNaN(q) || q < 1 ? 1 : q };
-        }
         return { ...item, [field]: val };
       })
     );
@@ -1160,46 +1152,47 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                   className="receipt-breakdown-header"
                   onClick={() => setShowBreakdown((prev) => !prev)}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
                     <div className="receipt-icon-badge">
-                      <LuReceipt size={17} />
+                      <LuReceipt size={18} />
                     </div>
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <span>Receipt Breakdown</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Receipt Breakdown
+                        </span>
                         {items.length > 0 && (
-                          <span className="receipt-pill-badge" style={{ margin: 0, fontSize: '0.68rem', padding: '0.12rem 0.5rem' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '0.1rem 0.5rem', borderRadius: '9999px', fontWeight: 700 }}>
                             {items.length} {items.length === 1 ? 'item' : 'items'}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Itemized purchase line items
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        Itemized purchase products & prices
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      style={{
-                        background: '#f1f5f9',
-                        border: 'none',
-                        color: 'var(--text-secondary, #475569)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        cursor: 'pointer',
-                        padding: 0,
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {showBreakdown ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    style={{
+                      background: '#f1f5f9',
+                      border: 'none',
+                      color: 'var(--text-secondary, #475569)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      padding: 0,
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {showBreakdown ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
+                  </button>
                 </div>
 
                 {showBreakdown && (
@@ -1219,58 +1212,72 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                        <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingRight: '0.2rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.2rem' }}>
                           {items.map((item, idx) => (
-                            <div key={item.id || idx} className="receipt-item-row">
-                              <input
-                                type="text"
-                                placeholder={`Item ${idx + 1} name`}
-                                className="receipt-item-input"
-                                value={item.name}
-                                onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                              />
-                              <div style={{ position: 'relative' }}>
+                            <div key={item.id || idx} className="receipt-item-card">
+                              <div className="receipt-item-main-row">
                                 <input
-                                  type="number"
-                                  min="1"
-                                  placeholder="Qty"
-                                  className="receipt-item-input"
-                                  style={{ textAlign: 'center', padding: '0.38rem 0.25rem' }}
-                                  value={item.quantity || 1}
-                                  onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                                  title="Quantity"
+                                  type="text"
+                                  placeholder={`Item ${idx + 1} name (e.g. Milk, Cappuccino...)`}
+                                  className="receipt-item-name-input"
+                                  value={item.name}
+                                  onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
+                                  autoFocus={idx === items.length - 1 && !item.name}
                                 />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveItem(idx)}
+                                  className="receipt-delete-item-btn"
+                                  title="Remove item"
+                                >
+                                  <LuTrash2 size={13} />
+                                </button>
                               </div>
-                              <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: '0.45rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 700 }}>
-                                  ₹
+
+                              <div className="receipt-item-sub-row">
+                                <div className="receipt-qty-box">
+                                  <span className="receipt-label-tiny">Qty:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    placeholder="1"
+                                    className="receipt-item-qty-input"
+                                    value={item.quantity ?? 1}
+                                    onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                                    title="Quantity"
+                                  />
+                                </div>
+
+                                <div className="receipt-price-box">
+                                  <span className="receipt-label-tiny">Price:</span>
+                                  <div className="receipt-price-input-wrap">
+                                    <span className="receipt-currency-prefix">₹</span>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      placeholder="0"
+                                      className="receipt-item-price-input"
+                                      value={item.price ?? ''}
+                                      onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
+                                      title="Price per unit"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="receipt-line-total">
+                                <span className="receipt-label-tiny">Item Total</span>
+                                <span className="receipt-total-val">
+                                  {formatRupee((Number(item.price) || 0) * (Number(item.quantity) || 1))}
                                 </span>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  placeholder="Price"
-                                  className="receipt-item-input"
-                                  style={{ paddingLeft: '1.15rem', paddingRight: '0.3rem', fontWeight: 700 }}
-                                  value={item.price || ''}
-                                  onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
-                                  title="Price per item"
-                                />
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(idx)}
-                                className="receipt-delete-item-btn"
-                                title="Remove item"
-                              >
-                                <LuTrash2 size={13} />
-                              </button>
                             </div>
                           ))}
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '0.4rem', paddingTop: '0.35rem', borderTop: '1px dashed #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px dashed #e2e8f0' }}>
                           <button
                             type="button"
                             className="btn-add-item-pill"
