@@ -4441,19 +4441,19 @@ html.modal-open {
 .mobile-account-selector-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   background: var(--bg-card, #ffffff);
   border: 1.5px solid var(--border-color, #e2e8f0);
-  padding: 0.24rem 0.52rem;
+  padding: 0.32rem 0.68rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 700;
   color: var(--text-primary);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  max-width: 140px;
+  max-width: 160px;
   transition: all var(--transition-fast);
 }
 
@@ -4467,20 +4467,21 @@ html.modal-open {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 82px;
-  line-height: 1.2;
+  max-width: 95px;
+  line-height: 1.25;
   vertical-align: middle;
 }
 
 @media (min-width: 480px) {
   .mobile-account-selector-pill {
-    max-width: 180px;
-    font-size: 0.75rem;
-    padding: 0.3rem 0.65rem;
+    max-width: 190px;
+    font-size: 0.76rem;
+    padding: 0.36rem 0.75rem;
+    gap: 0.5rem;
   }
   .mobile-account-selector-pill span,
   .mobile-account-selector-pill .mobile-account-pill-text {
-    max-width: 120px;
+    max-width: 125px;
   }
 }
 
@@ -4538,7 +4539,7 @@ html.modal-open {
 /* Variants */
 .custom-dropdown-container.variant-pill .custom-dropdown-trigger {
   border-radius: var(--radius-full, 9999px);
-  padding: 0.4rem 0.95rem;
+  padding: 0.45rem 1rem;
   font-size: 0.84rem;
   background: var(--bg-surface, #ffffff);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -4546,7 +4547,7 @@ html.modal-open {
 
 .custom-dropdown-container.variant-form .custom-dropdown-trigger {
   border-radius: var(--radius-md, 12px);
-  padding: 0.65rem 1rem;
+  padding: 0.68rem 1.05rem;
   font-size: 0.9rem;
   min-height: 44px;
   background: var(--bg-surface, #ffffff);
@@ -4554,14 +4555,14 @@ html.modal-open {
 
 .custom-dropdown-container.variant-compact .custom-dropdown-trigger {
   border-radius: var(--radius-sm, 8px);
-  padding: 0.28rem 0.65rem;
+  padding: 0.32rem 0.75rem;
   font-size: 0.78rem;
   min-height: 28px;
 }
 
 .custom-dropdown-container.variant-glass .custom-dropdown-trigger {
   border-radius: var(--radius-md, 12px);
-  padding: 0.5rem 0.9rem;
+  padding: 0.55rem 0.95rem;
   font-size: 0.85rem;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
@@ -4570,15 +4571,15 @@ html.modal-open {
 
 /* Sizes */
 .custom-dropdown-container.size-sm .custom-dropdown-trigger {
-  padding: 0.3rem 0.7rem;
+  padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
 }
 .custom-dropdown-container.size-md .custom-dropdown-trigger {
-  padding: 0.45rem 0.9rem;
+  padding: 0.48rem 0.95rem;
   font-size: 0.86rem;
 }
 .custom-dropdown-container.size-lg .custom-dropdown-trigger {
-  padding: 0.65rem 1.1rem;
+  padding: 0.68rem 1.15rem;
   font-size: 0.95rem;
 }
 
@@ -4586,7 +4587,7 @@ html.modal-open {
 .custom-dropdown-trigger-content {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   min-width: 0;
   flex: 1;
 }
@@ -4650,7 +4651,7 @@ html.modal-open {
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: var(--radius-md, 12px);
   box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(16, 185, 129, 0.08);
-  padding: 0.4rem;
+  padding: 0.5rem;
   backdrop-filter: blur(20px);
   overflow: hidden;
 }
@@ -4683,8 +4684,8 @@ html.modal-open {
 .custom-dropdown-search-wrap {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 0.65rem;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border-color, #f1f5f9);
   margin-bottom: 0.35rem;
 }
@@ -4742,7 +4743,7 @@ html.modal-open {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.8rem;
   border-radius: var(--radius-sm, 8px);
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
