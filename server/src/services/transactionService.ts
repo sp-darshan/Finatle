@@ -66,40 +66,46 @@ export class TransactionService {
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const transaction = await tx.transaction.create({
-        data: {
-          uid: userId,
-          accountId: targetAccount.aid,
-          type,
-          amount: new Prisma.Decimal(amount),
-          description,
-          category,
-          occurredAt: finalOccurredAt,
-          items: Array.isArray(dto.items) && dto.items.length > 0
-            ? {
-                create: dto.items
-                  .filter((it) => it && (it.name || Number(it.price) > 0))
-                  .map((it) => ({
-                    name: sanitizeString(it.name) || 'Item',
-                    price: new Prisma.Decimal(parseAmount(it.price) || 0),
-                    quantity: it.quantity && Number(it.quantity) > 0 ? Number(it.quantity) : 1,
-                  })),
-              }
-            : undefined,
-        },
-        include: {
-          items: true,
-        },
-      });
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const transaction = await tx.transaction.create({
+          data: {
+            uid: userId,
+            accountId: targetAccount.aid,
+            type,
+            amount: new Prisma.Decimal(amount),
+            description,
+            category,
+            occurredAt: finalOccurredAt,
+            items: Array.isArray(dto.items) && dto.items.length > 0
+              ? {
+                  create: dto.items
+                    .filter((it) => it && (it.name || Number(it.price) > 0))
+                    .map((it) => ({
+                      name: sanitizeString(it.name) || 'Item',
+                      price: new Prisma.Decimal(parseAmount(it.price) || 0),
+                      quantity: it.quantity && Number(it.quantity) > 0 ? Number(it.quantity) : 1,
+                    })),
+                }
+              : undefined,
+          },
+          include: {
+            items: true,
+          },
+        });
 
-      const updatedAccount = await tx.account.update({
-        where: { aid: targetAccount.aid },
-        data: { balance: { increment: new Prisma.Decimal(balanceChange) } },
-      });
+        const updatedAccount = await tx.account.update({
+          where: { aid: targetAccount.aid },
+          data: { balance: { increment: new Prisma.Decimal(balanceChange) } },
+        });
 
-      return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid, accountId: targetAccount.aid }, account: updatedAccount };
-    });
+        return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid, accountId: targetAccount.aid }, account: updatedAccount };
+      },
+      {
+        maxWait: 15000,
+        timeout: 30000,
+      }
+    );
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
@@ -191,62 +197,68 @@ export class TransactionService {
       throw new BadRequestError('Insufficient overall balance for this transaction.');
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Update line items breakdown if provided in dto
-      if (Array.isArray(dto.items)) {
-        await tx.transactionItem.deleteMany({
-          where: { transactionId: existing.tid },
-        });
-
-        const validItems = dto.items.filter((it) => it && (it.name || Number(it.price) > 0));
-        if (validItems.length > 0) {
-          await tx.transactionItem.createMany({
-            data: validItems.map((it) => ({
-              transactionId: existing.tid,
-              name: sanitizeString(it.name) || 'Item',
-              price: new Prisma.Decimal(parseAmount(it.price) || 0),
-              quantity: it.quantity && Number(it.quantity) > 0 ? Number(it.quantity) : 1,
-            })),
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Update line items breakdown if provided in dto
+        if (Array.isArray(dto.items)) {
+          await tx.transactionItem.deleteMany({
+            where: { transactionId: existing.tid },
           });
+
+          const validItems = dto.items.filter((it) => it && (it.name || Number(it.price) > 0));
+          if (validItems.length > 0) {
+            await tx.transactionItem.createMany({
+              data: validItems.map((it) => ({
+                transactionId: existing.tid,
+                name: sanitizeString(it.name) || 'Item',
+                price: new Prisma.Decimal(parseAmount(it.price) || 0),
+                quantity: it.quantity && Number(it.quantity) > 0 ? Number(it.quantity) : 1,
+              })),
+            });
+          }
         }
-      }
 
-      const transaction = await tx.transaction.update({
-        where: { tid: existing.tid },
-        data: {
-          type: newType as any,
-          accountId: targetAccountId,
-          amount: new Prisma.Decimal(newAmount),
-          description: dto.description !== undefined ? sanitizeString(dto.description) : existing.description,
-          category: dto.category !== undefined ? sanitizeString(dto.category) : existing.category,
-          occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : existing.occurredAt,
-        },
-        include: {
-          items: true,
-        },
-      });
-
-      if (sourceAccountId === targetAccountId) {
-        const netDifference = newImpact - oldImpact;
-        await tx.account.update({
-          where: { aid: targetAccountId },
-          data: { balance: { increment: new Prisma.Decimal(netDifference) } },
+        const transaction = await tx.transaction.update({
+          where: { tid: existing.tid },
+          data: {
+            type: newType as any,
+            accountId: targetAccountId,
+            amount: new Prisma.Decimal(newAmount),
+            description: dto.description !== undefined ? sanitizeString(dto.description) : existing.description,
+            category: dto.category !== undefined ? sanitizeString(dto.category) : existing.category,
+            occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : existing.occurredAt,
+          },
+          include: {
+            items: true,
+          },
         });
-      } else {
-        if (sourceAccountId) {
+
+        if (sourceAccountId === targetAccountId) {
+          const netDifference = newImpact - oldImpact;
           await tx.account.update({
-            where: { aid: sourceAccountId },
-            data: { balance: { decrement: new Prisma.Decimal(oldImpact) } },
+            where: { aid: targetAccountId },
+            data: { balance: { increment: new Prisma.Decimal(netDifference) } },
+          });
+        } else {
+          if (sourceAccountId) {
+            await tx.account.update({
+              where: { aid: sourceAccountId },
+              data: { balance: { decrement: new Prisma.Decimal(oldImpact) } },
+            });
+          }
+          await tx.account.update({
+            where: { aid: targetAccountId },
+            data: { balance: { increment: new Prisma.Decimal(newImpact) } },
           });
         }
-        await tx.account.update({
-          where: { aid: targetAccountId },
-          data: { balance: { increment: new Prisma.Decimal(newImpact) } },
-        });
-      }
 
-      return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid, accountId: targetAccountId }, account: targetAccount };
-    });
+        return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid, accountId: targetAccountId }, account: targetAccount };
+      },
+      {
+        maxWait: 15000,
+        timeout: 30000,
+      }
+    );
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
@@ -281,20 +293,26 @@ export class TransactionService {
       throw new BadRequestError('Insufficient balance in this account to delete this transaction.');
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.transaction.delete({ where: { tid: existing.tid } });
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.transaction.delete({ where: { tid: existing.tid } });
 
-      const targetAccount = existing.accountId
-        ? await tx.account.findFirst({ where: { aid: existing.accountId } })
-        : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
+        const targetAccount = existing.accountId
+          ? await tx.account.findFirst({ where: { aid: existing.accountId } })
+          : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
 
-      if (targetAccount) {
-        await tx.account.update({
-          where: { aid: targetAccount.aid },
-          data: { balance: { increment: new Prisma.Decimal(reverseImpact) } },
-        });
+        if (targetAccount) {
+          await tx.account.update({
+            where: { aid: targetAccount.aid },
+            data: { balance: { increment: new Prisma.Decimal(reverseImpact) } },
+          });
+        }
+      },
+      {
+        maxWait: 15000,
+        timeout: 30000,
       }
-    });
+    );
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);

@@ -355,6 +355,17 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
     };
   }
 
+  if (normCategory === 'investments' || normCategory === 'investment' || normCategory === 'stocks' || normCategory === 'mutual funds' || normCategory === 'crypto') {
+    return {
+      type: 'category',
+      icon: LuTrendingUp,
+      bgTone: 'emerald',
+      badgeBg: '#ECFDF5',
+      badgeBorder: '#A7F3D0',
+      badgeColor: '#059669',
+    };
+  }
+
   if (normCategory === 'health' || normCategory === 'fitness' || normCategory === 'health & fitness' || normCategory === 'gym') {
     return {
       type: 'category',

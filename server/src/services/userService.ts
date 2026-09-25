@@ -136,16 +136,22 @@ export class UserService {
     }
 
     try {
-      const deletedUser = await prisma.$transaction(async (tx) => {
-        await tx.account.deleteMany({ where: { uid: userId } });
-        await tx.transaction.deleteMany({ where: { uid: userId } });
-        await tx.moneyLent.deleteMany({ where: { uid: userId } });
-        await tx.moneyBorrowed.deleteMany({ where: { uid: userId } });
-        return tx.user.delete({
-          where: { uid: userId },
-          select: { uid: true, email: true },
-        });
-      });
+      const deletedUser = await prisma.$transaction(
+        async (tx) => {
+          await tx.account.deleteMany({ where: { uid: userId } });
+          await tx.transaction.deleteMany({ where: { uid: userId } });
+          await tx.moneyLent.deleteMany({ where: { uid: userId } });
+          await tx.moneyBorrowed.deleteMany({ where: { uid: userId } });
+          return tx.user.delete({
+            where: { uid: userId },
+            select: { uid: true, email: true },
+          });
+        },
+        {
+          maxWait: 15000,
+          timeout: 30000,
+        }
+      );
 
       await cacheService.invalidateUserFinance(userId);
 

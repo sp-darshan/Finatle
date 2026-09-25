@@ -25,7 +25,7 @@ const STANDARD_CATEGORIES = [
   'Travel',
   'Utilities',
   'Entertainment',
-  'Health',
+  'Investments',
   'Salary',
   'Groceries',
 ];

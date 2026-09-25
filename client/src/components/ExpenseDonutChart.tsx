@@ -27,6 +27,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Transport': '#8B5CF6',
   'Utilities': '#06B6D4', // Electric Cyan (190°) - opposite red
   'Entertainment': '#EAB308', // Sun Amber (45°) - opposite purple
+  'Investments': '#10B981', // Emerald Mint
+  'Investment': '#10B981',
+  'Stocks': '#10B981',
   'Health': '#14B8A6', // Teal (175°)
   'Health & Fitness': '#14B8A6',
   'Gym': '#14B8A6',

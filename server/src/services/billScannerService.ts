@@ -170,7 +170,7 @@ CRITICAL RULES FOR EXTRACTION:
 
 4. CATEGORY:
    - Must be one of:
-     Dining, Food & Dining, Groceries, Shopping, Travel, Entertainment, Utilities, Rent, Health, Medical, Personal, Other.
+     Dining, Food & Dining, Groceries, Shopping, Travel, Entertainment, Utilities, Rent, Investments, Health, Medical, Personal, Other.
 
 5. DATE:
    - Extract the purchase date in YYYY-MM-DD format if visible, otherwise omit or use current date.
@@ -366,6 +366,8 @@ INVALID EXAMPLE:
         'Travel',
         'Entertainment',
         'Utilities',
+        'Investments',
+        'Investment',
         'Health',
         'Health & Fitness',
         'Healthcare',
