@@ -5,6 +5,7 @@ import { CreateLoanDto, UpdateLoanDto, UpdateLoanStatusDto } from '../types/fina
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseAmount, sanitizeString } from '../utils/parsers';
 import { cacheService } from './cacheService';
+import { FinanceService } from './financeService';
 
 export class LoanService {
   /**
@@ -83,6 +84,7 @@ export class LoanService {
     });
 
     await cacheService.invalidateUserFinance(userId);
+    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return result;
   }
@@ -157,6 +159,7 @@ export class LoanService {
       });
 
       await cacheService.invalidateUserFinance(userId);
+      FinanceService.warmUserFinance(userId).catch(() => {});
 
       return result;
     }
@@ -223,6 +226,7 @@ export class LoanService {
       });
 
       await cacheService.invalidateUserFinance(userId);
+      FinanceService.warmUserFinance(userId).catch(() => {});
 
       return result;
     }
@@ -377,6 +381,7 @@ export class LoanService {
     });
 
     await cacheService.invalidateUserFinance(userId);
+    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return result;
   }
@@ -387,11 +392,16 @@ export class LoanService {
   static async deleteLoan(userId: string | undefined, loanId: string) {
     if (!userId) throw new UnauthorizedError();
 
+    // Invalidate cache immediately to prevent concurrent refresh from reading stale summary
+    await cacheService.delete(`accounts:${userId}`);
+    await cacheService.invalidateUserFinance(userId);
+
     const lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
     const borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
 
     if (!lent && !borrowed) {
-      throw new NotFoundError('Loan record not found');
+      // Idempotent: already deleted or not found
+      return { message: 'Loan deleted successfully' };
     }
 
     const existing = lent || borrowed!;
@@ -440,6 +450,7 @@ export class LoanService {
     });
 
     await cacheService.invalidateUserFinance(userId);
+    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return { message: 'Loan deleted successfully' };
   }

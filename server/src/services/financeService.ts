@@ -92,7 +92,7 @@ export class FinanceService {
     };
 
     // Store in cache with 30s TTL
-    await cacheService.set(cacheKey, result, 30 * 1000);
+    await cacheService.set(cacheKey, result, 30);
 
     return result;
   }
@@ -127,5 +127,17 @@ export class FinanceService {
       account: { uid: userId, balance: totalBalance },
       accounts: mappedAccounts,
     };
+  }
+
+  /**
+   * Pre-warm user finance summary directly in Redis after any mutation
+   */
+  static async warmUserFinance(userId?: string) {
+    if (!userId) return;
+    try {
+      await this.getFinanceSummary(userId);
+    } catch {
+      // Ignore background warming error
+    }
   }
 }

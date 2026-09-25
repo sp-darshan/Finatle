@@ -149,12 +149,13 @@ class CacheService {
   }
 
   /**
-   * Invalidate all finance and accounts data for a specific user
+   * Invalidate all finance, accounts, and budgets data for a specific user
    */
   async invalidateUserFinance(userId: string): Promise<void> {
     if (!userId) return;
     await this.invalidatePattern(`finance:${userId}`);
     await this.delete(`accounts:${userId}`);
+    await this.delete(`budgets:${userId}`);
     await this.delete(`user:profile:${userId}`);
   }
 }

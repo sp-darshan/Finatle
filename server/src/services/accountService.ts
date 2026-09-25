@@ -1,6 +1,7 @@
 import { prisma } from '../config/db';
 import { UnauthorizedError, BadRequestError, NotFoundError } from '../errors/AppError';
 import { cacheService } from './cacheService';
+import { FinanceService } from './financeService';
 
 export interface CreateAccountPayload {
   name: string;
@@ -107,7 +108,7 @@ export class AccountService {
       };
     });
 
-    await cacheService.set(cacheKey, result, 60 * 1000);
+    await cacheService.set(cacheKey, result, 60);
     return result;
   }
 
@@ -239,10 +240,15 @@ export class AccountService {
       throw new BadRequestError('You must maintain at least one active account.');
     }
 
+    await this.invalidateUserAccountCache(userId);
+
     const existing = await prisma.account.findFirst({
       where: { aid: accountId, uid: userId },
     });
-    if (!existing) throw new NotFoundError('Account not found.');
+    if (!existing) {
+      // Idempotent: already deleted
+      return { success: true, message: 'Account deleted successfully.' };
+    }
 
     await prisma.account.delete({ where: { aid: accountId } });
 
@@ -270,5 +276,6 @@ export class AccountService {
       cacheService.delete(`accounts:${userId}`),
       cacheService.invalidateUserFinance(userId),
     ]);
+    FinanceService.warmUserFinance(userId).catch(() => {});
   }
 }

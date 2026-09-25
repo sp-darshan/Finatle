@@ -76,6 +76,112 @@ function cleanSplitText(text?: string | null): string {
   return text.replace(/\s*\((?:my share|custom split(?:\s+with\s+[^)]+)?|\d+\s+people split(?:\s*•\s*[^)]*)?|split bill)\)/gi, '').trim();
 }
 
+const TOMBSTONE_MAX_AGE_MS = 15 * 60 * 1000; // 15 minutes persistent deletion buffer
+
+function getPersistentTombstones(kind: 'tx' | 'loan' | 'account' | 'budget', uid: string): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  const key = `finatle_tombstones_${kind}_${uid}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Set();
+    const map: Record<string, number> = JSON.parse(raw);
+    const now = Date.now();
+    const active = new Set<string>();
+    let changed = false;
+    for (const [id, ts] of Object.entries(map)) {
+      if (now - ts < TOMBSTONE_MAX_AGE_MS) {
+        active.add(id);
+      } else {
+        delete map[id];
+        changed = true;
+      }
+    }
+    if (changed) {
+      localStorage.setItem(key, JSON.stringify(map));
+    }
+    return active;
+  } catch {
+    return new Set();
+  }
+}
+
+function addPersistentTombstone(kind: 'tx' | 'loan' | 'account' | 'budget', id: string, uid: string) {
+  if (typeof window === 'undefined' || !id) return;
+  const key = `finatle_tombstones_${kind}_${uid}`;
+  try {
+    const raw = localStorage.getItem(key);
+    const map: Record<string, number> = raw ? JSON.parse(raw) : {};
+    map[id] = Date.now();
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+function removePersistentTombstone(kind: 'tx' | 'loan' | 'account' | 'budget', id: string, uid: string) {
+  if (typeof window === 'undefined' || !id) return;
+  const key = `finatle_tombstones_${kind}_${uid}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const map: Record<string, number> = JSON.parse(raw);
+    delete map[id];
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+interface PendingOperation {
+  id: string;
+  type: 'DELETE_TX' | 'DELETE_LOAN' | 'DELETE_ACCOUNT' | 'DELETE_BUDGET';
+  url: string;
+  method: 'DELETE' | 'PUT' | 'POST';
+  payload?: any;
+  timestamp: number;
+}
+
+function getPendingOperations(uid: string): PendingOperation[] {
+  if (typeof window === 'undefined') return [];
+  const key = `finatle_pending_ops_${uid}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const list: PendingOperation[] = JSON.parse(raw);
+    const now = Date.now();
+    const valid = list.filter((op) => now - op.timestamp < 5 * 60 * 1000);
+    if (valid.length !== list.length) {
+      localStorage.setItem(key, JSON.stringify(valid));
+    }
+    return valid;
+  } catch {
+    return [];
+  }
+}
+
+function addPendingOperation(uid: string, op: PendingOperation) {
+  if (typeof window === 'undefined') return;
+  const key = `finatle_pending_ops_${uid}`;
+  try {
+    const list = getPendingOperations(uid).filter((item) => item.id !== op.id);
+    list.push(op);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+function removePendingOperation(uid: string, id: string) {
+  if (typeof window === 'undefined') return;
+  const key = `finatle_pending_ops_${uid}`;
+  try {
+    const list = getPendingOperations(uid).filter((item) => item.id !== id);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
 export function App() {
   const { greeting, timeString, dateString } = useGreeting();
   // Navigation & View state (persisted across refresh and URL back/forward)
@@ -115,15 +221,18 @@ export function App() {
     return Boolean(localStorage.getItem('token'));
   });
 
-  // Financial state strictly from DB
+  // Financial state strictly from DB / Cache, protected against resurrected tombstones
   const [transactions, setTransactions] = useState<TransactionItem[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
       const u = localStorage.getItem('user');
       const uid = u ? JSON.parse(u).uid : 'default';
+      const tombstones = getPersistentTombstones('tx', uid);
       const cached = localStorage.getItem(`finatle_cache_tx_${uid}`);
       const raw: TransactionItem[] = cached ? JSON.parse(cached) : [];
-      return raw.map((t) => ({ ...t, name: cleanSplitText(t.name) }));
+      return raw
+        .filter((t) => !tombstones.has(t.id))
+        .map((t) => ({ ...t, name: cleanSplitText(t.name) }));
     } catch {
       return [];
     }
@@ -133,9 +242,12 @@ export function App() {
     try {
       const u = localStorage.getItem('user');
       const uid = u ? JSON.parse(u).uid : 'default';
+      const tombstones = getPersistentTombstones('loan', uid);
       const cached = localStorage.getItem(`finatle_cache_loans_${uid}`);
       const raw: LoanItem[] = cached ? JSON.parse(cached) : [];
-      return raw.map((l) => ({ ...l, title: cleanSplitText(l.title), subtext: cleanSplitText(l.subtext) }));
+      return raw
+        .filter((l) => !tombstones.has(l.id))
+        .map((l) => ({ ...l, title: cleanSplitText(l.title), subtext: cleanSplitText(l.subtext) }));
     } catch {
       return [];
     }
@@ -145,7 +257,9 @@ export function App() {
     try {
       const u = localStorage.getItem('user');
       const uid = u ? JSON.parse(u).uid : null;
-      return getStoredAccounts(uid);
+      const tombstones = getPersistentTombstones('account', uid || 'default');
+      const stored = getStoredAccounts(uid);
+      return stored.filter((a) => !tombstones.has(a.id) && (!a.aid || !tombstones.has(a.aid)));
     } catch {
       return DEFAULT_ACCOUNTS;
     }
@@ -176,6 +290,11 @@ export function App() {
   const [toast, setToast] = useState<{ message: string; type?: 'error' | 'success' | 'info'; id: number } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRequestRef = useRef(0);
+  
+  const initialUid = user?.uid || (typeof window !== 'undefined' && localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+  const pendingDeletedTxIdsRef = useRef<Set<string>>(getPersistentTombstones('tx', initialUid));
+  const pendingDeletedLoanIdsRef = useRef<Set<string>>(getPersistentTombstones('loan', initialUid));
+  const pendingDeletedAccountIdsRef = useRef<Set<string>>(getPersistentTombstones('account', initialUid));
 
   const showToast = useCallback((message: string, type: 'error' | 'success' | 'info' = 'error') => {
     if (!message) return;
@@ -190,6 +309,31 @@ export function App() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(null);
   }, []);
+
+  // Background sync for interrupted pending operations across page refresh
+  useEffect(() => {
+    if (!token) return;
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+    const pendingOps = getPendingOperations(uid);
+    if (pendingOps.length === 0) return;
+
+    pendingOps.forEach(async (op) => {
+      try {
+        await apiFetch(op.url, {
+          method: op.method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: op.payload ? JSON.stringify(op.payload) : undefined,
+        });
+      } catch {
+        // Idempotent / offline - safely ignored
+      } finally {
+        removePendingOperation(uid, op.id);
+      }
+    });
+  }, [token, user?.uid]);
 
   // Auto detect mobile window size efficiently
   useEffect(() => {
@@ -303,8 +447,12 @@ export function App() {
         if (refreshRequest !== refreshRequestRef.current) return;
         
         const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+        const txTombstones = getPersistentTombstones('tx', uid);
+        const loanTombstones = getPersistentTombstones('loan', uid);
+        const accTombstones = getPersistentTombstones('account', uid);
+        const budgetTombstones = getPersistentTombstones('budget', uid);
 
-        // Transactions strictly from DB (sorted by most recent first)
+        // Transactions strictly from DB / Cache (sorted by most recent first)
         if (data.transactions && Array.isArray(data.transactions)) {
           const sorted = [...data.transactions].sort((a: any, b: any) => {
             const timeA = new Date(a.occurredAt || a.createdAt).getTime();
@@ -313,105 +461,173 @@ export function App() {
             return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
           });
 
-          const mapped: TransactionItem[] = sorted.map((t: any) => ({
-            id: t.tid,
-            name: cleanSplitText(t.description) || t.category || 'Transaction',
-            category: (t.category === 'General' || !t.category) ? 'Groceries' : t.category,
-            date: new Date(t.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            amount: Number(t.amount),
-            type: t.type,
-            accountId: t.accountId || null,
-            items: Array.isArray(t.items)
-              ? t.items.map((it: any) => ({
-                  id: it.id,
-                  name: it.name,
-                  price: Number(it.price) || 0,
-                  quantity: Number(it.quantity) || 1,
-                }))
-              : [],
-          }));
-          setTransactions(mapped);
-          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(mapped));
+          const mapped: TransactionItem[] = sorted
+            .filter((t: any) => 
+              !txTombstones.has(t.tid) && 
+              !txTombstones.has(t.id) && 
+              !pendingDeletedTxIdsRef.current.has(t.tid) && 
+              !pendingDeletedTxIdsRef.current.has(t.id)
+            )
+            .map((t: any) => ({
+              id: t.tid,
+              name: cleanSplitText(t.description) || t.category || 'Transaction',
+              category: (t.category === 'General' || !t.category) ? 'Groceries' : t.category,
+              date: new Date(t.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              amount: Number(t.amount),
+              type: t.type,
+              accountId: t.accountId || null,
+              items: Array.isArray(t.items)
+                ? t.items.map((it: any) => ({
+                    id: it.id,
+                    name: it.name,
+                    price: Number(it.price) || 0,
+                    quantity: Number(it.quantity) || 1,
+                  }))
+                : [],
+            }));
+
+          setTransactions((prev) => {
+            const pendingOptimistic = prev.filter((t) => 
+              t.id.startsWith('temp-') && 
+              !txTombstones.has(t.id) && 
+              !pendingDeletedTxIdsRef.current.has(t.id)
+            );
+            const serverIds = new Set(mapped.map((t) => t.id));
+            const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...mapped];
+            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(merged));
+            return merged;
+          });
         } else {
-          setTransactions([]);
+          setTransactions((prev) => {
+            const pendingOptimistic = prev.filter((t) => 
+              t.id.startsWith('temp-') && 
+              !txTombstones.has(t.id) && 
+              !pendingDeletedTxIdsRef.current.has(t.id)
+            );
+            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(pendingOptimistic));
+            return pendingOptimistic;
+          });
         }
 
-        // Loans & Settlements strictly from DB with paidAmount
+        // Loans & Settlements strictly from DB / Cache with paidAmount
         const mappedLoans: LoanItem[] = [];
         if (data.moneyLent && Array.isArray(data.moneyLent)) {
-          data.moneyLent.forEach((l: any) => {
-            const amount = Number(l.amount);
-            const paid = l.status === 'PAID' ? amount : Number(l.paidAmount || 0);
-            mappedLoans.push({
-              id: l.lid,
-              kind: 'lent',
-              personName: l.personName,
-              title: `You lent to ${l.personName}`,
-              subtext: cleanSplitText(l.description) || 'Personal expense',
-              amount,
-              paidAmount: paid,
-              accountId: l.accountId || null,
-              date: l.lentAt,
-              dueDate: l.dueAt,
-              status: l.status,
-              statusLabel: l.status === 'PAID' ? 'Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
+          data.moneyLent
+            .filter((l: any) => 
+              !loanTombstones.has(l.lid) && 
+              !loanTombstones.has(l.id) && 
+              !pendingDeletedLoanIdsRef.current.has(l.lid) && 
+              !pendingDeletedLoanIdsRef.current.has(l.id)
+            )
+            .forEach((l: any) => {
+              const amount = Number(l.amount);
+              const paid = l.status === 'PAID' ? amount : Number(l.paidAmount || 0);
+              mappedLoans.push({
+                id: l.lid,
+                kind: 'lent',
+                personName: l.personName,
+                title: `You lent to ${l.personName}`,
+                subtext: cleanSplitText(l.description) || 'Personal expense',
+                amount,
+                paidAmount: paid,
+                accountId: l.accountId || null,
+                date: l.lentAt,
+                dueDate: l.dueAt,
+                status: l.status,
+                statusLabel: l.status === 'PAID' ? 'Settled' : l.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to receive',
+              });
             });
-          });
         }
         if (data.moneyBorrowed && Array.isArray(data.moneyBorrowed)) {
-          data.moneyBorrowed.forEach((b: any) => {
-            const amount = Number(b.amount);
-            const paid = b.status === 'PAID' ? amount : Number(b.paidAmount || 0);
-            mappedLoans.push({
-              id: b.bid,
-              kind: 'borrowed',
-              personName: b.personName,
-              title: `You borrowed from ${b.personName}`,
-              subtext: cleanSplitText(b.description) || 'Personal loan',
-              amount,
-              paidAmount: paid,
-              accountId: b.accountId || null,
-              date: b.borrowedAt,
-              dueDate: b.dueAt,
-              status: b.status,
-              statusLabel: b.status === 'PAID' ? 'Settled' : b.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to pay',
+          data.moneyBorrowed
+            .filter((b: any) => 
+              !loanTombstones.has(b.bid) && 
+              !loanTombstones.has(b.id) && 
+              !pendingDeletedLoanIdsRef.current.has(b.bid) && 
+              !pendingDeletedLoanIdsRef.current.has(b.id)
+            )
+            .forEach((b: any) => {
+              const amount = Number(b.amount);
+              const paid = b.status === 'PAID' ? amount : Number(b.paidAmount || 0);
+              mappedLoans.push({
+                id: b.bid,
+                kind: 'borrowed',
+                personName: b.personName,
+                title: `You borrowed from ${b.personName}`,
+                subtext: cleanSplitText(b.description) || 'Personal loan',
+                amount,
+                paidAmount: paid,
+                accountId: b.accountId || null,
+                date: b.borrowedAt,
+                dueDate: b.dueAt,
+                status: b.status,
+                statusLabel: b.status === 'PAID' ? 'Settled' : b.status === 'PARTIAL' ? `Part (₹${paid})` : 'Yet to pay',
+              });
             });
-          });
         }
         if (refreshLoans) {
-          setLoans(mappedLoans);
-          localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(mappedLoans));
+          setLoans((prev) => {
+            const pendingOptimistic = prev.filter((l) => 
+              l.id.startsWith('temp-') && 
+              !loanTombstones.has(l.id) && 
+              !pendingDeletedLoanIdsRef.current.has(l.id)
+            );
+            const serverIds = new Set(mappedLoans.map((l) => l.id));
+            const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...mappedLoans];
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(merged));
+            return merged;
+          });
         }
 
-        // Category Budgets from DB
+        // Category Budgets from DB / Cache
         if (data.budgets && Array.isArray(data.budgets)) {
-          const mappedBudgets: BudgetLimit[] = data.budgets.map((b: any) => ({
-            category: (b.category === 'General' || !b.category) ? 'Groceries' : b.category,
-            limit: Number(b.limit),
-            period: b.period || 'monthly',
-          }));
+          const mappedBudgets: BudgetLimit[] = data.budgets
+            .filter((b: any) => !budgetTombstones.has((b.category || '').toLowerCase()))
+            .map((b: any) => ({
+              category: (b.category === 'General' || !b.category) ? 'Groceries' : b.category,
+              limit: Number(b.limit),
+              period: b.period || 'monthly',
+            }));
           setBudgets(mappedBudgets);
           localStorage.setItem(`finatle_budgets_${uid}`, JSON.stringify(mappedBudgets));
         }
 
-        // Accounts from DB
+        // Accounts from DB / Cache
         if (data.accounts && Array.isArray(data.accounts)) {
-          const mappedAccounts: AccountItem[] = data.accounts.map((a: any) => ({
-            id: a.aid || a.id,
-            aid: a.aid,
-            name: a.name,
-            type: a.type,
-            balance: Number(a.balance ?? a.initialBalance ?? 0),
-            initialBalance: Number(a.initialBalance ?? 0),
-            color: a.color || '#3b82f6',
-            accountNumber: a.accountNumber || undefined,
-            institution: a.institution || undefined,
-            isDefault: Boolean(a.isDefault),
-            createdAt: a.createdAt,
-            updatedAt: a.updatedAt,
-          }));
-          setAccounts(mappedAccounts);
-          saveStoredAccounts(mappedAccounts, uid);
+          const mappedAccounts: AccountItem[] = data.accounts
+            .filter((a: any) => 
+              !accTombstones.has(a.aid) && 
+              !accTombstones.has(a.id) && 
+              !pendingDeletedAccountIdsRef.current.has(a.aid) && 
+              !pendingDeletedAccountIdsRef.current.has(a.id)
+            )
+            .map((a: any) => ({
+              id: a.aid || a.id,
+              aid: a.aid,
+              name: a.name,
+              type: a.type,
+              balance: Number(a.balance ?? a.initialBalance ?? 0),
+              initialBalance: Number(a.initialBalance ?? 0),
+              color: a.color || '#3b82f6',
+              accountNumber: a.accountNumber || undefined,
+              institution: a.institution || undefined,
+              isDefault: Boolean(a.isDefault),
+              createdAt: a.createdAt,
+              updatedAt: a.updatedAt,
+            }));
+
+          setAccounts((prev) => {
+            const pendingOptimistic = prev.filter((a) => 
+              (a.id.startsWith('temp-') || (a.aid && a.aid.startsWith('temp-'))) && 
+              !accTombstones.has(a.id) && 
+              (!a.aid || !accTombstones.has(a.aid)) &&
+              !pendingDeletedAccountIdsRef.current.has(a.id)
+            );
+            const serverIds = new Set(mappedAccounts.map((a) => a.id || a.aid));
+            const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...mappedAccounts];
+            saveStoredAccounts(merged, uid);
+            return merged;
+          });
         }
       }
     } catch {
@@ -420,10 +636,33 @@ export function App() {
   };
 
   const handleAuthSuccess = (authUser: any, authToken: string) => {
+    const uid = authUser?.uid || 'default';
     setUser(authUser);
     setToken(authToken);
+    setSelectedAccountId('ALL');
     localStorage.setItem('token', authToken);
     localStorage.setItem('user', JSON.stringify(authUser));
+    localStorage.setItem('finatle_selected_account', 'ALL');
+    localStorage.setItem(`finatle_selected_account_${uid}`, 'ALL');
+
+    // Instantly hydrate cached records for this user if available
+    const cachedTx = localStorage.getItem(`finatle_cache_tx_${uid}`);
+    if (cachedTx) {
+      try {
+        setTransactions(JSON.parse(cachedTx));
+      } catch {}
+    }
+    const cachedLoans = localStorage.getItem(`finatle_cache_loans_${uid}`);
+    if (cachedLoans) {
+      try {
+        setLoans(JSON.parse(cachedLoans));
+      } catch {}
+    }
+    const cachedAccounts = getStoredAccounts(uid);
+    if (cachedAccounts && cachedAccounts.length > 0) {
+      setAccounts(cachedAccounts);
+    }
+
     fetchUserData(authToken);
   };
 
@@ -500,8 +739,14 @@ export function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('finatle_active_tab');
+    localStorage.removeItem('finatle_selected_account');
+    if (user?.uid) {
+      localStorage.removeItem(`finatle_selected_account_${user.uid}`);
+    }
     setUser(null);
     setToken(null);
+    setSelectedAccountId('ALL');
+    setAccounts(DEFAULT_ACCOUNTS);
     setTransactions([]);
     setLoans([]);
     setBudgets([]);
@@ -511,7 +756,7 @@ export function App() {
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', window.location.pathname);
     }
-  }, [scrollToTop]);
+  }, [user?.uid, scrollToTop]);
 
   const saveBudget = useCallback(async (budget: BudgetLimit) => {
     const updatedCategory = (budget.category === 'General' || !budget.category) ? 'Groceries' : budget.category;
@@ -548,6 +793,16 @@ export function App() {
 
   const deleteBudget = useCallback(async (category: string) => {
     const targetCategory = (category === 'General' || !category) ? 'Groceries' : category;
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+
+    addPersistentTombstone('budget', targetCategory.toLowerCase(), uid);
+    addPendingOperation(uid, {
+      id: `budget-${targetCategory.toLowerCase()}`,
+      type: 'DELETE_BUDGET',
+      url: `/api/finance/budgets/${encodeURIComponent(targetCategory)}`,
+      method: 'DELETE',
+      timestamp: Date.now(),
+    });
 
     setBudgets((previous) => {
       const next = previous.filter((item) => item.category.toLowerCase() !== targetCategory.toLowerCase());
@@ -565,6 +820,7 @@ export function App() {
             Authorization: `Bearer ${token}`,
           },
         });
+        removePendingOperation(uid, `budget-${targetCategory.toLowerCase()}`);
       } catch (err) {
         console.warn('[Budget] Failed to delete budget from database:', err);
       }
@@ -640,6 +896,32 @@ export function App() {
   }, [accounts, token, user?.uid, showToast]);
 
   const handleDeleteAccount = useCallback(async (accountId: string) => {
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
+    const targetAcc = accounts.find((a) => a.id === accountId || a.aid === accountId);
+    if (accounts.length <= 1) {
+      showToast('Cannot delete your only account', 'error');
+      return;
+    }
+
+    addPersistentTombstone('account', accountId, uid);
+    addPendingOperation(uid, {
+      id: accountId,
+      type: 'DELETE_ACCOUNT',
+      url: `/api/finance/accounts/${accountId}`,
+      method: 'DELETE',
+      timestamp: Date.now(),
+    });
+    pendingDeletedAccountIdsRef.current.add(accountId);
+
+    setAccounts((prev) => {
+      const updated = prev.filter((a) => a.id !== accountId && a.aid !== accountId);
+      if (updated.length > 0 && !updated.some((a) => a.isDefault)) {
+        updated[0].isDefault = true;
+      }
+      saveStoredAccounts(updated, uid);
+      return updated;
+    });
+
     if (token) {
       try {
         const res = await apiFetch(`/api/finance/accounts/${accountId}`, {
@@ -650,28 +932,23 @@ export function App() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.message || data.error || 'Failed to delete account');
         }
+        removePendingOperation(uid, accountId);
         await fetchUserData(token);
         showToast('Account deleted', 'success');
       } catch (err: any) {
+        removePersistentTombstone('account', accountId, uid);
+        removePendingOperation(uid, accountId);
+        pendingDeletedAccountIdsRef.current.delete(accountId);
+        if (targetAcc) {
+          setAccounts((prev) => prev.some((a) => a.id === targetAcc.id || a.aid === targetAcc.id) ? prev : [...prev, targetAcc]);
+        }
         showToast(err.message || 'Failed to delete account', 'error');
       }
     } else {
-      setAccounts((prev) => {
-        if (prev.length <= 1) {
-          showToast('Cannot delete your only account', 'error');
-          return prev;
-        }
-        const updated = prev.filter((a) => a.id !== accountId && a.aid !== accountId);
-        if (!updated.some((a) => a.isDefault)) {
-          updated[0].isDefault = true;
-        }
-        const uid = user?.uid || null;
-        saveStoredAccounts(updated, uid);
-        return updated;
-      });
+      removePendingOperation(uid, accountId);
       showToast('Account deleted', 'success');
     }
-  }, [token, user?.uid, showToast]);
+  }, [accounts, token, user?.uid, showToast]);
 
   const handleAddRecordSuccess = useCallback(async (payload?: { kind: string; apiPayload?: any; optimisticData?: any; splitData?: any }) => {
     if (!payload) {
@@ -947,14 +1224,26 @@ export function App() {
     const prevLoans = loans;
 
     if (action.type === 'delete' && action.originalId) {
+      const deleteId = action.originalId;
+      addPersistentTombstone('tx', deleteId, uid);
+      addPendingOperation(uid, {
+        id: deleteId,
+        type: 'DELETE_TX',
+        url: `/api/finance/transactions/${deleteId}`,
+        method: 'DELETE',
+        timestamp: Date.now(),
+      });
+      pendingDeletedTxIdsRef.current.add(deleteId);
+      const targetTx = transactions.find((t) => t.id === deleteId);
+
       setTransactions((prev) => {
-        const updated = prev.filter((t) => t.id !== action.originalId);
+        const updated = prev.filter((t) => t.id !== deleteId);
         localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
         return updated;
       });
 
       if (token) {
-        apiFetch(`/api/finance/transactions/${action.originalId}`, {
+        apiFetch(`/api/finance/transactions/${deleteId}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -963,14 +1252,21 @@ export function App() {
               const data = await res.json().catch(() => ({}));
               throw new Error(data.message || data.error || 'Failed to delete transaction.');
             }
+            removePendingOperation(uid, deleteId);
             fetchUserData(token, false);
           })
           .catch((err) => {
             console.error('[Optimistic] Delete transaction failed, reverting:', err);
-            setTransactions(prevTransactions);
-            localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
+            removePersistentTombstone('tx', deleteId, uid);
+            removePendingOperation(uid, deleteId);
+            pendingDeletedTxIdsRef.current.delete(deleteId);
+            if (targetTx) {
+              setTransactions((prev) => prev.some((t) => t.id === targetTx.id) ? prev : [targetTx, ...prev]);
+            }
             showToast(err.message || 'Failed to delete transaction. Reverted.', 'error');
           });
+      } else {
+        removePendingOperation(uid, deleteId);
       }
     } else if (action.type === 'update' && action.data && action.originalId) {
       const updatedData = action.data;
@@ -990,6 +1286,7 @@ export function App() {
             description: updatedData.name,
             category: updatedData.category,
             accountId: updatedData.accountId,
+            items: updatedData.items,
           }),
         })
           .then(async (res) => {
@@ -1157,17 +1454,33 @@ export function App() {
     const prevLoans = loans;
 
     if (action.type === 'delete' && action.originalId) {
-      const targetLoan = prevLoans.find((l) => l.id === action.originalId);
+      const deleteId = action.originalId;
+      addPersistentTombstone('loan', deleteId, uid);
+      const targetLoan = loans.find((l) => l.id === deleteId);
+      if (targetLoan) {
+        const endpoint = targetLoan.kind === 'borrowed'
+          ? `/api/finance/borrowed/${deleteId}`
+          : `/api/finance/lent/${deleteId}`;
+        addPendingOperation(uid, {
+          id: deleteId,
+          type: 'DELETE_LOAN',
+          url: endpoint,
+          method: 'DELETE',
+          timestamp: Date.now(),
+        });
+      }
+      pendingDeletedLoanIdsRef.current.add(deleteId);
+
       setLoans((prev) => {
-        const updated = prev.filter((l) => l.id !== action.originalId);
+        const updated = prev.filter((l) => l.id !== deleteId);
         localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
         return updated;
       });
 
       if (token && targetLoan) {
         const endpoint = targetLoan.kind === 'borrowed'
-          ? `/api/finance/borrowed/${action.originalId}`
-          : `/api/finance/lent/${action.originalId}`;
+          ? `/api/finance/borrowed/${deleteId}`
+          : `/api/finance/lent/${deleteId}`;
 
         apiFetch(endpoint, {
           method: 'DELETE',
@@ -1178,14 +1491,21 @@ export function App() {
               const data = await res.json().catch(() => ({}));
               throw new Error(data.message || data.error || 'Failed to delete loan.');
             }
+            removePendingOperation(uid, deleteId);
             fetchUserData(token, false);
           })
           .catch((err) => {
             console.error('[Optimistic] Delete loan failed, reverting:', err);
-            setLoans(prevLoans);
-            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
+            removePersistentTombstone('loan', deleteId, uid);
+            removePendingOperation(uid, deleteId);
+            pendingDeletedLoanIdsRef.current.delete(deleteId);
+            if (targetLoan) {
+              setLoans((prev) => prev.some((l) => l.id === targetLoan.id) ? prev : [targetLoan, ...prev]);
+            }
             showToast(err.message || 'Failed to delete loan. Reverted.', 'error');
           });
+      } else {
+        removePendingOperation(uid, deleteId);
       }
     } else if (action.type === 'update' && action.data && action.originalId) {
       const updatedData = action.data;
@@ -1282,6 +1602,7 @@ export function App() {
     const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
     const tempTxId = `temp-scan-tx-${Date.now()}`;
     const todayFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const targetAccountId = scanned.accountId || (selectedAccountId !== 'ALL' ? selectedAccountId : undefined);
 
     try {
       if (scanned.mode === 'SPLIT' && scanned.splitDetails) {
@@ -1294,6 +1615,7 @@ export function App() {
             date: todayFormatted,
             amount: scanned.splitDetails.userShare,
             type: 'EXPENSE',
+            accountId: targetAccountId,
             items: scanned.items,
           };
           setTransactions((prev) => {
@@ -1314,6 +1636,7 @@ export function App() {
               description: scanned.name,
               category: scanned.category,
               occurredAt: scanned.date,
+              accountId: targetAccountId,
               items: scanned.items,
             }),
           })
@@ -1332,6 +1655,7 @@ export function App() {
                   date: todayFormatted,
                   amount: Number(data.transaction.amount ?? scanned.splitDetails?.userShare),
                   type: 'EXPENSE',
+                  accountId: data.transaction.accountId || targetAccountId,
                   items: data.transaction.items || scanned.items,
                 };
                 setTransactions((prev) => {
@@ -1366,6 +1690,7 @@ export function App() {
             date: new Date().toISOString(),
             status: 'PENDING',
             statusLabel: 'Yet to receive',
+            accountId: targetAccountId,
           }));
 
           setLoans((prev) => {
@@ -1387,6 +1712,7 @@ export function App() {
                   amount: entry.amount,
                   description: entry.description || `${scanned.name} split`,
                   lentAt: scanned.date,
+                  accountId: targetAccountId,
                 }),
               }).then(async (res) => {
                 if (!res.ok) {
@@ -1399,7 +1725,7 @@ export function App() {
                   const tempId = optimisticLoans[idx]?.id;
                   if (tempId && realId) {
                     setLoans((prev) => {
-                      const updated = prev.map((l) => (l.id === tempId ? { ...l, id: realId } : l));
+                      const updated = prev.map((l) => (l.id === tempId ? { ...l, id: realId, accountId: data.loan.accountId || targetAccountId } : l));
                       localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
                       return updated;
                     });
@@ -1430,6 +1756,7 @@ export function App() {
             date: new Date().toISOString(),
             status: 'PENDING',
             statusLabel: 'Yet to receive',
+            accountId: targetAccountId,
           };
 
           setLoans((prev) => {
@@ -1449,6 +1776,7 @@ export function App() {
               amount: scanned.splitDetails.lentAmount,
               description: scanned.splitDetails.description,
               lentAt: scanned.date,
+              accountId: targetAccountId,
             }),
           })
             .then(async (res) => {
@@ -1470,6 +1798,7 @@ export function App() {
                   date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : new Date().toISOString(),
                   status: 'PENDING',
                   statusLabel: 'Yet to receive',
+                  accountId: data.loan.accountId || targetAccountId,
                 };
                 setLoans((prev) => {
                   const updated = prev.map((l) => (l.id === singleLoanId ? realLoan : l));
@@ -1499,6 +1828,7 @@ export function App() {
           date: todayFormatted,
           amount: scanned.amount,
           type: directType,
+          accountId: targetAccountId,
           items: scanned.items,
         };
 
@@ -1521,6 +1851,7 @@ export function App() {
             description: scanned.name,
             category: scanned.category,
             occurredAt: scanned.date,
+            accountId: targetAccountId,
             items: scanned.items,
           }),
         })
@@ -1539,6 +1870,7 @@ export function App() {
                 date: todayFormatted,
                 amount: Number(data.transaction.amount),
                 type: directType,
+                accountId: data.transaction.accountId || targetAccountId,
                 items: data.transaction.items || scanned.items,
               };
               setTransactions((prev) => {
@@ -1563,7 +1895,7 @@ export function App() {
       console.error('Failed to process scanned bill:', err);
       showToast(err.message || 'Failed to process scanned bill.', 'error');
     }
-  }, [token, user, showToast]);
+  }, [token, user, selectedAccountId, showToast, fetchUserData]);
 
   // Filter transactions strictly by selected account (if not 'ALL')
   const accountTransactions = useMemo(() => {
@@ -1883,6 +2215,8 @@ export function App() {
           isOpen={isScannerOpen}
           onClose={handleCloseScanner}
           token={token}
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
           onConfirmBill={handleConfirmScannedBill}
         />
 
@@ -2154,6 +2488,8 @@ export function App() {
         isOpen={isScannerOpen}
         onClose={handleCloseScanner}
         token={token}
+        accounts={accounts}
+        selectedAccountId={selectedAccountId}
         onConfirmBill={handleConfirmScannedBill}
       />
 

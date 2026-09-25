@@ -5,6 +5,7 @@ import { CreateTransactionDto, UpdateTransactionDto } from '../types/finance.typ
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseAmount, sanitizeString } from '../utils/parsers';
 import { cacheService } from './cacheService';
+import { FinanceService } from './financeService';
 
 export class TransactionService {
   /**
@@ -102,6 +103,7 @@ export class TransactionService {
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
+    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return result;
   }
@@ -190,6 +192,25 @@ export class TransactionService {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // Update line items breakdown if provided in dto
+      if (Array.isArray(dto.items)) {
+        await tx.transactionItem.deleteMany({
+          where: { transactionId: existing.tid },
+        });
+
+        const validItems = dto.items.filter((it) => it && (it.name || Number(it.price) > 0));
+        if (validItems.length > 0) {
+          await tx.transactionItem.createMany({
+            data: validItems.map((it) => ({
+              transactionId: existing.tid,
+              name: sanitizeString(it.name) || 'Item',
+              price: new Prisma.Decimal(parseAmount(it.price) || 0),
+              quantity: it.quantity && Number(it.quantity) > 0 ? Number(it.quantity) : 1,
+            })),
+          });
+        }
+      }
+
       const transaction = await tx.transaction.update({
         where: { tid: existing.tid },
         data: {
@@ -229,6 +250,7 @@ export class TransactionService {
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
+    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return result;
   }
@@ -239,12 +261,17 @@ export class TransactionService {
   static async deleteTransaction(userId: string | undefined, transactionId: string) {
     if (!userId) throw new UnauthorizedError();
 
+    // Invalidate cache immediately to prevent concurrent refresh from reading stale summary
+    await cacheService.delete(`accounts:${userId}`);
+    await cacheService.invalidateUserFinance(userId);
+
     const existing = await prisma.transaction.findFirst({
       where: { tid: transactionId, uid: userId },
     });
 
     if (!existing) {
-      throw new NotFoundError('Transaction not found');
+      // Idempotent: already deleted or not found
+      return { message: 'Transaction deleted successfully' };
     }
 
     const reverseImpact = existing.type === 'INCOME' ? -Number(existing.amount) : Number(existing.amount);
@@ -271,6 +298,7 @@ export class TransactionService {
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
+    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return { message: 'Transaction deleted successfully' };
   }

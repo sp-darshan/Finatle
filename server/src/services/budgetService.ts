@@ -27,7 +27,7 @@ export class BudgetService {
       updatedAt: b.updatedAt.toISOString(),
     }));
 
-    await cacheService.set(cacheKey, result, 60 * 1000);
+    await cacheService.set(cacheKey, result, 60);
     return result;
   }
 

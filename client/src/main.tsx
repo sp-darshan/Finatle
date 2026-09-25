@@ -26,6 +26,18 @@ if ('serviceWorker' in navigator) {
   }
 }
 
+// Prevent mouse wheel from inadvertently changing values in number/amount inputs
+window.addEventListener(
+  'wheel',
+  () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement && active.type === 'number') {
+      active.blur();
+    }
+  },
+  { passive: true }
+);
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

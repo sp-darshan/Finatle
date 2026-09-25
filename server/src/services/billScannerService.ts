@@ -100,137 +100,108 @@ export class BillScannerService {
     const MODEL = 'gemini-3.5-flash-lite';
 
     const prompt = `
-You are a receipt and bill validation and extraction system.
+You are an expert receipt, bill, and invoice extraction and validation engine.
 
 Your task has TWO stages:
 
 STAGE 1 — VALIDATE THE INPUT
 
-Determine whether the provided image/text is a genuine bill, invoice, receipt, purchase receipt, restaurant bill, supermarket bill, fuel receipt, shopping receipt, utility bill, or another legitimate transaction document.
+Determine whether the provided image/text is a genuine bill, invoice, receipt, purchase receipt, restaurant check/KOT, supermarket bill, grocery slip, fuel receipt, shopping receipt, utility bill, pharmacy bill, or another legitimate transaction document.
 
-A valid bill should contain meaningful transaction-related information such as:
+A valid bill must contain transaction-related information such as:
 - Merchant/store/business name
-- Purchased goods or services
-- Transaction amount/total
-- Receipt or invoice information
-- Date or transaction details
-- Tax/payment information
-- Itemized purchase information
+- Purchased goods, services, or line items
+- Total transaction amount
+- Date or invoice details
+- Tax/item breakdown
 
 INVALID examples:
-- Selfies
-- Human photographs
-- Animals
-- Landscapes
-- Screenshots unrelated to purchases
-- Random documents
-- Blank images
-- Completely unreadable images
-- Advertisements
-- Product photographs without transaction information
-- Menus without a transaction
-- Text that is not a bill or receipt
+- Selfies, human portraits, landscapes, random photos
+- Screenshots unrelated to financial purchases
+- Blank or unreadable images
+- Catalogs, advertisements, or menu cards without an actual purchase transaction
+- Text that is not a transaction bill or receipt
 
 If the input is NOT a bill or receipt, return:
-
 {
   "validBill": false
 }
 
-Do not extract or invent receipt information for an invalid bill.
+STAGE 2 — EXTRACT TRANSACTION DATA
 
-STAGE 2 — EXTRACT DATA
-
-Only if the input is a valid bill/receipt, extract the following:
-
+If the input is a valid bill/receipt, extract the data in this exact JSON structure:
 {
   "validBill": true,
-  "merchant": "string",
-  "amount": 0,
+  "merchant": "Merchant / Store Name",
+  "amount": 0.00,
   "category": "Dining",
+  "date": "YYYY-MM-DD",
   "items": [
     {
-      "name": "string",
-      "price": 0,
-      "quantity": 1
+      "name": "Item or Service Name",
+      "quantity": 1,
+      "price": 0.00
     }
   ],
-  "tax": 0,
-  "tip": 0,
-  "note": "string"
+  "tax": 0.00,
+  "tip": 0.00,
+  "note": "Optional note"
 }
 
-RULES:
+CRITICAL RULES FOR EXTRACTION:
 
-1. Extract information ONLY from the provided bill/receipt.
+1. MERCHANT NAME:
+   - Must be the actual merchant/store/business name visible at the top or header of the receipt.
 
-2. NEVER invent, guess, or fabricate information.
+2. TOTAL AMOUNT:
+   - "amount" MUST be the final total payable transaction amount (Net Payable / Grand Total / Total) in numeric format.
 
-3. Do NOT use default values.
+3. ITEMS, QUANTITY & COST EXTRACTION (CRITICAL):
+   - Extract EVERY individual product, dish, service, or line item purchased.
+   - "name": Clean, concise product or service name (e.g. "Cappuccino", "Whole Wheat Bread", "Paneer Tikka", "Petrol 10L").
+   - "quantity": The exact numeric count, units, or multiplier of that item purchased (e.g. 1, 2, 3, 5, 1.5).
+     * Carefully inspect receipt columns for "Qty", "Quantity", "PCS", "Nos", "Units", or multipliers like "2 x 150.00" or "@ 150".
+     * If 3 units of an item are bought, "quantity" MUST be 3.
+     * Default "quantity" to 1 only if no specific count/multiplier is visible.
+   - "price": The UNIT COST / price per single item (e.g., if 2 items cost 300 in total, the unit price is 150.00).
+     * If the receipt shows unit rate (e.g. "Rate: 150, Qty: 2, Amt: 300"), set "price": 150.00 and "quantity": 2.
+     * If the receipt only shows the total line amount (e.g. "2 Coffee 400.00"), calculate the unit price: 400 / 2 = 200.00.
+     * "price" must always be a positive numeric value representing the single-item cost.
 
-4. merchant must be the actual merchant/store/business name visible on the receipt.
+4. CATEGORY:
+   - Must be one of:
+     Dining, Food & Dining, Groceries, Shopping, Travel, Entertainment, Utilities, Rent, Health, Medical, Personal, Other.
 
-5. amount must be the final payable transaction amount shown on the receipt.
+5. DATE:
+   - Extract the purchase date in YYYY-MM-DD format if visible, otherwise omit or use current date.
 
-6. items must contain the actual purchased products/services visible on the receipt.
+6. RETURN FORMAT:
+   - Return ONLY raw valid JSON. No markdown code blocks, no backticks, no explanations.
 
-9. price must be the actual item price.
-
-10. quantity should be included only when it can be determined from the receipt.
-
-11. tax should be included only when tax/GST/VAT is visible.
-
-12. tip should be included only when tip/service charge is visible.
-
-13. note should contain useful additional transaction information only when present.
-
-14. category MUST be one of:
-   - Dining
-   - Shopping
-   - Rent
-   - Travel
-   - Entertainment
-   - Utilities
-   - Health
-   - Medical
-   - Groceries
-   - Personal
-   - Other
-
-15. If a required field cannot be reliably determined from a valid bill, set:
-   "validBill": false
-
-16. Do not treat a menu, catalog, price list, advertisement, or product image as a bill.
-
-17. Do not treat an ordinary text document as a bill unless it clearly represents a transaction.
-
-18. Return ONLY valid JSON.
-
-19. Do NOT wrap the JSON in markdown.
-
-20. Do NOT include explanations outside the JSON.
-
-VALID BILL EXAMPLE:
-
+VALID RECEIPT EXAMPLE:
 {
   "validBill": true,
-  "merchant": "ABC Supermarket",
-  "amount": 1250,
-  "category": "Groceries",
-  "date": "2026-09-18",
+  "merchant": "Urban Cafe & Bakery",
+  "amount": 540.00,
+  "category": "Dining",
+  "date": "2026-09-20",
   "items": [
     {
-      "name": "Milk",
-      "price": 60,
-      "quantity": 2
+      "name": "Cappuccino",
+      "quantity": 2,
+      "price": 180.00
+    },
+    {
+      "name": "Almond Croissant",
+      "quantity": 1,
+      "price": 150.00
     }
   ],
-  "tax": 60,
+  "tax": 30.00,
   "tip": 0
 }
 
-INVALID BILL EXAMPLE:
-
+INVALID EXAMPLE:
 {
   "validBill": false
 }
@@ -433,37 +404,31 @@ INVALID BILL EXAMPLE:
             );
           }
 
-          if (
-            item.price === undefined ||
-            item.price === null ||
-            typeof item.price !== 'number' ||
-            !Number.isFinite(item.price)
-          ) {
+          const parsedPrice =
+            typeof item.price === 'number'
+              ? item.price
+              : typeof item.price === 'string'
+              ? parseFloat(item.price.replace(/[^0-9.-]+/g, ''))
+              : NaN;
+
+          if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
             throw new Error(
               'Invalid bill: One or more item prices could not be identified.'
             );
           }
 
+          const parsedQty =
+            item.quantity !== undefined && item.quantity !== null
+              ? typeof item.quantity === 'number'
+                ? item.quantity
+                : parseFloat(String(item.quantity).replace(/[^0-9.-]+/g, ''))
+              : 1;
+
           const result: ScannedBillItem = {
             name: item.name.trim(),
-            price: item.price,
+            price: parsedPrice,
+            quantity: Number.isFinite(parsedQty) && parsedQty > 0 ? parsedQty : 1,
           };
-
-          if (
-            item.quantity !== undefined &&
-            item.quantity !== null
-          ) {
-            if (
-              typeof item.quantity !== 'number' ||
-              !Number.isFinite(item.quantity)
-            ) {
-              throw new Error(
-                'Invalid bill: Invalid item quantity detected.'
-              );
-            }
-
-            result.quantity = item.quantity;
-          }
 
           return result;
         });

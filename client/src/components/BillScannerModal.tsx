@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ScanBillIcon, CategoryBadge, UsersGroupIcon, MinusIcon, PlusIcon } from './Icons';
-import { LuUpload, LuCamera, LuCheck, LuPlus, LuTrash2, LuUser, LuX, LuUsers, LuPenLine } from 'react-icons/lu';
+import { LuUpload, LuCamera, LuCheck, LuPlus, LuTrash2, LuUser, LuX, LuUsers, LuPenLine, LuWallet } from 'react-icons/lu';
 import { CategoryPicker } from './CategoryPicker';
+import { CustomDropdown } from './CustomDropdown';
 import { formatRupee } from '../lib/formatters';
 import { apiFetch } from '../lib/api';
+import type { AccountItem } from '../types/account.types';
 
 export interface CustomLentPerson {
   id: string;
@@ -17,6 +19,7 @@ export interface ScannedBillPayload {
   category: string;
   amount: number;
   date?: string;
+  accountId?: string;
   items?: Array<{ id?: string; name: string; price: number; quantity?: number }>;
   splitDetails?: {
     peopleCount: number;
@@ -36,6 +39,8 @@ interface BillScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   token?: string | null;
+  accounts?: AccountItem[];
+  selectedAccountId?: string | 'ALL';
   onConfirmBill: (payload: ScannedBillPayload) => Promise<void> | void;
 }
 
@@ -43,12 +48,34 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
   isOpen,
   onClose,
   token,
+  accounts = [],
+  selectedAccountId = 'ALL',
   onConfirmBill,
 }) => {
   const [scanning, setScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const isSpecificAccount = Boolean(selectedAccountId && selectedAccountId !== 'ALL');
+  const [modalAccountId, setModalAccountId] = useState<string>(() => {
+    if (isSpecificAccount) return selectedAccountId as string;
+    const defaultAcc = accounts.find((a) => a.isDefault) || accounts[0];
+    return defaultAcc ? (defaultAcc.aid || defaultAcc.id || '') : '';
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (isSpecificAccount) {
+      setModalAccountId(selectedAccountId as string);
+    } else if (accounts.length > 0) {
+      setModalAccountId((prev) => {
+        if (prev && accounts.some((a) => (a.aid || a.id) === prev)) return prev;
+        const defaultAcc = accounts.find((a) => a.isDefault) || accounts[0];
+        return defaultAcc ? (defaultAcc.aid || defaultAcc.id || '') : '';
+      });
+    }
+  }, [isOpen, selectedAccountId, isSpecificAccount, accounts]);
 
   // Scanned result state
   const [scannedResult, setScannedResult] = useState<{
@@ -58,6 +85,10 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     date: string;
     items: Array<{ name: string; price: number; quantity?: number }>;
   } | null>(null);
+
+  // Editable line items breakdown
+  const [items, setItems] = useState<Array<{ name: string; price: number; quantity?: number }>>([]);
+  const [isEditingItems, setIsEditingItems] = useState(false);
 
   // Editable bill fields
   const [merchantName, setMerchantName] = useState('');
@@ -94,6 +125,8 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
 
   const resetForm = () => {
     setScannedResult(null);
+    setItems([]);
+    setIsEditingItems(false);
     setMerchantName('');
     setTotalAmount('');
     setCategory('Dining');
@@ -165,6 +198,34 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     );
   };
 
+  const handleUpdateItem = (idx: number, field: 'name' | 'price' | 'quantity', val: any) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        if (field === 'price') {
+          const p = parseFloat(val);
+          return { ...item, price: isNaN(p) ? 0 : p };
+        }
+        if (field === 'quantity') {
+          const q = parseInt(val, 10);
+          return { ...item, quantity: isNaN(q) || q < 1 ? 1 : q };
+        }
+        return { ...item, [field]: val };
+      })
+    );
+  };
+
+  const handleRemoveItem = (idx: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleAddItem = () => {
+    setItems((prev) => [...prev, { name: '', price: 0, quantity: 1 }]);
+    setIsEditingItems(true);
+  };
+
+
+
   const handleSetScanData = (data: {
     merchant: string;
     amount: number;
@@ -173,13 +234,16 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     items?: Array<{ name: string; price: number; quantity?: number }>;
   }) => {
     const today = new Date().toISOString().split('T')[0];
+    const initialItems = data.items || [];
     setScannedResult({
       merchant: data.merchant || 'Store Bill',
       amount: data.amount || 0,
       category: data.category || 'Dining',
       date: today,
-      items: data.items || [],
+      items: initialItems,
     });
+    setItems(initialItems);
+    setIsEditingItems(false);
     setMerchantName(data.merchant || 'Store Bill');
     setTotalAmount(String(data.amount || ''));
     setCategory(data.category || 'Dining');
@@ -309,6 +373,8 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
     try {
       const finalCategory = category === 'Other' && otherCategory.trim() ? otherCategory.trim() : category;
 
+      const effectiveAccountId = isSpecificAccount ? (selectedAccountId as string) : modalAccountId;
+
       if (recordMode === 'SPLIT') {
         if (splitType === 'CUSTOM') {
           const validPeople = customPeople
@@ -331,13 +397,22 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
             return;
           }
 
+          const validItems = items
+            .filter((it) => it.name.trim() || Number(it.price) > 0)
+            .map((it) => ({
+              name: it.name.trim() || 'Item',
+              price: Number(it.price) || 0,
+              quantity: Number(it.quantity) || 1,
+            }));
+
           await onConfirmBill({
             mode: 'SPLIT',
             name: merchantName.trim(),
             category: finalCategory,
             amount: parsedTotal,
             date: billDate,
-            items: scannedResult?.items || [],
+            accountId: effectiveAccountId || undefined,
+            items: validItems,
             splitDetails: {
               peopleCount: validPeople.length + 1,
               userShare: computedUserShare,
@@ -354,13 +429,22 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
             description: `${merchantName.trim()} split`,
           }));
 
+          const validItems = items
+            .filter((it) => it.name.trim() || Number(it.price) > 0)
+            .map((it) => ({
+              name: it.name.trim() || 'Item',
+              price: Number(it.price) || 0,
+              quantity: Number(it.quantity) || 1,
+            }));
+
           await onConfirmBill({
             mode: 'SPLIT',
             name: merchantName.trim(),
             category: finalCategory,
             amount: parsedTotal,
             date: billDate,
-            items: scannedResult?.items || [],
+            accountId: effectiveAccountId || undefined,
+            items: validItems,
             splitDetails: {
               peopleCount: peopleCount,
               userShare: computedUserShare,
@@ -372,13 +456,22 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
           });
         }
       } else {
+        const validItems = items
+          .filter((it) => it.name.trim() || Number(it.price) > 0)
+          .map((it) => ({
+            name: it.name.trim() || 'Item',
+            price: Number(it.price) || 0,
+            quantity: Number(it.quantity) || 1,
+          }));
+
         await onConfirmBill({
           mode: recordMode,
           name: merchantName.trim(),
           category: finalCategory,
           amount: parsedTotal,
           date: billDate,
-          items: scannedResult?.items || [],
+          accountId: effectiveAccountId || undefined,
+          items: validItems,
         });
       }
       resetForm();
@@ -563,25 +656,149 @@ export const BillScannerModal: React.FC<BillScannerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Line Items List (if available) */}
-                {scannedResult.items && scannedResult.items.length > 0 && (
-                  <div style={{ marginTop: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem' }}>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.3rem' }}>
-                      ITEMIZED BREAKDOWN ({scannedResult.items.length} items):
+                {/* Itemized Line Items Breakdown */}
+                <div style={{ marginTop: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                      Itemized Breakdown ({items.length} {items.length === 1 ? 'item' : 'items'})
                     </div>
-                    <div style={{ maxHeight: '120px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      {scannedResult.items.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#475569', gap: '0.5rem', minWidth: 0 }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }} title={item.name}>
-                            • {item.name}
-                          </span>
-                          <span style={{ fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatRupee(item.price)}</span>
-                        </div>
-                      ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        style={{
+                          background: isEditingItems ? '#ecfdf5' : '#f1f5f9',
+                          border: isEditingItems ? '1px solid #a7f3d0' : '1px solid #e2e8f0',
+                          color: isEditingItems ? '#047857' : 'var(--text-secondary, #475569)',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '9999px',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onClick={() => setIsEditingItems((prev) => !prev)}
+                      >
+                        <LuPenLine size={12} /> {isEditingItems ? 'Done' : 'Edit Items'}
+                      </button>
                     </div>
                   </div>
-                )}
+
+                  {isEditingItems ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingRight: '0.2rem' }}>
+                        {items.map((item, idx) => (
+                          <div key={idx} className="receipt-item-row">
+                            <input
+                              type="text"
+                              placeholder={`Item ${idx + 1} name`}
+                              className="receipt-item-input"
+                              value={item.name}
+                              onChange={(e) => handleUpdateItem(idx, 'name', e.target.value)}
+                            />
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Qty"
+                              className="receipt-item-input"
+                              style={{ textAlign: 'center', padding: '0.38rem 0.25rem' }}
+                              value={item.quantity || 1}
+                              onChange={(e) => handleUpdateItem(idx, 'quantity', e.target.value)}
+                              title="Quantity"
+                            />
+                            <div style={{ position: 'relative' }}>
+                              <span style={{ position: 'absolute', left: '0.45rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 700 }}>
+                                ₹
+                              </span>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                placeholder="Price"
+                                className="receipt-item-input"
+                                style={{ paddingLeft: '1.15rem', paddingRight: '0.3rem', fontWeight: 700 }}
+                                value={item.price || ''}
+                                onChange={(e) => handleUpdateItem(idx, 'price', e.target.value)}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              className="receipt-delete-item-btn"
+                              title="Remove item"
+                            >
+                              <LuTrash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px dashed #e2e8f0' }}>
+                        <button
+                          type="button"
+                          className="btn-add-item-pill"
+                          onClick={handleAddItem}
+                        >
+                          <LuPlus size={13} /> Add Item
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    items.length > 0 ? (
+                      <div style={{ maxHeight: '130px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {items.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#475569', gap: '0.5rem', minWidth: 0 }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }} title={item.name}>
+                              • {item.name} {item.quantity && item.quantity > 1 ? `(x${item.quantity})` : ''}
+                            </span>
+                            <span style={{ fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatRupee((Number(item.price) || 0) * (item.quantity || 1))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                        <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '0 0 0.5rem 0' }}>
+                          No itemized items detected in receipt.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-add-item-premium"
+                          style={{ maxWidth: '200px', margin: '0 auto', padding: '0.45rem 0.8rem', fontSize: '0.76rem' }}
+                          onClick={handleAddItem}
+                        >
+                          <LuPlus size={14} /> Add Item Breakdown
+                        </button>
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
+
+              {/* Account Selector (Only shown in 'All Accounts' mode; in specific account mode, it is automatically assigned without asking) */}
+              {accounts.length > 0 && !isSpecificAccount && (
+                <div className="form-group" style={{ marginBottom: '0.85rem', width: '100%', boxSizing: 'border-box' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                    <LuWallet size={14} color="var(--primary)" />
+                    <span>Account</span>
+                  </label>
+                  <CustomDropdown
+                    variant="form"
+                    value={modalAccountId}
+                    onChange={setModalAccountId}
+                    options={accounts.map((acc) => ({
+                      value: acc.aid || acc.id || '',
+                      label: acc.name,
+                      badge: acc.type,
+                      sublabel: `${acc.accountNumber ? `•••• ${acc.accountNumber} • ` : ''}Balance: ${formatRupee(Number(acc.balance ?? acc.initialBalance ?? 0))}`,
+                    }))}
+                    icon={<LuWallet size={16} />}
+                    placeholder="Select an account"
+                    aria-label="Select account"
+                  />
+                </div>
+              )}
 
               {/* Editable Fields */}
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.65rem', marginBottom: '0.85rem', width: '100%', boxSizing: 'border-box' }}>
