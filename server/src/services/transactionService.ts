@@ -48,8 +48,15 @@ export class TransactionService {
 
     const state = await CalculationService.getFinancialState(userId, targetAccount.aid);
     const transactionImpact = type === 'INCOME' ? amount : -amount;
-    if (CalculationService.violatesBalanceRules(state.netSavings + transactionImpact, state.actualBalance + transactionImpact)) {
-      throw new BadRequestError('Insufficient balance in this account for this transaction.');
+    // Validate items breakdown total matches transaction amount if items are provided
+    if (Array.isArray(dto.items) && dto.items.length > 0) {
+      const validItems = dto.items.filter((it) => it && (it.name || Number(it.price) > 0));
+      if (validItems.length > 0) {
+        const itemsSum = Math.round(validItems.reduce((sum, it) => sum + (parseAmount(it.price) || 0) * (Number(it.quantity) || 1), 0) * 100) / 100;
+        if (Math.abs(itemsSum - amount) > 0.01) {
+          throw new BadRequestError(`Receipt breakdown items sum (₹${itemsSum.toFixed(2)}) does not tally with transaction amount (₹${amount.toFixed(2)}).`);
+        }
+      }
     }
 
     const balanceChange = type === 'INCOME' ? amount : -amount;
@@ -195,6 +202,17 @@ export class TransactionService {
     const overallDiff = newImpact - oldImpact;
     if (CalculationService.violatesBalanceRules(overallState.netSavings + overallDiff, overallState.actualBalance + overallDiff)) {
       throw new BadRequestError('Insufficient overall balance for this transaction.');
+    }
+
+    // Validate items breakdown total matches transaction amount if items are provided
+    if (Array.isArray(dto.items) && dto.items.length > 0) {
+      const validItems = dto.items.filter((it) => it && (it.name || Number(it.price) > 0));
+      if (validItems.length > 0) {
+        const itemsSum = Math.round(validItems.reduce((sum, it) => sum + (parseAmount(it.price) || 0) * (Number(it.quantity) || 1), 0) * 100) / 100;
+        if (Math.abs(itemsSum - newAmount) > 0.01) {
+          throw new BadRequestError(`Receipt breakdown items sum (₹${itemsSum.toFixed(2)}) does not tally with transaction amount (₹${newAmount.toFixed(2)}).`);
+        }
+      }
     }
 
     const result = await prisma.$transaction(

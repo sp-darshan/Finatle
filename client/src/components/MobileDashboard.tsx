@@ -680,7 +680,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                         <div className="row-left">
                           <CategoryBadge name={cleanName} category={t.category} size={36} />
                           <div className="row-info">
-                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                            <div className="row-title-wrap">
                               <h4>{cleanName}</h4>
                               {hasItems && (
                                 <span className="receipt-pill-badge">
@@ -992,7 +992,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                       <div className="row-left">
                         <CategoryBadge name={cleanName} category={t.category} size={36} />
                         <div className="row-info">
-                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          <div className="row-title-wrap">
                             <h4>{cleanName}</h4>
                             {hasItems && (
                               <span className="receipt-pill-badge">

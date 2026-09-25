@@ -249,6 +249,14 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           quantity: Number(it.quantity) || 1,
         }));
 
+      if (validItems.length > 0) {
+        const itemsTotal = Math.round(validItems.reduce((sum, it) => sum + (it.price * it.quantity), 0) * 100) / 100;
+        if (Math.abs(itemsTotal - parsedAmount) > 0.01) {
+          setError(`Itemized breakdown total (₹${itemsTotal.toFixed(2)}) does not tally with total amount (₹${parsedAmount.toFixed(2)}). Please match the item prices or adjust the total.`);
+          return;
+        }
+      }
+
       const updatedItem: TransactionItem = {
         ...transaction,
         type: mode,
@@ -1277,7 +1285,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                           ))}
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px dashed #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px dashed #e2e8f0' }}>
                           <button
                             type="button"
                             className="btn-add-item-pill"
@@ -1285,6 +1293,46 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                           >
                             <LuPlus size={14} /> Add Line Item
                           </button>
+
+                          {(() => {
+                            const sum = Math.round(items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.quantity) || 1), 0) * 100) / 100;
+                            const isMatch = Math.abs(sum - numericAmount) <= 0.01;
+                            const diff = Math.round((numericAmount - sum) * 100) / 100;
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '9999px',
+                                  background: isMatch ? '#ecfdf5' : '#fffbeb',
+                                  color: isMatch ? '#047857' : '#b45309',
+                                  border: `1px solid ${isMatch ? '#a7f3d0' : '#fde68a'}`,
+                                }}>
+                                  {isMatch ? `✓ Tallied (₹${sum.toFixed(2)})` : `⚠️ Items Total: ₹${sum.toFixed(2)} (${diff > 0 ? `₹${diff.toFixed(2)} left` : `₹${Math.abs(diff).toFixed(2)} over`})`}
+                                </span>
+                                {!isMatch && sum > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAmount(String(sum))}
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      padding: '0.15rem 0.45rem',
+                                      borderRadius: '6px',
+                                      background: '#fef3c7',
+                                      color: '#92400e',
+                                      border: '1px solid #fcd34d',
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Set total transaction amount to match breakdown items"
+                                  >
+                                    Match
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
