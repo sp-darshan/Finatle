@@ -410,6 +410,17 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
     };
   }
 
+  if (normCategory === 'other (extra paid)' || normCategory === 'extra paid' || normCategory.includes('extra paid')) {
+    return {
+      type: 'category',
+      icon: LuCircleDollarSign,
+      bgTone: 'emerald',
+      badgeBg: '#ECFDF5',
+      badgeBorder: '#A7F3D0',
+      badgeColor: '#059669',
+    };
+  }
+
   // 3. Fallback Semantic Keyword Matching (when category is Other / unassigned)
   // Groceries & Supermarkets
   if (/\b(grocer|grocery|groceries|supermarket|mart|vegetable|veggie|veggies|fruit|fruits|milk|dairy|ration|provision|kirana|bazaar|mandi|bigbasket|blinkit|zepto|instamart|dmart|jiomart|safal|reliance fresh)\b/i.test(combined)) {

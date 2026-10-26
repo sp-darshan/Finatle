@@ -2,7 +2,7 @@ import React from 'react';
 import {
   IncomeCardIcon,
   ExpenseCardIcon,
-  SavingsCardIcon,
+  BalanceCardIcon,
   SettlementsCardIcon,
 } from './Icons';
 import { formatRupee } from '../lib/formatters';
@@ -10,22 +10,26 @@ import { formatRupee } from '../lib/formatters';
 interface MetricCardsProps {
   income: number;
   expenses: number;
-  savings: number;
-  actualBalance: number;
+  availableBalance?: number;
+  savings?: number;
+  actualBalance?: number;
+  accountName?: string;
   pendingSettlements: number;
   settlementDetails?: string;
-  onCardClick?: (type: 'income' | 'expenses' | 'savings' | 'settlements') => void;
+  onCardClick?: (type: 'income' | 'expenses' | 'savings' | 'balance' | 'settlements') => void;
 }
 
 export const MetricCards: React.FC<MetricCardsProps> = React.memo(({
   income,
   expenses,
+  availableBalance,
   savings,
-  actualBalance,
+  accountName,
   pendingSettlements,
   settlementDetails = '0 pending settlements',
   onCardClick,
 }) => {
+  const currentBalance = availableBalance !== undefined ? availableBalance : (savings ?? 0);
 
   return (
     <section className="metrics-grid">
@@ -61,27 +65,29 @@ export const MetricCards: React.FC<MetricCardsProps> = React.memo(({
         </div>
       </div>
 
-      {/* 3. Net Savings */}
+      {/* 3. Available Balance in Current Account */}
       <div
         className="metric-card"
-        onClick={() => onCardClick?.('savings')}
+        onClick={() => {
+          onCardClick?.('balance');
+          onCardClick?.('savings');
+        }}
         style={{ cursor: onCardClick ? 'pointer' : 'default' }}
       >
         <div className="metric-card-top">
-          <SavingsCardIcon size={24} />
-          <span>Net Savings</span>
+          <BalanceCardIcon size={24} />
+          <span>Available Balance</span>
         </div>
         <div className="metric-card-value">
-          {formatRupee(savings)}
+          {formatRupee(currentBalance)}
         </div>
-        <div className={`metric-card-badge ${actualBalance >= 0 ? 'positive' : 'expense'}`}>
+        <div className={`metric-card-badge ${currentBalance >= 0 ? 'positive' : 'expense'}`}>
           <span>
-            Actual balance: {formatRupee(actualBalance)}
+            {accountName ? `${accountName} • ` : ''}
+            {currentBalance >= 0 ? 'Available funds' : 'Negative balance'}
           </span>
         </div>
       </div>
-
-
 
       {/* 4. Pending Settlements */}
       <div

@@ -3,6 +3,7 @@ import { LuX, LuCheck, LuWallet } from 'react-icons/lu';
 import { PencilEditIcon, TrashIcon } from './Icons';
 import type { LoanItem } from './LoansSettlements';
 import type { AccountItem } from './Sidebar';
+import type { TransactionItem } from './RecentTransactions';
 import { formatRupee } from '../lib/formatters';
 import { CustomDropdown } from './CustomDropdown';
 
@@ -11,8 +12,18 @@ interface EditLoanModalProps {
   onClose: () => void;
   loan: LoanItem | null;
   accounts?: AccountItem[];
+  selectedAccountId?: string | 'ALL';
   token?: string | null;
-  onSuccess: (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => void | Promise<void>;
+  onSuccess: (action?: {
+    type: 'update' | 'delete';
+    data?: LoanItem;
+    originalId?: string;
+    apiPayload?: any;
+    extraTransaction?: {
+      optimisticData: TransactionItem;
+      apiPayload: any;
+    };
+  }) => void | Promise<void>;
 }
 
 export const EditLoanModal: React.FC<EditLoanModalProps> = ({
@@ -20,6 +31,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   onClose,
   loan,
   accounts = [],
+  selectedAccountId: activeAccountId,
   onSuccess,
 }) => {
   const [kind, setKind] = useState<'lent' | 'borrowed'>('lent');
@@ -37,7 +49,8 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   useEffect(() => {
     if (loan) {
       setKind(loan.kind === 'borrowed' ? 'borrowed' : 'lent');
-      const defaultAccId = accounts.find((a) => a.isDefault)?.aid || accounts.find((a) => a.isDefault)?.id || accounts[0]?.aid || accounts[0]?.id || '';
+      const activeFallback = (activeAccountId && activeAccountId !== 'ALL') ? activeAccountId : '';
+      const defaultAccId = activeFallback || accounts.find((a) => a.isDefault)?.aid || accounts.find((a) => a.isDefault)?.id || accounts[0]?.aid || accounts[0]?.id || '';
       setSelectedAccountId(loan.accountId || defaultAccId);
       setPersonName(loan.personName || '');
       setAmount(String(loan.amount || ''));
@@ -48,7 +61,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       setError('');
       setIsConfirmingDelete(false);
     }
-  }, [loan, accounts, isOpen]);
+  }, [loan, accounts, activeAccountId, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,6 +80,11 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const totalNum = parseFloat(amount) || 0;
   const paidNum = parseFloat(paidAmount) || 0;
   const remainingNum = Math.max(0, totalNum - paidNum);
+  const extraPaid = Math.max(0, paidNum - totalNum);
+
+  const previousPaid = Number(loan.paidAmount !== undefined && loan.paidAmount !== null ? loan.paidAmount : (loan.status === 'PAID' ? loan.amount : 0));
+  const previousExtra = Math.max(0, previousPaid - (loan.amount || 0));
+  const pendingExtraDifference = Math.max(0, extraPaid - previousExtra);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,8 +101,13 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       return;
     }
 
-    const numericPaid = isNaN(paidNum) ? 0 : Math.max(0, Math.min(numericAmount, paidNum));
-    const computedStatus = numericPaid >= numericAmount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
+    const rawPaid = parseFloat(paidAmount) || 0;
+    const currentExtra = Math.max(0, rawPaid - numericAmount);
+    const extraDifference = Math.max(0, currentExtra - previousExtra);
+    const numericPaid = isNaN(rawPaid) ? 0 : Math.max(0, rawPaid);
+    const computedStatus = (rawPaid >= numericAmount) ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
+
+    const effectiveAccId = selectedAccountId || (activeAccountId && activeAccountId !== 'ALL' ? activeAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid || undefined;
 
     const apiPayload = {
       kind,
@@ -94,7 +117,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       description: description.trim(),
       dueAt: dueAt || undefined,
       status: computedStatus,
-      accountId: selectedAccountId || undefined,
+      accountId: effectiveAccId,
     };
 
     const optimisticData: LoanItem = {
@@ -107,21 +130,51 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
       paidAmount: numericPaid,
       status: computedStatus,
       statusLabel: computedStatus === 'PAID' ? 'Settled' : computedStatus === 'PARTIAL' ? `Part (₹${numericPaid})` : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
-      accountId: selectedAccountId || undefined,
+      accountId: effectiveAccId,
       dueDate: dueAt || undefined,
     };
+
+    let extraTransaction = undefined;
+    if (extraDifference > 0) {
+      const todayFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const txType: 'INCOME' = 'INCOME';
+      extraTransaction = {
+        optimisticData: {
+          id: `temp-extra-${Date.now()}`,
+          name: personName.trim(),
+          category: 'Other (Extra Paid)',
+          date: todayFormatted,
+          amount: extraDifference,
+          type: txType,
+          accountId: effectiveAccId,
+        },
+        apiPayload: {
+          type: txType,
+          amount: extraDifference,
+          description: personName.trim(),
+          category: 'Other (Extra Paid)',
+          accountId: effectiveAccId,
+          occurredAt: new Date().toISOString(),
+        },
+      };
+    }
 
     onSuccess({
       type: 'update',
       data: optimisticData,
       originalId: loan.id,
       apiPayload,
+      extraTransaction,
     });
     onClose();
   };
 
   const handleSetPaidPreset = (fraction: number) => {
     if (totalNum > 0) {
+      if (fraction === 1 && paidNum >= totalNum) {
+        setStatus('PAID');
+        return;
+      }
       const val = Math.round(totalNum * fraction * 100) / 100;
       setPaidAmount(String(val));
       if (val >= totalNum) setStatus('PAID');
@@ -238,15 +291,14 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <label>Amount Settled (₹)</label>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: remainingNum > 0 ? '#dc2626' : '#059669' }}>
-                Remaining: {formatRupee(remainingNum)}
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: extraPaid > 0 ? '#059669' : remainingNum > 0 ? '#dc2626' : '#059669' }}>
+                {extraPaid > 0 ? `Extra Paid: +${formatRupee(extraPaid)}` : remainingNum > 0 ? `Remaining: ${formatRupee(remainingNum)}` : 'Settled in full'}
               </span>
             </div>
             <input
               type="number"
               step="any"
               min="0"
-              max={amount || undefined}
               placeholder="0"
               className="form-control"
               value={paidAmount}
@@ -258,6 +310,26 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                 else setStatus('PENDING');
               }}
             />
+            {extraPaid > 0 && (
+              <div style={{
+                marginTop: '0.4rem',
+                padding: '0.45rem 0.65rem',
+                borderRadius: '6px',
+                background: '#ecfdf5',
+                border: '1px solid #a7f3d0',
+                fontSize: '0.75rem',
+                color: '#065f46',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}>
+                {pendingExtraDifference > 0 ? (
+                  <span>Difference of <strong>{formatRupee(pendingExtraDifference)}</strong> will be added to your account and recorded in Transactions under "Other (Extra Paid)" for {personName.trim() || 'contact'}.</span>
+                ) : (
+                  <span>Settled with extra <strong>+{formatRupee(extraPaid)}</strong> (already recorded in Transactions under "Other (Extra Paid)").</span>
+                )}
+              </div>
+            )}
             {/* Quick Settle Presets */}
             <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem' }}>
               <button

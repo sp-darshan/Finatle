@@ -295,6 +295,8 @@ export function App() {
   const pendingDeletedTxIdsRef = useRef<Set<string>>(getPersistentTombstones('tx', initialUid));
   const pendingDeletedLoanIdsRef = useRef<Set<string>>(getPersistentTombstones('loan', initialUid));
   const pendingDeletedAccountIdsRef = useRef<Set<string>>(getPersistentTombstones('account', initialUid));
+  const recentlyAddedTxIdsRef = useRef<Set<string>>(new Set());
+  const recentlyAddedLoanIdsRef = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((message: string, type: 'error' | 'success' | 'info' = 'error') => {
     if (!message) return;
@@ -487,12 +489,14 @@ export function App() {
             }));
 
           setTransactions((prev) => {
+            const serverIds = new Set(mapped.map((t) => t.id));
+            serverIds.forEach((id) => recentlyAddedTxIdsRef.current.delete(id));
+
             const pendingOptimistic = prev.filter((t) => 
-              t.id.startsWith('temp-') && 
+              (t.id.startsWith('temp-') || recentlyAddedTxIdsRef.current.has(t.id)) && 
               !txTombstones.has(t.id) && 
               !pendingDeletedTxIdsRef.current.has(t.id)
             );
-            const serverIds = new Set(mapped.map((t) => t.id));
             const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...mapped];
             localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(merged));
             return merged;
@@ -500,7 +504,7 @@ export function App() {
         } else {
           setTransactions((prev) => {
             const pendingOptimistic = prev.filter((t) => 
-              t.id.startsWith('temp-') && 
+              (t.id.startsWith('temp-') || recentlyAddedTxIdsRef.current.has(t.id)) && 
               !txTombstones.has(t.id) && 
               !pendingDeletedTxIdsRef.current.has(t.id)
             );
@@ -521,7 +525,10 @@ export function App() {
             )
             .forEach((l: any) => {
               const amount = Number(l.amount);
-              const paid = l.status === 'PAID' ? amount : Number(l.paidAmount || 0);
+              const paid = l.paidAmount !== undefined && l.paidAmount !== null && Number(l.paidAmount) > 0
+                ? Number(l.paidAmount)
+                : (l.status === 'PAID' ? amount : 0);
+              const defaultAcc = accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid || null;
               mappedLoans.push({
                 id: l.lid,
                 kind: 'lent',
@@ -530,7 +537,7 @@ export function App() {
                 subtext: cleanSplitText(l.description) || 'Personal expense',
                 amount,
                 paidAmount: paid,
-                accountId: l.accountId || null,
+                accountId: l.accountId || defaultAcc,
                 date: l.lentAt,
                 dueDate: l.dueAt,
                 status: l.status,
@@ -548,7 +555,10 @@ export function App() {
             )
             .forEach((b: any) => {
               const amount = Number(b.amount);
-              const paid = b.status === 'PAID' ? amount : Number(b.paidAmount || 0);
+              const paid = b.paidAmount !== undefined && b.paidAmount !== null && Number(b.paidAmount) > 0
+                ? Number(b.paidAmount)
+                : (b.status === 'PAID' ? amount : 0);
+              const defaultAcc = accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid || null;
               mappedLoans.push({
                 id: b.bid,
                 kind: 'borrowed',
@@ -557,7 +567,7 @@ export function App() {
                 subtext: cleanSplitText(b.description) || 'Personal loan',
                 amount,
                 paidAmount: paid,
-                accountId: b.accountId || null,
+                accountId: b.accountId || defaultAcc,
                 date: b.borrowedAt,
                 dueDate: b.dueAt,
                 status: b.status,
@@ -567,13 +577,27 @@ export function App() {
         }
         if (refreshLoans) {
           setLoans((prev) => {
+            const prevMap = new Map(prev.map((l) => [l.id, l]));
+            const serverIds = new Set(mappedLoans.map((l) => l.id));
+            serverIds.forEach((id) => recentlyAddedLoanIdsRef.current.delete(id));
+
             const pendingOptimistic = prev.filter((l) => 
-              l.id.startsWith('temp-') && 
+              (l.id.startsWith('temp-') || recentlyAddedLoanIdsRef.current.has(l.id)) && 
               !loanTombstones.has(l.id) && 
               !pendingDeletedLoanIdsRef.current.has(l.id)
             );
-            const serverIds = new Set(mappedLoans.map((l) => l.id));
-            const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...mappedLoans];
+            const defaultAcc = accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid || null;
+            const merged = [
+              ...pendingOptimistic.filter((p) => !serverIds.has(p.id)),
+              ...mappedLoans.map((ml) => {
+                const existing = prevMap.get(ml.id);
+                return {
+                  ...existing,
+                  ...ml,
+                  accountId: ml.accountId || existing?.accountId || defaultAcc,
+                };
+              }),
+            ];
             localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(merged));
             return merged;
           });
@@ -1053,6 +1077,7 @@ export function App() {
                 .then((data) => {
                   if (data.loan) {
                     const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || e.optimisticData.id;
+                    const fallbackAcc = (selectedAccountId !== 'ALL' ? selectedAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid;
                     const realLoan: LoanItem = {
                       id: realLoanId,
                       kind: 'lent',
@@ -1065,6 +1090,7 @@ export function App() {
                       statusLabel: data.loan.status === 'PAID' ? 'Settled' : 'Yet to receive',
                       date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : new Date().toISOString(),
                       dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
+                      accountId: data.loan.accountId || e.optimisticData.accountId || fallbackAcc,
                     };
                     setLoans((prev) => {
                       const updated = prev.map((l) => (l.id === e.optimisticData.id ? realLoan : l));
@@ -1095,6 +1121,7 @@ export function App() {
         accountId: txAccountId,
       };
 
+      recentlyAddedTxIdsRef.current.add(optWithAccount.id);
       setTransactions((prev) => {
         const updated = [optWithAccount, ...prev];
         localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
@@ -1123,6 +1150,7 @@ export function App() {
             const data = await res.json();
             if (data.transaction) {
               const realTxId = data.transaction.tid || data.transaction.id || optimisticData.id;
+              recentlyAddedTxIdsRef.current.add(realTxId);
               const realItem: TransactionItem = {
                 id: realTxId,
                 name: cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction',
@@ -1142,6 +1170,7 @@ export function App() {
           })
           .catch((err) => {
             console.error('[Optimistic] Add transaction failed, reverting:', err);
+            recentlyAddedTxIdsRef.current.delete(optimisticData.id);
             setTransactions((prev) => {
               const updated = prev.filter((t) => t.id !== optimisticData.id);
               localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
@@ -1155,6 +1184,7 @@ export function App() {
           });
       }
     } else if ((kind === 'lent' || kind === 'borrowed') && optimisticData) {
+      recentlyAddedLoanIdsRef.current.add(optimisticData.id);
       setLoans((prev) => {
         const updated = [optimisticData as LoanItem, ...prev];
         localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
@@ -1179,6 +1209,8 @@ export function App() {
             const data = await res.json();
             if (data.loan) {
               const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || optimisticData.id;
+              recentlyAddedLoanIdsRef.current.add(realLoanId);
+              const fallbackAcc = (selectedAccountId !== 'ALL' ? selectedAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid;
               const realItem: LoanItem = {
                 id: realLoanId,
                 kind,
@@ -1191,6 +1223,7 @@ export function App() {
                 statusLabel: data.loan.status === 'PAID' ? 'Settled' : kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
                 date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : data.loan.borrowedAt ? new Date(data.loan.borrowedAt).toISOString() : new Date().toISOString(),
                 dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
+                accountId: data.loan.accountId || (optimisticData as any).accountId || fallbackAcc,
               };
               setLoans((prev) => {
                 const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
@@ -1202,6 +1235,7 @@ export function App() {
           })
           .catch((err) => {
             console.error('[Optimistic] Add loan failed, reverting:', err);
+            recentlyAddedLoanIdsRef.current.delete(optimisticData.id);
             setLoans((prev) => {
               const updated = prev.filter((l) => l.id !== optimisticData.id);
               localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
@@ -1339,9 +1373,11 @@ export function App() {
             const data = await createRes.json();
             if (data.loan) {
               const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || optimisticData.id;
+              const fallbackAcc = (selectedAccountId !== 'ALL' ? selectedAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid;
               const realItem: LoanItem = {
                 ...optimisticData,
                 id: realLoanId,
+                accountId: data.loan.accountId || optimisticData.accountId || fallbackAcc,
               };
               setLoans((prev) => {
                 const updated = prev.map((l) => (l.id === optimisticData.id ? realItem : l));
@@ -1419,9 +1455,11 @@ export function App() {
                     const data = await res.json();
                     if (data.loan) {
                       const realLoanId = data.loan.lid || data.loan.bid || data.loan.id || e.optimisticData.id;
+                      const fallbackAcc = (selectedAccountId !== 'ALL' ? selectedAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid;
                       const realItem: LoanItem = {
                         ...e.optimisticData,
                         id: realLoanId,
+                        accountId: data.loan.accountId || e.optimisticData.accountId || fallbackAcc,
                       };
                       setLoans((prev) => {
                         const updated = prev.map((l) => (l.id === e.optimisticData.id ? realItem : l));
@@ -1444,7 +1482,16 @@ export function App() {
     }
   }, [token, user?.uid, transactions, loans, showToast]);
 
-  const handleLoanSuccess = useCallback(async (action?: { type: 'update' | 'delete'; data?: LoanItem; originalId?: string; apiPayload?: any }) => {
+  const handleLoanSuccess = useCallback(async (action?: {
+    type: 'update' | 'delete';
+    data?: LoanItem;
+    originalId?: string;
+    apiPayload?: any;
+    extraTransaction?: {
+      optimisticData: TransactionItem;
+      apiPayload: any;
+    };
+  }) => {
     if (!action) {
       if (token) await fetchUserData(token);
       return;
@@ -1508,19 +1555,112 @@ export function App() {
         removePendingOperation(uid, deleteId);
       }
     } else if (action.type === 'update' && action.data && action.originalId) {
-      const updatedData = action.data;
+      const fallbackAccId = (selectedAccountId !== 'ALL' ? selectedAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid;
+      const updatedData: LoanItem = {
+        ...action.data,
+        accountId: action.data.accountId || fallbackAccId,
+      };
       setLoans((prev) => {
         const updated = prev.map((l) => (l.id === action.originalId ? updatedData : l));
         localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
         return updated;
       });
 
+      let txPromise: Promise<any> = Promise.resolve(null);
+
+      // Handle extra settled amount difference -> record in Transactions & add to user account
+      if (action.extraTransaction) {
+        const extraTx = action.extraTransaction;
+        const targetAccId = extraTx.optimisticData.accountId || (selectedAccountId !== 'ALL' ? selectedAccountId : undefined) || accounts.find((a) => a.isDefault)?.aid || accounts.find((a) => a.isDefault)?.id || accounts[0]?.aid || accounts[0]?.id;
+        const optTx: TransactionItem = {
+          ...extraTx.optimisticData,
+          accountId: targetAccId,
+        };
+
+        recentlyAddedTxIdsRef.current.add(optTx.id);
+
+        setTransactions((prev) => {
+          const updated = [optTx, ...prev];
+          localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+
+        if (targetAccId) {
+          const delta = Number(optTx.amount);
+          setAccounts((prev) => {
+            const updated = prev.map((a) => (a.aid === targetAccId || a.id === targetAccId) ? { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + delta } : a);
+            localStorage.setItem(`finatle_accounts_${uid}`, JSON.stringify(updated));
+            return updated;
+          });
+        }
+
+        if (token) {
+          const txPayload = {
+            ...extraTx.apiPayload,
+            accountId: targetAccId,
+          };
+
+          const currentOptTx = optTx;
+          const currentTargetAccId = targetAccId;
+
+          txPromise = apiFetch('/api/finance/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(txPayload),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || errData.error || 'Failed to record extra payment transaction');
+              }
+              const data = await res.json();
+              const realTxId = data.transaction?.tid || data.transaction?.id || currentOptTx.id;
+              recentlyAddedTxIdsRef.current.add(realTxId);
+              const realItem: TransactionItem = {
+                id: realTxId,
+                name: data.transaction?.description || currentOptTx.name,
+                category: data.transaction?.category || currentOptTx.category,
+                date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : currentOptTx.date,
+                amount: Number(data.transaction?.amount ?? currentOptTx.amount),
+                type: data.transaction?.type || currentOptTx.type,
+                accountId: data.transaction?.accountId || currentTargetAccId,
+              };
+              setTransactions((prev) => {
+                const updated = prev.map((t) => (t.id === currentOptTx.id ? realItem : t));
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+              return realItem;
+            })
+            .catch((err) => {
+              console.error('[Optimistic] Extra payment transaction failed:', err);
+              recentlyAddedTxIdsRef.current.delete(currentOptTx.id);
+              setTransactions((prev) => {
+                const updated = prev.filter((t) => t.id !== currentOptTx.id);
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+              if (currentTargetAccId) {
+                const delta = -Number(currentOptTx.amount);
+                setAccounts((prev) => {
+                  const updated = prev.map((a) => (a.aid === currentTargetAccId || a.id === currentTargetAccId) ? { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + delta } : a);
+                  localStorage.setItem(`finatle_accounts_${uid}`, JSON.stringify(updated));
+                  return updated;
+                });
+              }
+              showToast(err?.message || 'Failed to record extra payment transaction.', 'error');
+              throw err;
+            });
+        }
+      }
+
+      let loanPromise: Promise<any> = Promise.resolve(null);
       if (token && action.apiPayload) {
         const endpoint = updatedData.kind === 'borrowed'
           ? `/api/finance/borrowed/${action.originalId}`
           : `/api/finance/lent/${action.originalId}`;
 
-        apiFetch(endpoint, {
+        loanPromise = apiFetch(endpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(action.apiPayload),
@@ -1530,17 +1670,49 @@ export function App() {
               const data = await res.json().catch(() => ({}));
               throw new Error(data.message || data.error || 'Failed to update loan.');
             }
-            if (token) fetchUserData(token, false);
+            const resData = await res.json().catch(() => ({}));
+            if (resData.loan) {
+              const returnedLoan = resData.loan;
+              const realId = returnedLoan.lid || returnedLoan.bid || returnedLoan.id || action.originalId;
+              recentlyAddedLoanIdsRef.current.add(realId);
+              const finalLoan: LoanItem = {
+                ...updatedData,
+                id: realId,
+                personName: returnedLoan.personName || updatedData.personName,
+                amount: Number(returnedLoan.amount ?? updatedData.amount),
+                paidAmount: Number(returnedLoan.paidAmount ?? updatedData.paidAmount ?? 0),
+                status: returnedLoan.status || updatedData.status,
+                statusLabel: returnedLoan.status === 'PAID' ? 'Settled' : returnedLoan.status === 'PARTIAL' ? `Part (₹${returnedLoan.paidAmount})` : updatedData.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+                date: returnedLoan.lentAt ? new Date(returnedLoan.lentAt).toISOString() : returnedLoan.borrowedAt ? new Date(returnedLoan.borrowedAt).toISOString() : updatedData.date,
+                dueDate: returnedLoan.dueAt ? new Date(returnedLoan.dueAt).toISOString() : updatedData.dueDate,
+                accountId: returnedLoan.accountId || updatedData.accountId || fallbackAccId,
+              };
+              setLoans((prev) => {
+                const updated = prev.map((l) => (l.id === action.originalId || l.id === realId ? finalLoan : l));
+                localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            }
+            return resData;
           })
           .catch((err) => {
             console.error('[Optimistic] Update loan failed, reverting:', err);
             setLoans(prevLoans);
             localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(prevLoans));
             showToast(err?.message || 'Failed to update loan. Reverted.', 'error');
+            throw err;
           });
       }
+
+      if (token) {
+        Promise.allSettled([txPromise, loanPromise]).then(([txRes, loanRes]) => {
+          if (txRes.status === 'fulfilled' || loanRes.status === 'fulfilled') {
+            fetchUserData(token, false);
+          }
+        });
+      }
     }
-  }, [token, user?.uid, loans, showToast]);
+  }, [token, user?.uid, loans, accounts, selectedAccountId, showToast, fetchUserData]);
 
   const handleEditTransaction = useCallback((transaction: TransactionItem) => {
     setEditingTransaction(transaction);
@@ -1553,17 +1725,21 @@ export function App() {
   const handleSettleLoan = useCallback(async (loanId: string, currentStatus: LoanItem['status']) => {
     const isCurrentlyPaid = currentStatus === 'PAID';
     const nextStatus: LoanItem['status'] = isCurrentlyPaid ? 'PENDING' : 'PAID';
+    const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
 
-    setLoans((prev) =>
-      prev.map((item) => item.id === loanId
+    setLoans((prev) => {
+      const updated = prev.map((item) => item.id === loanId
         ? {
             ...item,
             status: nextStatus,
             paidAmount: isCurrentlyPaid ? 0 : item.amount,
             statusLabel: nextStatus === 'PAID' ? 'Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
           }
-        : item)
-    );
+        : item
+      );
+      localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+      return updated;
+    });
     
     if (token) {
       try {
@@ -1579,22 +1755,40 @@ export function App() {
           const data = await response.json();
           throw new Error(data.error || 'Unable to update settlement status.');
         }
-        await fetchUserData(token);
+        const resData = await response.json().catch(() => ({}));
+        if (resData.loan) {
+          const updatedServerLoan = resData.loan;
+          setLoans((prev) => {
+            const updated = prev.map((item) => (item.id === loanId ? {
+              ...item,
+              status: updatedServerLoan.status || nextStatus,
+              paidAmount: Number(updatedServerLoan.paidAmount !== undefined ? updatedServerLoan.paidAmount : (nextStatus === 'PAID' ? item.amount : 0)),
+              statusLabel: updatedServerLoan.status === 'PAID' ? 'Settled' : updatedServerLoan.status === 'PARTIAL' ? `Part (₹${updatedServerLoan.paidAmount})` : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
+              accountId: updatedServerLoan.accountId || item.accountId,
+            } : item));
+            localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+            return updated;
+          });
+        }
+        await fetchUserData(token, false);
       } catch (error: any) {
-        setLoans((prev) =>
-          prev.map((item) => item.id === loanId
+        setLoans((prev) => {
+          const updated = prev.map((item) => item.id === loanId
             ? {
                 ...item,
                 status: currentStatus,
                 paidAmount: currentStatus === 'PAID' ? item.amount : 0,
                 statusLabel: currentStatus === 'PAID' ? 'Settled' : item.kind === 'lent' ? 'Yet to receive' : 'Yet to pay',
               }
-            : item)
-        );
+            : item
+          );
+          localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
         showToast(error.message || 'Unable to update settlement status.', 'error');
       }
     }
-  }, [token, showToast]);
+  }, [token, user?.uid, showToast]);
 
   const handleConfirmScannedBill = useCallback(async (scanned: ScannedBillPayload) => {
     if (!token) return;
@@ -1897,11 +2091,13 @@ export function App() {
     }
   }, [token, user, selectedAccountId, showToast, fetchUserData]);
 
+  const defaultAccountId = accounts.find((a) => a.isDefault)?.aid || accounts[0]?.aid;
+
   // Filter transactions strictly by selected account (if not 'ALL')
   const accountTransactions = useMemo(() => {
     if (selectedAccountId === 'ALL' || !selectedAccountId) return transactions;
-    return transactions.filter((t) => t.accountId === selectedAccountId);
-  }, [transactions, selectedAccountId]);
+    return transactions.filter((t) => (t.accountId || defaultAccountId) === selectedAccountId);
+  }, [transactions, selectedAccountId, defaultAccountId]);
 
   // Filter transactions according to search input (memoized)
   const filteredTransactions = useMemo(() => {
@@ -1915,8 +2111,8 @@ export function App() {
   // Filter loans strictly by selected account (if not 'ALL')
   const accountLoans = useMemo(() => {
     if (selectedAccountId === 'ALL' || !selectedAccountId) return loans;
-    return loans.filter((l) => l.accountId === selectedAccountId);
-  }, [loans, selectedAccountId]);
+    return loans.filter((l) => (l.accountId || defaultAccountId) === selectedAccountId);
+  }, [loans, selectedAccountId, defaultAccountId]);
 
   const filteredLoans = useMemo(() => {
     if (!searchQuery.trim()) return accountLoans;
@@ -1933,8 +2129,7 @@ export function App() {
   const {
     totalIncome,
     totalExpense,
-    netSavings,
-    actualBalance,
+    availableBalance,
     pendingSettlementsTotal,
     settlementDetails,
   } = useMemo(() => {
@@ -1981,7 +2176,38 @@ export function App() {
       : accounts.reduce((sum, a) => sum + Number(a.initialBalance || 0), 0);
 
     const savings = totalInitialBalance + inc - exp - lentOut;
-    const actBal = totalInitialBalance + inc - exp - lentOut + borrowedOut;
+
+    // Available balance in the current account (all-time true balance: initial balance + all incomes - all expenses - all lent out)
+    const allAccountTransactions = selectedAccountId !== 'ALL'
+      ? transactions.filter((t) => t.accountId === selectedAccountId)
+      : transactions;
+
+    const allAccountLoans = selectedAccountId !== 'ALL'
+      ? loans.filter((l) => (l.accountId || defaultAccountId) === selectedAccountId)
+      : loans;
+
+    const allTimeInc = allAccountTransactions
+      .filter((t) => t.type === 'INCOME')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const allTimeExp = allAccountTransactions
+      .filter((t) => t.type === 'EXPENSE')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const allTimeLentOut = allAccountLoans
+      .filter((l) => l.kind === 'lent')
+      .reduce(
+        (sum, l) =>
+          sum +
+          Math.max(
+            0,
+            Number(l.amount) -
+              Number(l.paidAmount !== undefined ? l.paidAmount : l.status === 'PAID' ? l.amount : 0)
+          ),
+        0
+      );
+
+    const currentAvailableBal = totalInitialBalance + allTimeInc - allTimeExp - allTimeLentOut;
 
     const pendingTotal = accountLoans.reduce((sum, l) => {
       const paid = Number(
@@ -2005,20 +2231,20 @@ export function App() {
       lentOutstanding: lentOut,
       borrowedOutstanding: borrowedOut,
       netSavings: savings,
-      actualBalance: actBal,
+      availableBalance: currentAvailableBal,
       pendingSettlementsTotal: pendingTotal,
       pendingSettlementsCount: pCount,
       lentCount: lCount,
       borrowedCount: bCount,
       settlementDetails: details,
     };
-  }, [accountTransactions, accountLoans, selectedAccountId, accounts]);
+  }, [accountTransactions, accountLoans, selectedAccountId, accounts, transactions, loans]);
 
   const canSettleLoan = useCallback(
     (loan: LoanItem) =>
-      !(loan.kind === 'lent' && loan.status === 'PAID' && netSavings < loan.amount) &&
-      !(loan.kind === 'borrowed' && loan.status !== 'PAID' && actualBalance <= 0),
-    [netSavings, actualBalance]
+      !(loan.kind === 'lent' && loan.status === 'PAID' && availableBalance < loan.amount) &&
+      !(loan.kind === 'borrowed' && loan.status !== 'PAID' && availableBalance <= 0),
+    [availableBalance]
   );
 
   // Compute category breakdown strictly from real DB expenses (memoized)
@@ -2127,8 +2353,7 @@ export function App() {
       <div className="mobile-view-wrapper" style={{ minHeight: '100vh', background: 'var(--bg-app)' }}>
         <div style={{ padding: 0, display: 'flex', justifyContent: 'center' }}>
           <MobileDashboard
-            balance={netSavings}
-            actualBalance={actualBalance}
+            balance={availableBalance}
             userName={user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Friend'}
             user={user}
             token={token}
@@ -2307,8 +2532,8 @@ export function App() {
                 <MetricCards
                   income={totalIncome}
                   expenses={totalExpense}
-                  savings={netSavings}
-                  actualBalance={actualBalance}
+                  availableBalance={availableBalance}
+                  accountName={selectedAccountId !== 'ALL' ? accounts.find((a) => (a.aid || a.id) === selectedAccountId)?.name : 'All Accounts'}
                   pendingSettlements={pendingSettlementsTotal}
                   settlementDetails={settlementDetails}
                   onCardClick={(type) => {
@@ -2480,6 +2705,7 @@ export function App() {
         onClose={handleCloseEditLoan}
         loan={editingLoan}
         accounts={accounts}
+        selectedAccountId={selectedAccountId}
         token={token}
         onSuccess={handleLoanSuccess}
       />

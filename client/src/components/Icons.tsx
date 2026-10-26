@@ -33,6 +33,7 @@ import {
   LuPlane,
   LuZap,
   LuFilm,
+  LuWallet,
 } from 'react-icons/lu';
 
 import {
@@ -73,6 +74,12 @@ export const IncomeCardIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
 export const ExpenseCardIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444' }}>
     <LuTrendingDown size={size} />
+  </div>
+);
+
+export const BalanceCardIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10B981' }}>
+    <LuWallet size={size} />
   </div>
 );
 

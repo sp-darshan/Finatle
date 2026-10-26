@@ -23,7 +23,7 @@ export class LoanService {
     }
 
     const numericPaid = paidAmount !== undefined && !isNaN(Number(paidAmount))
-      ? Math.max(0, Math.min(amount, Number(paidAmount)))
+      ? Math.max(0, Number(paidAmount))
       : 0;
     const status = numericPaid >= amount ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
 
@@ -61,14 +61,15 @@ export class LoanService {
     };
 
     const state = await CalculationService.getFinancialState(userId, targetAccount.aid);
-    const loanImpact = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
+    const cappedPaid = Math.min(amount, numericPaid);
+    const loanImpact = kind === 'lent' ? cappedPaid - amount : amount - cappedPaid;
     const netSavingsImpact = kind === 'lent' ? loanImpact : 0;
 
     if (CalculationService.violatesBalanceRules(state.netSavings + netSavingsImpact, state.actualBalance + loanImpact)) {
       throw new BadRequestError('Insufficient balance in this account for this loan.');
     }
 
-    const balanceChange = kind === 'lent' ? numericPaid - amount : amount - numericPaid;
+    const balanceChange = loanImpact;
     const result = await prisma.$transaction(
       async (tx) => {
         const loan = kind === 'lent'
@@ -112,11 +113,11 @@ export class LoanService {
       let newStatus = lent.status;
 
       if (paidAmount !== undefined && !isNaN(Number(paidAmount))) {
-        newPaid = Math.max(0, Math.min(totalAmount, Number(paidAmount)));
+        newPaid = Math.max(0, Number(paidAmount));
         newStatus = (newPaid >= totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'PENDING') as any;
       } else if (status) {
         if (status === 'PAID') {
-          newPaid = totalAmount;
+          newPaid = Math.max(totalAmount, oldPaid);
           newStatus = 'PAID';
         } else if (status === 'PENDING') {
           newPaid = 0;
@@ -126,7 +127,9 @@ export class LoanService {
         }
       }
 
-      const repaymentChange = newPaid - oldPaid;
+      const cappedOldPaid = Math.min(totalAmount, oldPaid);
+      const cappedNewPaid = Math.min(totalAmount, newPaid);
+      const repaymentChange = cappedNewPaid - cappedOldPaid;
       const targetAccountId = lent.accountId || undefined;
       const state = await CalculationService.getFinancialState(userId, targetAccountId);
       if (CalculationService.violatesBalanceRules(state.netSavings + repaymentChange, state.actualBalance + repaymentChange)) {
@@ -135,11 +138,6 @@ export class LoanService {
 
       const result = await prisma.$transaction(
         async (tx) => {
-          const loan = await tx.moneyLent.update({
-            where: { lid: lent.lid },
-            data: { status: newStatus as any, paidAmount: new Prisma.Decimal(newPaid) },
-          });
-
           let targetAccount = targetAccountId
             ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
             : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
@@ -157,6 +155,15 @@ export class LoanService {
               },
             });
           }
+
+          const loan = await tx.moneyLent.update({
+            where: { lid: lent.lid },
+            data: {
+              status: newStatus as any,
+              paidAmount: new Prisma.Decimal(newPaid),
+              accountId: lent.accountId || targetAccount.aid,
+            },
+          });
 
           const account = await tx.account.update({
             where: { aid: targetAccount.aid },
@@ -185,11 +192,11 @@ export class LoanService {
       let newStatus = borrowed.status;
 
       if (paidAmount !== undefined && !isNaN(Number(paidAmount))) {
-        newPaid = Math.max(0, Math.min(totalAmount, Number(paidAmount)));
+        newPaid = Math.max(0, Number(paidAmount));
         newStatus = (newPaid >= totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'PENDING') as any;
       } else if (status) {
         if (status === 'PAID') {
-          newPaid = totalAmount;
+          newPaid = Math.max(totalAmount, oldPaid);
           newStatus = 'PAID';
         } else if (status === 'PENDING') {
           newPaid = 0;
@@ -199,7 +206,9 @@ export class LoanService {
         }
       }
 
-      const repaymentChange = -(newPaid - oldPaid);
+      const cappedOldPaid = Math.min(totalAmount, oldPaid);
+      const cappedNewPaid = Math.min(totalAmount, newPaid);
+      const repaymentChange = -(cappedNewPaid - cappedOldPaid);
       const targetAccountId = borrowed.accountId || undefined;
       const state = await CalculationService.getFinancialState(userId, targetAccountId);
       if (CalculationService.violatesBalanceRules(state.netSavings, state.actualBalance + repaymentChange)) {
@@ -208,11 +217,6 @@ export class LoanService {
 
       const result = await prisma.$transaction(
         async (tx) => {
-          const loan = await tx.moneyBorrowed.update({
-            where: { bid: borrowed.bid },
-            data: { status: newStatus as any, paidAmount: new Prisma.Decimal(newPaid) },
-          });
-
           let targetAccount = targetAccountId
             ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
             : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
@@ -230,6 +234,15 @@ export class LoanService {
               },
             });
           }
+
+          const loan = await tx.moneyBorrowed.update({
+            where: { bid: borrowed.bid },
+            data: {
+              status: newStatus as any,
+              paidAmount: new Prisma.Decimal(newPaid),
+              accountId: borrowed.accountId || targetAccount.aid,
+            },
+          });
 
           const account = await tx.account.update({
             where: { aid: targetAccount.aid },
@@ -279,12 +292,12 @@ export class LoanService {
     const oldPaid = Number((existing as any).paidAmount || (existing.status === 'PAID' ? Number(existing.amount) : 0));
 
     let newPaid = paidAmount !== undefined && !isNaN(Number(paidAmount))
-      ? Math.max(0, Math.min(newAmount, Number(paidAmount)))
+      ? Math.max(0, Number(paidAmount))
       : status === 'PAID'
-      ? newAmount
+      ? Math.max(newAmount, oldPaid)
       : status === 'PENDING'
       ? 0
-      : Math.min(newAmount, oldPaid);
+      : oldPaid;
 
     let newStatus = status;
     if (newPaid >= newAmount) newStatus = 'PAID';
@@ -295,8 +308,10 @@ export class LoanService {
     const newDescription = description !== undefined ? sanitizeString(description) : existing.description;
     const newDueAt = dueAt !== undefined ? (dueAt ? new Date(dueAt) : null) : existing.dueAt;
 
-    const oldEffect = existingKind === 'lent' ? oldPaid - Number(existing.amount) : Number(existing.amount) - oldPaid;
-    const newEffect = targetKind === 'lent' ? newPaid - newAmount : newAmount - newPaid;
+    const cappedOldPaid = Math.min(Number(existing.amount), oldPaid);
+    const cappedNewPaid = Math.min(newAmount, newPaid);
+    const oldEffect = existingKind === 'lent' ? cappedOldPaid - Number(existing.amount) : Number(existing.amount) - cappedOldPaid;
+    const newEffect = targetKind === 'lent' ? cappedNewPaid - newAmount : newAmount - cappedNewPaid;
     const balanceDelta = newEffect - oldEffect;
 
     const state = await CalculationService.getFinancialState(userId, targetAccountId || undefined);
@@ -309,69 +324,6 @@ export class LoanService {
 
     const result = await prisma.$transaction(
       async (tx) => {
-        let updatedLoan;
-        if (existingKind === targetKind) {
-          if (existingKind === 'lent') {
-            updatedLoan = await tx.moneyLent.update({
-              where: { lid: loanId },
-              data: {
-                personName: newPersonName,
-                amount: new Prisma.Decimal(newAmount),
-                paidAmount: new Prisma.Decimal(newPaid),
-                description: newDescription,
-                dueAt: newDueAt,
-                status: newStatus as any,
-                accountId: targetAccountId || null,
-              },
-            });
-          } else {
-            updatedLoan = await tx.moneyBorrowed.update({
-              where: { bid: loanId },
-              data: {
-                personName: newPersonName,
-                amount: new Prisma.Decimal(newAmount),
-                paidAmount: new Prisma.Decimal(newPaid),
-                description: newDescription,
-                dueAt: newDueAt,
-                status: newStatus as any,
-                accountId: targetAccountId || null,
-              },
-            });
-          }
-        } else {
-          if (existingKind === 'lent') {
-            await tx.moneyLent.delete({ where: { lid: loanId } });
-            updatedLoan = await tx.moneyBorrowed.create({
-              data: {
-                bid: loanId,
-                uid: userId,
-                personName: newPersonName,
-                amount: new Prisma.Decimal(newAmount),
-                paidAmount: new Prisma.Decimal(newPaid),
-                description: newDescription,
-                dueAt: newDueAt,
-                status: newStatus as any,
-                accountId: targetAccountId || null,
-              },
-            });
-          } else {
-            await tx.moneyBorrowed.delete({ where: { bid: loanId } });
-            updatedLoan = await tx.moneyLent.create({
-              data: {
-                lid: loanId,
-                uid: userId,
-                personName: newPersonName,
-                amount: new Prisma.Decimal(newAmount),
-                paidAmount: new Prisma.Decimal(newPaid),
-                description: newDescription,
-                dueAt: newDueAt,
-                status: newStatus as any,
-                accountId: targetAccountId || null,
-              },
-            });
-          }
-        }
-
         let targetAccount = targetAccountId
           ? await tx.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
           : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
@@ -388,6 +340,71 @@ export class LoanService {
               isDefault: true,
             },
           });
+        }
+
+        const resolvedAccountId = targetAccountId || targetAccount.aid;
+
+        let updatedLoan;
+        if (existingKind === targetKind) {
+          if (existingKind === 'lent') {
+            updatedLoan = await tx.moneyLent.update({
+              where: { lid: loanId },
+              data: {
+                personName: newPersonName,
+                amount: new Prisma.Decimal(newAmount),
+                paidAmount: new Prisma.Decimal(newPaid),
+                description: newDescription,
+                dueAt: newDueAt,
+                status: newStatus as any,
+                accountId: resolvedAccountId,
+              },
+            });
+          } else {
+            updatedLoan = await tx.moneyBorrowed.update({
+              where: { bid: loanId },
+              data: {
+                personName: newPersonName,
+                amount: new Prisma.Decimal(newAmount),
+                paidAmount: new Prisma.Decimal(newPaid),
+                description: newDescription,
+                dueAt: newDueAt,
+                status: newStatus as any,
+                accountId: resolvedAccountId,
+              },
+            });
+          }
+        } else {
+          if (existingKind === 'lent') {
+            await tx.moneyLent.delete({ where: { lid: loanId } });
+            updatedLoan = await tx.moneyBorrowed.create({
+              data: {
+                bid: loanId,
+                uid: userId,
+                personName: newPersonName,
+                amount: new Prisma.Decimal(newAmount),
+                paidAmount: new Prisma.Decimal(newPaid),
+                description: newDescription,
+                dueAt: newDueAt,
+                status: newStatus as any,
+                accountId: resolvedAccountId,
+              },
+            });
+          } else {
+            await tx.moneyBorrowed.delete({ where: { bid: loanId } });
+            updatedLoan = await tx.moneyLent.create({
+              data: {
+                lid: loanId,
+                uid: userId,
+                personName: newPersonName,
+                amount: new Prisma.Decimal(newAmount),
+                paidAmount: new Prisma.Decimal(newPaid),
+                description: newDescription,
+                dueAt: newDueAt,
+                status: newStatus as any,
+                accountId: resolvedAccountId,
+              },
+            });
+          }
         }
 
         const account = await tx.account.update({

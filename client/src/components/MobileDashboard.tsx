@@ -39,7 +39,6 @@ import { useGreeting } from '../lib/greeting';
 
 interface MobileDashboardProps {
   balance: number;
-  actualBalance?: number;
   userName?: string;
   user?: { uid: string; email: string; name?: string | null; age?: number | null; phone?: string | null } | null;
   token?: string | null;
@@ -76,7 +75,6 @@ interface MobileDashboardProps {
 
 export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   balance = 0,
-  actualBalance,
   userName = 'Darshan',
   user,
   token,
@@ -109,7 +107,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
   onSelectNav,
 }) => {
   const { greeting, timeString, dateString } = useGreeting();
-  const [balanceView, setBalanceView] = useState<'net' | 'actual'>('net');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPWAInstalled, setIsPWAInstalled] = useState(false);
@@ -458,9 +455,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
         <>
           {/* Greeting & Account Switcher Bar */}
           <section className="mobile-greeting-sec" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
-            <div>
+            <div style={{ minWidth: 0, flex: '1 1 auto' }}>
               <h3>{greeting},<br />{userName}!</h3>
-              <p>{dateString} • {timeString}</p>
+              <p className="mobile-greeting-date">{dateString} • {timeString}</p>
             </div>
 
             {/* Account Switcher Pill on Mobile */}
@@ -481,26 +478,20 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
             )}
           </section>
 
-          {/* Total / Actual Balance Card */}
+          {/* Available Balance Card */}
           <div className="mobile-balance-card">
             <div className="mobile-balance-info">
               <div className="balance-title-row">
-                <span>{balanceView === 'net' ? 'Total Balance' : 'Actual Balance'}</span>
-                <button
-                  type="button"
-                  className="balance-toggle-btn"
-                  onClick={() => setBalanceView(balanceView === 'net' ? 'actual' : 'net')}
-                  title={balanceView === 'net' ? 'Switch to Actual Balance' : 'Switch to Total Balance'}
-                >
-                  <span>{balanceView === 'net' ? 'Actual' : 'Total'}</span>
-                </button>
+                <span>Available Balance</span>
               </div>
               <div className="mobile-balance-amount">
-                {formatRupee(balanceView === 'net' ? balance : (actualBalance ?? balance))}
+                {formatRupee(balance)}
               </div>
               <div className="mobile-balance-badge">
                 <span>
-                  {balanceView === 'net' ? 'Net savings from transactions' : 'Actual balance after loans & settlements'}
+                  {selectedAccountId === 'ALL'
+                    ? 'All accounts combined'
+                    : `${accounts.find((a) => (a.aid || a.id) === selectedAccountId)?.name || 'Current account'} • Available`}
                 </span>
               </div>
             </div>
@@ -1395,9 +1386,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
                 </strong>
               </div>
               <div className="summary-balance-item">
-                <span>Active Balance:</span>
+                <span>Available Balance:</span>
                 <strong style={{ color: 'var(--primary-dark, #065f46)' }}>
-                  {formatRupee(balanceView === 'net' ? balance : (actualBalance ?? balance))}
+                  {formatRupee(balance)}
                 </strong>
               </div>
             </div>
