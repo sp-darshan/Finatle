@@ -48,6 +48,15 @@ export class TransactionService {
 
     const state = await CalculationService.getFinancialState(userId, targetAccount.aid);
     const transactionImpact = type === 'INCOME' ? amount : -amount;
+
+    if (CalculationService.violatesBalanceRules(state.netSavings + transactionImpact, state.actualBalance + transactionImpact)) {
+      throw new BadRequestError('Insufficient balance in this account for this transaction.');
+    }
+
+    const overallState = await CalculationService.getFinancialState(userId);
+    if (CalculationService.violatesBalanceRules(overallState.netSavings + transactionImpact, overallState.actualBalance + transactionImpact)) {
+      throw new BadRequestError('Insufficient overall balance: Net savings cannot be negative.');
+    }
     // Validate items breakdown total matches transaction amount if items are provided
     if (Array.isArray(dto.items) && dto.items.length > 0) {
       const validItems = dto.items.filter((it) => it && (it.name || Number(it.price) > 0));
@@ -309,6 +318,11 @@ export class TransactionService {
     const state = await CalculationService.getFinancialState(userId, targetAccountId);
     if (CalculationService.violatesBalanceRules(state.netSavings + reverseImpact, state.actualBalance + reverseImpact)) {
       throw new BadRequestError('Insufficient balance in this account to delete this transaction.');
+    }
+
+    const overallState = await CalculationService.getFinancialState(userId);
+    if (CalculationService.violatesBalanceRules(overallState.netSavings + reverseImpact, overallState.actualBalance + reverseImpact)) {
+      throw new BadRequestError('Insufficient overall balance: Net savings cannot be negative.');
     }
 
     await prisma.$transaction(

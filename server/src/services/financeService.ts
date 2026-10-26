@@ -24,7 +24,6 @@ export class FinanceService {
         where: { uid: userId },
         include: { items: true },
         orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
-        take: 100,
       }),
       prisma.moneyLent.findMany({
         where: { uid: userId },
