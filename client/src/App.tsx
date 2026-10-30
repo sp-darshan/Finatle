@@ -1099,6 +1099,7 @@ export function App() {
                       date: data.loan.lentAt ? new Date(data.loan.lentAt).toISOString() : new Date().toISOString(),
                       dueDate: data.loan.dueAt ? new Date(data.loan.dueAt).toISOString() : undefined,
                       accountId: data.loan.accountId || e.optimisticData.accountId || fallbackAcc,
+                      isSplit: true,
                     };
                     setLoans((prev) => {
                       const updated = prev.map((l) => (l.id === e.optimisticData.id ? realLoan : l));
@@ -1110,7 +1111,7 @@ export function App() {
             )
           )
             .then(() => {
-              if (token) fetchUserData(token, false);
+              if (token) fetchUserData(token, true);
             })
             .catch((err) => {
               console.error('[Optimistic] Split friends loan save error:', err);
@@ -1507,6 +1508,7 @@ export function App() {
                         ...e.optimisticData,
                         id: realLoanId,
                         accountId: data.loan.accountId || e.optimisticData.accountId || fallbackAcc,
+                        isSplit: true,
                       };
                       setLoans((prev) => {
                         const updated = prev.map((l) => (l.id === e.optimisticData.id ? realItem : l));
@@ -1519,7 +1521,7 @@ export function App() {
             )
           )
             .then(() => {
-              if (token) fetchUserData(token, false);
+              if (token) fetchUserData(token, true);
             })
             .catch((err) => console.error('[Split create lent loans failed]:', err));
         }
@@ -2006,6 +2008,7 @@ export function App() {
             status: 'PENDING',
             statusLabel: 'Yet to receive',
             accountId: targetAccountId,
+            isSplit: true,
           }));
 
           setLoans((prev) => {
@@ -2028,6 +2031,7 @@ export function App() {
                   description: entry.description || `${scanned.name} split`,
                   lentAt: scanned.date,
                   accountId: targetAccountId,
+                  isSplit: true,
                 }),
               }).then(async (res) => {
                 if (!res.ok) {
@@ -2040,7 +2044,7 @@ export function App() {
                   const tempId = optimisticLoans[idx]?.id;
                   if (tempId && realId) {
                     setLoans((prev) => {
-                      const updated = prev.map((l) => (l.id === tempId ? { ...l, id: realId, accountId: data.loan.accountId || targetAccountId } : l));
+                      const updated = prev.map((l) => (l.id === tempId ? { ...l, id: realId, accountId: data.loan.accountId || targetAccountId, isSplit: true } : l));
                       localStorage.setItem(`finatle_cache_loans_${uid}`, JSON.stringify(updated));
                       return updated;
                     });
