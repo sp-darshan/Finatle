@@ -297,6 +297,7 @@ export function App() {
   const pendingDeletedAccountIdsRef = useRef<Set<string>>(getPersistentTombstones('account', initialUid));
   const recentlyAddedTxIdsRef = useRef<Set<string>>(new Set());
   const recentlyAddedLoanIdsRef = useRef<Set<string>>(new Set());
+  const pendingEditedTxRef = useRef<Map<string, TransactionItem>>(new Map());
 
   const showToast = useCallback((message: string, type: 'error' | 'success' | 'info' = 'error') => {
     if (!message) return;
@@ -497,7 +498,13 @@ export function App() {
               !txTombstones.has(t.id) && 
               !pendingDeletedTxIdsRef.current.has(t.id)
             );
-            const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...mapped];
+            const serverMappedWithPendingEdits = mapped.map((t) => {
+              if (pendingEditedTxRef.current.has(t.id)) {
+                return pendingEditedTxRef.current.get(t.id)!;
+              }
+              return t;
+            });
+            const merged = [...pendingOptimistic.filter((p) => !serverIds.has(p.id)), ...serverMappedWithPendingEdits];
             localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(merged));
             return merged;
           });
@@ -1257,6 +1264,7 @@ export function App() {
     const uid = user?.uid || (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).uid : 'default');
     const prevTransactions = transactions;
     const prevLoans = loans;
+    const prevAccounts = accounts;
 
     if (action.type === 'delete' && action.originalId) {
       const deleteId = action.originalId;
@@ -1305,14 +1313,48 @@ export function App() {
       }
     } else if (action.type === 'update' && action.data && action.originalId) {
       const updatedData = action.data;
+      const targetId = action.originalId;
+
+      // Lock in pending edited map to immediately preserve local update across background syncs
+      pendingEditedTxRef.current.set(targetId, updatedData);
+
+      const oldTx = prevTransactions.find((t) => t.id === targetId);
+
+      // Instant local state update
       setTransactions((prev) => {
-        const updated = prev.map((t) => (t.id === action.originalId ? updatedData : t));
+        const updated = prev.map((t) => (t.id === targetId ? updatedData : t));
         localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
         return updated;
       });
 
+      // Instant local account balance recalculation
+      if (oldTx) {
+        const oldImpact = oldTx.type === 'INCOME' ? Number(oldTx.amount) : -Number(oldTx.amount);
+        const newImpact = updatedData.type === 'INCOME' ? Number(updatedData.amount) : -Number(updatedData.amount);
+        const oldAccId = oldTx.accountId;
+        const newAccId = updatedData.accountId;
+
+        setAccounts((prev) => {
+          const updated = prev.map((a) => {
+            const accId = a.aid || a.id;
+            if (oldAccId === newAccId && accId === oldAccId) {
+              return { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + (newImpact - oldImpact) };
+            }
+            if (accId === oldAccId) {
+              return { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) - oldImpact };
+            }
+            if (accId === newAccId) {
+              return { ...a, balance: Number(a.balance ?? a.initialBalance ?? 0) + newImpact };
+            }
+            return a;
+          });
+          localStorage.setItem(`finatle_accounts_${uid}`, JSON.stringify(updated));
+          return updated;
+        });
+      }
+
       if (token) {
-        apiFetch(`/api/finance/transactions/${action.originalId}`, {
+        apiFetch(`/api/finance/transactions/${targetId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -1329,12 +1371,16 @@ export function App() {
               const data = await res.json().catch(() => ({}));
               throw new Error(data.message || data.error || 'Failed to update transaction.');
             }
+            pendingEditedTxRef.current.delete(targetId);
             fetchUserData(token, false);
           })
           .catch((err) => {
             console.error('[Optimistic] Update transaction failed, reverting:', err);
+            pendingEditedTxRef.current.delete(targetId);
             setTransactions(prevTransactions);
+            setAccounts(prevAccounts);
             localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
+            localStorage.setItem(`finatle_accounts_${uid}`, JSON.stringify(prevAccounts));
             showToast(err.message || 'Failed to update transaction. Reverted.', 'error');
           });
       }
@@ -2625,7 +2671,7 @@ export function App() {
 
                 {/* Charts Grid */}
                 <div className="charts-grid">
-                  <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
+                  <ExpenseDonutChart transactions={accountTransactions} totalExpense={totalExpense} categories={expenseCategories} />
                   <IncomeExpenseBarChart transactions={accountTransactions} />
                 </div>
 
@@ -2724,7 +2770,7 @@ export function App() {
 
             {currentTab === 'analytics' && (
               <div className="charts-grid">
-                <ExpenseDonutChart totalExpense={totalExpense} categories={expenseCategories} />
+                <ExpenseDonutChart transactions={accountTransactions} totalExpense={totalExpense} categories={expenseCategories} />
                 <IncomeExpenseBarChart transactions={transactions} />
               </div>
             )}

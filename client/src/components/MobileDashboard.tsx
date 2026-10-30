@@ -1350,7 +1350,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
           <div className="mobile-sec-header">
             <h4>Financial Insights</h4>
           </div>
-          <ExpenseDonutChart totalExpense={computedExpense} categories={expenseCategories} />
+          <ExpenseDonutChart transactions={transactions} totalExpense={computedExpense} categories={expenseCategories} />
 
           {/* Comprehensive Monthly Summary Card */}
           <div className="mobile-monthly-summary-card">

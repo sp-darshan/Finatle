@@ -46,7 +46,20 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState('');
 
+  const lastInitializedLoanIdRef = useRef<string | null>(null);
+
   useEffect(() => {
+    if (!isOpen || !loan) {
+      lastInitializedLoanIdRef.current = null;
+      return;
+    }
+
+    // Guard against re-initialization when background accounts update
+    if (lastInitializedLoanIdRef.current === loan.id) {
+      return;
+    }
+    lastInitializedLoanIdRef.current = loan.id;
+
     if (loan) {
       setKind(loan.kind === 'borrowed' ? 'borrowed' : 'lent');
       const activeFallback = (activeAccountId && activeAccountId !== 'ALL') ? activeAccountId : '';

@@ -76,7 +76,20 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const lastInitializedTxIdRef = useRef<string | null>(null);
+
   useEffect(() => {
+    if (!isOpen || !transaction) {
+      lastInitializedTxIdRef.current = null;
+      return;
+    }
+
+    // Guard against re-initializing state on background accounts/parent updates
+    if (lastInitializedTxIdRef.current === transaction.id) {
+      return;
+    }
+    lastInitializedTxIdRef.current = transaction.id;
+
     if (transaction) {
       setMode(transaction.type === 'INCOME' ? 'INCOME' : 'EXPENSE');
       const defaultAccId = accounts.find((a) => a.isDefault)?.aid || accounts.find((a) => a.isDefault)?.id || accounts[0]?.aid || accounts[0]?.id || '';
@@ -1163,7 +1176,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               {/* Receipt Breakdown / Line Items */}
               <div className="receipt-breakdown-card">
                 <div
-                  className="receipt-breakdown-header"
+                  className="receipt-breakdown-header" style={{ cursor: 'pointer' }}
                   onClick={() => setShowBreakdown((prev) => !prev)}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
@@ -1187,8 +1200,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
+                  <span
+                    aria-hidden="true"
                     style={{
                       background: '#f1f5f9',
                       border: 'none',
@@ -1199,14 +1212,14 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                       width: 28,
                       height: 28,
                       borderRadius: '50%',
-                      cursor: 'pointer',
                       padding: 0,
                       flexShrink: 0,
                       transition: 'all 0.15s ease',
+                      pointerEvents: 'none',
                     }}
                   >
                     {showBreakdown ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
-                  </button>
+                  </span>
                 </div>
 
                 {showBreakdown && (
