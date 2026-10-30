@@ -82,9 +82,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
   const remainingNum = Math.max(0, totalNum - paidNum);
   const extraPaid = Math.max(0, paidNum - totalNum);
 
-  const previousPaid = Number(loan.paidAmount !== undefined && loan.paidAmount !== null ? loan.paidAmount : (loan.status === 'PAID' ? loan.amount : 0));
-  const previousExtra = Math.max(0, previousPaid - (loan.amount || 0));
-  const pendingExtraDifference = Math.max(0, extraPaid - previousExtra);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,8 +99,6 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
     }
 
     const rawPaid = parseFloat(paidAmount) || 0;
-    const currentExtra = Math.max(0, rawPaid - numericAmount);
-    const extraDifference = Math.max(0, currentExtra - previousExtra);
     const numericPaid = isNaN(rawPaid) ? 0 : Math.max(0, rawPaid);
     const computedStatus = (rawPaid >= numericAmount) ? 'PAID' : numericPaid > 0 ? 'PARTIAL' : 'PENDING';
 
@@ -135,27 +130,20 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
     };
 
     let extraTransaction = undefined;
-    if (extraDifference > 0) {
+    if (kind === 'lent' && computedStatus === 'PAID' && loan.status !== 'PAID') {
+      const settledAmount = numericPaid > 0 ? numericPaid : (remainingNum > 0 ? remainingNum : numericAmount);
       const todayFormatted = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      const txType: 'INCOME' = 'INCOME';
       extraTransaction = {
         optimisticData: {
-          id: `temp-extra-${Date.now()}`,
+          id: `temp-paid-back-${Date.now()}`,
           name: personName.trim(),
-          category: 'Other (Extra Paid)',
+          category: 'Other (Paid Back)',
           date: todayFormatted,
-          amount: extraDifference,
-          type: txType,
+          amount: settledAmount,
+          type: 'INCOME' as const,
           accountId: effectiveAccId,
         },
-        apiPayload: {
-          type: txType,
-          amount: extraDifference,
-          description: personName.trim(),
-          category: 'Other (Extra Paid)',
-          accountId: effectiveAccId,
-          occurredAt: new Date().toISOString(),
-        },
+        apiPayload: null,
       };
     }
 
@@ -310,7 +298,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                 else setStatus('PENDING');
               }}
             />
-            {extraPaid > 0 && (
+            {kind === 'lent' && extraPaid > 0 && (
               <div style={{
                 marginTop: '0.4rem',
                 padding: '0.45rem 0.65rem',
@@ -323,11 +311,7 @@ export const EditLoanModal: React.FC<EditLoanModalProps> = ({
                 alignItems: 'center',
                 gap: '0.4rem',
               }}>
-                {pendingExtraDifference > 0 ? (
-                  <span>Difference of <strong>{formatRupee(pendingExtraDifference)}</strong> will be added to your account and recorded in Transactions under "Other (Extra Paid)" for {personName.trim() || 'contact'}.</span>
-                ) : (
-                  <span>Settled with extra <strong>+{formatRupee(extraPaid)}</strong> (already recorded in Transactions under "Other (Extra Paid)").</span>
-                )}
+                <span>Full settled amount of <strong>{formatRupee(paidNum)}</strong> will be recorded in Transactions under "Other (Paid Back)" for {personName.trim() || 'contact'}.</span>
               </div>
             )}
             {/* Quick Settle Presets */}

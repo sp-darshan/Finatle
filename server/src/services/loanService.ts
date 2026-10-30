@@ -49,6 +49,7 @@ export class LoanService {
       });
     }
 
+    const isSplit = Boolean(dto.isSplit);
     const data = {
       uid: userId,
       accountId: targetAccount.aid,
@@ -58,12 +59,17 @@ export class LoanService {
       description: sanitizeString(description),
       dueAt: dueAt ? new Date(dueAt) : null,
       status: status as any,
+      ...(kind === 'lent' ? { isSplit } : {}),
     };
 
     const state = await CalculationService.getFinancialState(userId, targetAccount.aid);
     const cappedPaid = Math.min(amount, numericPaid);
-    const loanImpact = kind === 'lent' ? cappedPaid - amount : amount - cappedPaid;
-    const netSavingsImpact = kind === 'lent' ? loanImpact : 0;
+    const loanImpact = (kind === 'lent' && isSplit)
+      ? 0
+      : kind === 'lent'
+      ? cappedPaid - amount
+      : amount - cappedPaid;
+    const netSavingsImpact = (kind === 'lent' && !isSplit) ? loanImpact : 0;
 
     if (CalculationService.violatesBalanceRules(state.netSavings + netSavingsImpact, state.actualBalance + loanImpact)) {
       throw new BadRequestError('Insufficient balance in this account for this loan.');
@@ -104,7 +110,17 @@ export class LoanService {
 
     const { status, paidAmount } = dto;
 
-    const lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
+    let lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
+    if (!lent && (loanId.startsWith('temp-') || loanId === 'undefined' || loanId === 'null')) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      lent = await prisma.moneyLent.findFirst({
+        where: {
+          uid: userId,
+          createdAt: { gte: fiveMinutesAgo },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
     if (lent) {
       const totalAmount = Number(lent.amount);
       const oldPaid = Number((lent as any).paidAmount || (lent.status === 'PAID' ? totalAmount : 0));
@@ -127,12 +143,10 @@ export class LoanService {
         }
       }
 
-      const cappedOldPaid = Math.min(totalAmount, oldPaid);
-      const cappedNewPaid = Math.min(totalAmount, newPaid);
-      const repaymentChange = cappedNewPaid - cappedOldPaid;
+      const repaymentChange = newPaid - oldPaid;
       const targetAccountId = lent.accountId || undefined;
       const state = await CalculationService.getFinancialState(userId, targetAccountId);
-      if (CalculationService.violatesBalanceRules(state.netSavings + repaymentChange, state.actualBalance + repaymentChange)) {
+      if (repaymentChange < 0 && CalculationService.violatesBalanceRules(state.netSavings + repaymentChange, state.actualBalance + repaymentChange)) {
         throw new BadRequestError('Insufficient balance in this account to reopen this lent record.');
       }
 
@@ -165,11 +179,30 @@ export class LoanService {
             },
           });
 
+          // Once the loan is marked as Settled, record an Income transaction
+          let settledTransaction = null;
+          if (newStatus === 'PAID' && lent.status !== 'PAID') {
+            const settledAmount = newPaid > 0 ? newPaid : (repaymentChange > 0 ? repaymentChange : totalAmount);
+            if (settledAmount > 0) {
+              settledTransaction = await tx.transaction.create({
+                data: {
+                  uid: userId,
+                  accountId: targetAccount.aid,
+                  type: 'INCOME',
+                  amount: new Prisma.Decimal(settledAmount),
+                  category: 'Other (Paid Back)',
+                  description: lent.personName,
+                  occurredAt: new Date(),
+                },
+              });
+            }
+          }
+
           const account = await tx.account.update({
             where: { aid: targetAccount.aid },
             data: { balance: { increment: new Prisma.Decimal(repaymentChange) } },
           });
-          return { loan: { ...loan, id: loan.lid, lid: loan.lid, accountId: targetAccount.aid }, account };
+          return { loan: { ...loan, id: loan.lid, lid: loan.lid, accountId: targetAccount.aid }, account, transaction: settledTransaction };
         },
         {
           maxWait: 15000,
@@ -183,7 +216,17 @@ export class LoanService {
       return result;
     }
 
-    const borrowed = await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } });
+    let borrowed = await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } });
+    if (!borrowed && (loanId.startsWith('temp-') || loanId === 'undefined' || loanId === 'null')) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      borrowed = await prisma.moneyBorrowed.findFirst({
+        where: {
+          uid: userId,
+          createdAt: { gte: fiveMinutesAgo },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
     if (borrowed) {
       const totalAmount = Number(borrowed.amount);
       const oldPaid = Number((borrowed as any).paidAmount || (borrowed.status === 'PAID' ? totalAmount : 0));
@@ -248,7 +291,7 @@ export class LoanService {
             where: { aid: targetAccount.aid },
             data: { balance: { increment: new Prisma.Decimal(repaymentChange) } },
           });
-          return { loan: { ...loan, id: loan.bid, bid: loan.bid, accountId: targetAccount.aid }, account };
+          return { loan: { ...loan, id: loan.bid, bid: loan.bid, accountId: targetAccount.aid }, account, transaction: null };
         },
         {
           maxWait: 15000,
@@ -268,16 +311,68 @@ export class LoanService {
   /**
    * Update full loan details and recalculate balances
    */
-  static async updateLoan(userId: string | undefined, loanId: string, dto: UpdateLoanDto) {
+  static async updateLoan(userId: string | undefined, loanId: string, dto: UpdateLoanDto): Promise<any> {
     if (!userId) throw new UnauthorizedError();
 
     const { personName, amount, description, dueAt, status, kind, paidAmount, accountId } = dto;
 
-    const lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
-    const borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
+    let lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
+    if (!lent && (loanId.startsWith('temp-') || loanId === 'undefined' || loanId === 'null')) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      lent = await prisma.moneyLent.findFirst({
+        where: {
+          uid: userId,
+          createdAt: { gte: fiveMinutesAgo },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    let borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
 
     if (!lent && !borrowed) {
-      throw new NotFoundError('Loan record not found');
+      if (loanId.startsWith('temp-') || loanId === 'undefined' || loanId === 'null') {
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        borrowed = await prisma.moneyBorrowed.findFirst({
+          where: {
+            uid: userId,
+            createdAt: { gte: fiveMinutesAgo },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (!lent && !borrowed) {
+          return await LoanService.createLoan(userId, dto as any, (dto.kind === 'borrowed' ? 'borrowed' : 'lent'));
+        }
+      }
+
+      // If ID matches a Transaction record (e.g. from a converted record or loan settlement)
+      if (!lent && !borrowed) {
+        const txMatch = await prisma.transaction.findFirst({ where: { tid: loanId, uid: userId } });
+        if (txMatch) {
+          const { TransactionService } = await import('./transactionService');
+          const txResult = await TransactionService.updateTransaction(userId, loanId, {
+            amount: dto.amount,
+            description: dto.description || dto.personName,
+            accountId: dto.accountId,
+          });
+          return {
+            loan: {
+              id: txMatch.tid,
+              lid: txMatch.tid,
+              personName: dto.personName || txMatch.description || 'Record',
+              amount: Number(dto.amount ?? txMatch.amount),
+              paidAmount: Number(dto.paidAmount ?? 0),
+              status: dto.status || 'PAID',
+              accountId: dto.accountId || txMatch.accountId,
+            },
+            account: txResult.account,
+            transaction: txResult.transaction,
+          };
+        }
+      }
+
+      if (!lent && !borrowed) {
+        throw new NotFoundError('Loan record not found');
+      }
     }
 
     const existing = lent || borrowed!;
@@ -308,17 +403,15 @@ export class LoanService {
     const newDescription = description !== undefined ? sanitizeString(description) : existing.description;
     const newDueAt = dueAt !== undefined ? (dueAt ? new Date(dueAt) : null) : existing.dueAt;
 
-    const cappedOldPaid = Math.min(Number(existing.amount), oldPaid);
-    const cappedNewPaid = Math.min(newAmount, newPaid);
-    const oldEffect = existingKind === 'lent' ? cappedOldPaid - Number(existing.amount) : Number(existing.amount) - cappedOldPaid;
-    const newEffect = targetKind === 'lent' ? cappedNewPaid - newAmount : newAmount - cappedNewPaid;
+    const oldEffect = existingKind === 'lent' ? oldPaid - Number(existing.amount) : Number(existing.amount) - oldPaid;
+    const newEffect = targetKind === 'lent' ? newPaid - newAmount : newAmount - newPaid;
     const balanceDelta = newEffect - oldEffect;
 
     const state = await CalculationService.getFinancialState(userId, targetAccountId || undefined);
     const oldNetEffect = existingKind === 'lent' ? oldEffect : 0;
     const newNetEffect = targetKind === 'lent' ? newEffect : 0;
 
-    if (CalculationService.violatesBalanceRules(state.netSavings + newNetEffect - oldNetEffect, state.actualBalance + balanceDelta)) {
+    if (balanceDelta < 0 && CalculationService.violatesBalanceRules(state.netSavings + newNetEffect - oldNetEffect, state.actualBalance + balanceDelta)) {
       throw new BadRequestError('Insufficient balance in this account to update this loan.');
     }
 
@@ -407,13 +500,32 @@ export class LoanService {
           }
         }
 
+        // Once the loan is marked as Settled, record an Income transaction
+        let settledTransaction = null;
+        if (targetKind === 'lent' && newStatus === 'PAID' && existing.status !== 'PAID') {
+          const settledAmount = newPaid > 0 ? newPaid : (balanceDelta > 0 ? balanceDelta : newAmount);
+          if (settledAmount > 0) {
+            settledTransaction = await tx.transaction.create({
+              data: {
+                uid: userId,
+                accountId: targetAccount.aid,
+                type: 'INCOME',
+                amount: new Prisma.Decimal(settledAmount),
+                category: 'Other (Paid Back)',
+                description: newPersonName,
+                occurredAt: new Date(),
+              },
+            });
+          }
+        }
+
         const account = await tx.account.update({
           where: { aid: targetAccount.aid },
           data: { balance: { increment: new Prisma.Decimal(balanceDelta) } },
         });
 
         const updatedId = (updatedLoan as any).lid || (updatedLoan as any).bid;
-        return { loan: { ...updatedLoan, id: updatedId, lid: (updatedLoan as any).lid, bid: (updatedLoan as any).bid, accountId: targetAccount.aid }, account };
+        return { loan: { ...updatedLoan, id: updatedId, lid: (updatedLoan as any).lid, bid: (updatedLoan as any).bid, accountId: targetAccount.aid }, account, transaction: settledTransaction };
       },
       {
         maxWait: 15000,
@@ -437,8 +549,18 @@ export class LoanService {
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
 
-    const lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
-    const borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
+    let lent = await prisma.moneyLent.findFirst({ where: { lid: loanId, uid: userId } });
+    if (!lent && (loanId.startsWith('temp-') || loanId === 'undefined' || loanId === 'null')) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      lent = await prisma.moneyLent.findFirst({
+        where: {
+          uid: userId,
+          createdAt: { gte: fiveMinutesAgo },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    let borrowed = !lent ? await prisma.moneyBorrowed.findFirst({ where: { bid: loanId, uid: userId } }) : null;
 
     if (!lent && !borrowed) {
       // Idempotent: already deleted or not found
@@ -448,13 +570,14 @@ export class LoanService {
     const existing = lent || borrowed!;
     const existingKind = lent ? 'lent' : 'borrowed';
     const oldAmountNum = Number(existing.amount);
+    const isSplitLoan = existingKind === 'lent' && Boolean((existing as any).isSplit);
     const oldPaid = Number((existing as any).paidAmount || (existing.status === 'PAID' ? oldAmountNum : 0));
     const oldEffect = existingKind === 'lent' ? oldPaid - oldAmountNum : oldAmountNum - oldPaid;
-    const balanceDelta = -oldEffect;
+    const balanceDelta = isSplitLoan ? 0 : -oldEffect;
 
     const targetAccountId = existing.accountId || undefined;
     const state = await CalculationService.getFinancialState(userId, targetAccountId);
-    const netSavingsDelta = existingKind === 'lent' ? -oldEffect : 0;
+    const netSavingsDelta = (existingKind === 'lent' && !isSplitLoan) ? -oldEffect : 0;
     if (CalculationService.violatesBalanceRules(state.netSavings + netSavingsDelta, state.actualBalance + balanceDelta)) {
       throw new BadRequestError('Insufficient balance in this account to delete this loan.');
     }

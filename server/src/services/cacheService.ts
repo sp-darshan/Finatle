@@ -153,6 +153,7 @@ class CacheService {
    */
   async invalidateUserFinance(userId: string): Promise<void> {
     if (!userId) return;
+    await this.delete(`summary:${userId}`);
     await this.invalidatePattern(`finance:${userId}`);
     await this.delete(`accounts:${userId}`);
     await this.delete(`budgets:${userId}`);

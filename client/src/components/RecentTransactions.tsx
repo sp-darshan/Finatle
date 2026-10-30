@@ -42,7 +42,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = React.memo(
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
-  const maxItems = limit !== undefined ? limit : (onViewAll ? 5 : undefined);
+  const maxItems = limit !== undefined ? limit : (onViewAll ? 6 : undefined);
   const displayedTransactions = maxItems ? transactions.slice(0, maxItems) : transactions;
 
   return (

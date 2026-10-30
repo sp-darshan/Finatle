@@ -245,10 +245,12 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               description: lentTitle,
               dueAt: dueAt || undefined,
               accountId: effectiveAccountId || undefined,
+              isSplit: true,
             },
             optimisticData: {
               id: tempId,
               kind: 'lent' as const,
+              isSplit: true,
               personName: friend,
               title: `You lent to ${friend}`,
               subtext: lentTitle,
@@ -263,10 +265,11 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
           });
         }
 
-        const userShareTransaction = equalUserShare > 0 ? {
+        // Record the ENTIRE split amount as a transaction (user already paid that amount)
+        const splitTransaction = {
           apiPayload: {
             type: 'EXPENSE' as const,
-            amount: equalUserShare,
+            amount: numericAmount,
             description: itemTitle,
             category: selectedCategory,
             accountId: effectiveAccountId || undefined,
@@ -276,16 +279,17 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             name: itemTitle,
             category: selectedCategory,
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            amount: equalUserShare,
+            amount: numericAmount,
             type: 'EXPENSE' as const,
             accountId: effectiveAccountId || undefined,
           },
-        } : undefined;
+        };
 
         onSuccess({
           kind: 'split',
           splitData: {
-            userShareTransaction,
+            userShareTransaction: splitTransaction,
+            splitTransaction,
             lentEntries,
           },
         });
@@ -320,10 +324,12 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
               description: lentTitle,
               dueAt: dueAt || undefined,
               accountId: effectiveAccountId || undefined,
+              isSplit: true,
             },
             optimisticData: {
               id: tempId,
               kind: 'lent' as const,
+              isSplit: true,
               personName: p.name,
               title: `You lent to ${p.name}`,
               subtext: lentTitle,
@@ -338,10 +344,11 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
           };
         });
 
-        const userShareTransaction = customUserShare > 0 ? {
+        // Record the ENTIRE split amount as a transaction (user already paid that amount)
+        const splitTransaction = {
           apiPayload: {
             type: 'EXPENSE' as const,
-            amount: customUserShare,
+            amount: numericAmount,
             description: itemTitle,
             category: selectedCategory,
             accountId: effectiveAccountId || undefined,
@@ -351,16 +358,17 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = React.memo(({
             name: itemTitle,
             category: selectedCategory,
             date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            amount: customUserShare,
+            amount: numericAmount,
             type: 'EXPENSE' as const,
             accountId: effectiveAccountId || undefined,
           },
-        } : undefined;
+        };
 
         onSuccess({
           kind: 'split',
           splitData: {
-            userShareTransaction,
+            userShareTransaction: splitTransaction,
+            splitTransaction,
             lentEntries,
           },
         });

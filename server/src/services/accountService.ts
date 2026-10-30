@@ -42,11 +42,11 @@ export class AccountService {
       }),
       prisma.transaction.findMany({
         where: { uid: userId },
-        select: { accountId: true, type: true, amount: true },
+        select: { accountId: true, type: true, amount: true, category: true, description: true },
       }),
       prisma.moneyLent.findMany({
         where: { uid: userId },
-        select: { accountId: true, amount: true, paidAmount: true, status: true },
+        select: { accountId: true, amount: true, paidAmount: true, status: true, isSplit: true, personName: true },
       }),
       prisma.moneyBorrowed.findMany({
         where: { uid: userId },
@@ -81,10 +81,23 @@ export class AccountService {
         (sum, t) => sum + (t.type === 'INCOME' ? Number(t.amount) : -Number(t.amount)),
         0
       );
-      const lentOutstanding = accLent.reduce(
-        (sum, l) => sum + Math.max(0, Number(l.amount) - Number(l.paidAmount || (l.status === 'PAID' ? l.amount : 0))),
-        0
+      const paidBackTxNames = new Set(
+        accTxs
+          .filter((t: any) => t.category && t.category.toLowerCase().includes('paid back'))
+          .map((t: any) => (t.description || '').trim().toLowerCase())
       );
+
+      const lentOutstanding = accLent
+        .filter((l: any) => !l.isSplit)
+        .reduce((sum, l) => {
+          const amt = Number(l.amount);
+          const paid = Number(l.paidAmount || (l.status === 'PAID' ? amt : 0));
+          const personKey = (l.personName || '').trim().toLowerCase();
+          if (l.status === 'PAID' && personKey && paidBackTxNames.has(personKey)) {
+            return sum + amt;
+          }
+          return sum + Math.max(0, amt - paid);
+        }, 0);
       const borrowedOutstanding = accBorrowed.reduce(
         (sum, b) => sum + Math.max(0, Number(b.amount) - Number(b.paidAmount || (b.status === 'PAID' ? b.amount : 0))),
         0

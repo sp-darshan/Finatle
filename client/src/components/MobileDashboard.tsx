@@ -171,7 +171,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
     return (loans || []).filter((l) => l.kind === 'borrowed' && l.status !== 'PAID').reduce((acc, l) => acc + Number(l.amount), 0);
   }, [loans]);
 
-  const topTransactions = React.useMemo(() => transactions.slice(0, 5), [transactions]);
+  const topTransactions = React.useMemo(() => transactions.slice(0, 6), [transactions]);
   const pendingLoans = React.useMemo(() => loans.slice(0, 5), [loans]);
   const [txTypeFilter, setTxTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
@@ -191,9 +191,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
 
   const displayedLoans = React.useMemo(() => {
     return loans.filter((l) => {
-      if (loanFilterType === 'LENT' && l.kind !== 'lent') return false;
+      if (loanFilterType === 'LENT' && (l.kind !== 'lent' || Boolean(l.isSplit))) return false;
       if (loanFilterType === 'BORROWED' && l.kind !== 'borrowed') return false;
-      if (loanFilterType === 'SPLIT' && l.kind !== 'split') return false;
+      if (loanFilterType === 'SPLIT' && l.kind !== 'split' && !l.isSplit) return false;
       if (loanFilterType === 'PENDING' && l.status === 'PAID') return false;
       if (loanFilterType === 'SETTLED' && l.status !== 'PAID') return false;
       if (!mobileLoanSearch.trim()) return true;
@@ -791,7 +791,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
               <div className="loans-list">
                 {pendingLoans.map((item) => {
                   const isLent = item.kind === 'lent';
-                  const isSplit = item.kind === 'split';
+                  const isSplit = item.kind === 'split' || Boolean(item.isSplit);
                   const isSettled = item.status === 'PAID';
                   const isPartial = item.status === 'PARTIAL';
                   const paid = item.paidAmount || 0;
@@ -1248,7 +1248,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
             <div className="loans-list">
               {displayedLoans.map((item) => {
                 const isLent = item.kind === 'lent';
-                const isSplit = item.kind === 'split';
+                const isSplit = item.kind === 'split' || Boolean(item.isSplit);
                 const isSettled = item.status === 'PAID';
                 const isPartial = item.status === 'PARTIAL';
                 const paid = item.paidAmount || 0;
@@ -1379,15 +1379,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = React.memo(({
             </div>
 
             <div className="summary-footer-row">
-              <div className="summary-balance-item">
-                <span>Net Cash Flow:</span>
-                <strong style={{ color: (computedIncome - computedExpense) >= 0 ? '#059669' : '#dc2626' }}>
-                  {formatRupee(computedIncome - computedExpense)}
-                </strong>
-              </div>
-              <div className="summary-balance-item">
-                <span>Available Balance:</span>
-                <strong style={{ color: 'var(--primary-dark, #065f46)' }}>
+              <div className="summary-balance-item" style={{ width: '100%', justifyContent: 'space-between' }}>
+                <span>Actual Balance:</span>
+                <strong style={{ color: 'var(--primary-dark, #065f46)', fontSize: '0.95rem' }}>
                   {formatRupee(balance)}
                 </strong>
               </div>

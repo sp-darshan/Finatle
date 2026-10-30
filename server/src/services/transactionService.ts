@@ -137,12 +137,85 @@ export class TransactionService {
     userId: string | undefined,
     transactionId: string,
     dto: UpdateTransactionDto
-  ) {
+  ): Promise<any> {
     if (!userId) throw new UnauthorizedError();
 
-    const existing = await prisma.transaction.findFirst({
+    let existing = await prisma.transaction.findFirst({
       where: { tid: transactionId, uid: userId },
     });
+
+    // 1. If ID is an optimistic temporary ID or client-side placeholder
+    if (!existing && (transactionId.startsWith('temp-') || transactionId === 'undefined' || transactionId === 'null')) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      existing = await prisma.transaction.findFirst({
+        where: {
+          uid: userId,
+          createdAt: { gte: fiveMinutesAgo },
+          ...(dto.type ? { type: dto.type } : {}),
+          ...(dto.accountId ? { accountId: dto.accountId } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // If no matching transaction exists yet, create it directly
+      if (!existing) {
+        return await TransactionService.createTransaction(userId, {
+          type: dto.type || 'EXPENSE',
+          amount: dto.amount !== undefined ? dto.amount : 0,
+          description: dto.description,
+          category: dto.category,
+          accountId: dto.accountId,
+          items: dto.items,
+          occurredAt: dto.occurredAt,
+        } as any);
+      }
+    }
+
+    // 2. If ID matches a Loan record (e.g. from a settled loan or split record)
+    if (!existing) {
+      const lentMatch = await prisma.moneyLent.findFirst({ where: { lid: transactionId, uid: userId } });
+      const borrowedMatch = !lentMatch ? await prisma.moneyBorrowed.findFirst({ where: { bid: transactionId, uid: userId } }) : null;
+      if (lentMatch || borrowedMatch) {
+        const { LoanService } = await import('./loanService');
+        const loanMatch = lentMatch || borrowedMatch!;
+        const isLent = Boolean(lentMatch);
+        const loanResult = await LoanService.updateLoan(userId, transactionId, {
+          personName: dto.description || (loanMatch as any).personName,
+          description: dto.description,
+          amount: dto.amount,
+          accountId: dto.accountId,
+          kind: isLent ? 'lent' : 'borrowed',
+        });
+        return {
+          transaction: {
+            id: (loanMatch as any).lid || (loanMatch as any).bid,
+            tid: (loanMatch as any).lid || (loanMatch as any).bid,
+            amount: dto.amount !== undefined ? Number(dto.amount) : Number(loanMatch.amount),
+            description: dto.description || loanMatch.personName,
+            category: dto.category || (isLent ? 'Money Lent' : 'Money Borrowed'),
+            type: dto.type || (isLent ? 'EXPENSE' : 'INCOME'),
+            accountId: dto.accountId || loanMatch.accountId,
+          },
+          account: loanResult.account,
+        };
+      }
+    }
+
+    // 3. Fallback: fuzzy match recently created transaction with same description
+    if (!existing && dto.description) {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const fuzzyMatch = await prisma.transaction.findFirst({
+        where: {
+          uid: userId,
+          createdAt: { gte: tenMinutesAgo },
+          description: { contains: dto.description.trim(), mode: 'insensitive' },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (fuzzyMatch) {
+        existing = fuzzyMatch;
+      }
+    }
 
     if (!existing) {
       throw new NotFoundError('Transaction not found');

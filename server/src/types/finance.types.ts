@@ -38,6 +38,7 @@ export interface CreateLoanDto {
   description?: string | null;
   dueAt?: string | Date | null;
   accountId?: string | null;
+  isSplit?: boolean;
 }
 
 export interface UpdateLoanDto {
@@ -49,6 +50,7 @@ export interface UpdateLoanDto {
   status?: LoanStatus | 'PENDING' | 'PAID' | 'OVERDUE' | 'PARTIAL';
   kind?: 'lent' | 'borrowed';
   accountId?: string | null;
+  isSplit?: boolean;
 }
 
 export interface UpdateLoanStatusDto {

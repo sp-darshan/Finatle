@@ -372,10 +372,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             description: lentTitle,
             dueAt: dueAt || undefined,
             accountId: selectedAccountId || undefined,
+            isSplit: true,
           },
           optimisticData: {
             id: tempId,
             kind: 'lent',
+            isSplit: true,
             personName: friend,
             title: `You lent to ${friend}`,
             subtext: lentTitle,
@@ -390,10 +392,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         });
       }
 
-      const userShareTransaction = equalUserShare > 0 ? {
+      // Record the ENTIRE split amount as the transaction
+      const fullSplitTransaction = {
         apiPayload: {
           type: 'EXPENSE' as const,
-          amount: equalUserShare,
+          amount: parsedAmount,
           description: itemTitle,
           category: resolvedCategory,
           accountId: selectedAccountId || undefined,
@@ -403,17 +406,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           id: transaction.id,
           name: itemTitle,
           category: resolvedCategory,
-          amount: equalUserShare,
+          amount: parsedAmount,
           type: 'EXPENSE' as const,
           accountId: selectedAccountId || undefined,
         },
-      } : undefined;
+      };
 
       onSuccess({
         type: 'convert_to_split',
         originalId: transaction.id,
         splitData: {
-          userShareTransaction,
+          userShareTransaction: fullSplitTransaction,
           lentEntries,
         },
       });
@@ -447,10 +450,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           description: lentTitle,
           dueAt: dueAt || undefined,
           accountId: selectedAccountId || undefined,
+          isSplit: true,
         },
         optimisticData: {
           id: `temp-split-${Date.now()}-${idx}`,
           kind: 'lent' as const,
+          isSplit: true,
           personName: p.name,
           title: `You lent to ${p.name}`,
           subtext: lentTitle,
@@ -464,10 +469,11 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         },
       }));
 
-      const userShareTransaction = customUserShare > 0 ? {
+      // Record the ENTIRE split amount as the transaction
+      const fullSplitTransaction = {
         apiPayload: {
           type: 'EXPENSE' as const,
-          amount: customUserShare,
+          amount: parsedAmount,
           description: itemTitle,
           category: resolvedCategory,
           accountId: selectedAccountId || undefined,
@@ -477,17 +483,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           id: transaction.id,
           name: itemTitle,
           category: resolvedCategory,
-          amount: customUserShare,
+          amount: parsedAmount,
           type: 'EXPENSE' as const,
           accountId: selectedAccountId || undefined,
         },
-      } : undefined;
+      };
 
       onSuccess({
         type: 'convert_to_split',
         originalId: transaction.id,
         splitData: {
-          userShareTransaction,
+          userShareTransaction: fullSplitTransaction,
           lentEntries,
         },
       });

@@ -410,7 +410,14 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
     };
   }
 
-  if (normCategory === 'other (extra paid)' || normCategory === 'extra paid' || normCategory.includes('extra paid')) {
+  if (
+    normCategory === 'other (paid back)' ||
+    normCategory === 'paid back' ||
+    normCategory.includes('paid back') ||
+    normCategory === 'other (extra paid)' ||
+    normCategory === 'extra paid' ||
+    normCategory.includes('extra paid')
+  ) {
     return {
       type: 'category',
       icon: LuCircleDollarSign,
@@ -543,7 +550,7 @@ export function matchIcon(textOrDesc = '', category = ''): MatchedIconResult {
   }
 
   // Loans, People & Splits
-  if (/\b(lend|lent|borrow|borrowed|loan|debt|split|settle|friend|mom|dad|brother|sister|roommate)\b/i.test(combined)) {
+  if (/\b(lend|lent|borrow|borrowed|loan|debt|split|settle|settled|paid back|friend|mom|dad|brother|sister|roommate)\b/i.test(combined)) {
     return {
       type: 'category',
       icon: LuUsers,

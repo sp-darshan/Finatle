@@ -16,6 +16,7 @@ export interface LoanItem {
   accountId?: string | null;
   date?: string;
   dueDate?: string | null;
+  isSplit?: boolean;
 }
 
 interface LoansSettlementsProps {
@@ -73,7 +74,7 @@ export const LoansSettlements: React.FC<LoansSettlementsProps> = React.memo(({
           <>
             {displayedLoans.map((item) => {
               const isLent = item.kind === 'lent';
-              const isSplit = item.kind === 'split';
+              const isSplit = item.kind === 'split' || Boolean(item.isSplit);
               const isSettled = item.status === 'PAID';
               const isPartial = item.status === 'PARTIAL';
               const paid = item.paidAmount || 0;
