@@ -12,6 +12,7 @@ export const ENV = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   REDIS_URL: process.env.REDIS_URL || process.env.REDIS_TLS_URL || '',
+  BREVO_API_KEY: process.env.BREVO_API_KEY || '',
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465,
   SMTP_USER: process.env.SMTP_USER || '',

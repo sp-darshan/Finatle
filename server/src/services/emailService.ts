@@ -93,6 +93,44 @@ export class EmailService {
 </html>
     `;
 
+    // 1. Prioritize Brevo HTTPS REST API (Port 443)
+    // Cloud hosting providers like Render Free Tier strictly block outbound SMTP ports (25, 465, 587).
+    // HTTPS (Port 443) bypasses firewall blocking with instant ~200ms delivery.
+    if (ENV.BREVO_API_KEY) {
+      try {
+        const fromMatch = ENV.SMTP_FROM.match(/^(.*?)\s*<(.+?)>$/);
+        const senderName = fromMatch ? fromMatch[1].trim() : 'Finatle Security';
+        const senderEmail = fromMatch ? fromMatch[2].trim() : (ENV.SMTP_FROM || 'notify.projects@gmail.com');
+
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': ENV.BREVO_API_KEY,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: { name: senderName, email: senderEmail },
+            to: [{ email: toEmail }],
+            subject,
+            htmlContent: html,
+            textContent: `${title}\n\nYour 6-digit verification code is: ${otp}\nValid for 10 minutes.\n\nIf you did not request this code, please ignore this email.`,
+          }),
+        });
+
+        if (response.ok) {
+          console.log(`[EmailService] OTP email successfully delivered via Brevo HTTPS API to ${toEmail}`);
+          return true;
+        }
+
+        const errorBody = await response.text();
+        console.error(`[EmailService] Brevo HTTPS API responded with status ${response.status}:`, errorBody);
+      } catch (apiErr: any) {
+        console.error('[EmailService] Brevo HTTPS API request failed:', apiErr?.message || apiErr);
+      }
+    }
+
+    // 2. Fallback to standard SMTP (Local development or servers with open outbound SMTP ports)
     try {
       if (!ENV.SMTP_USER || !ENV.SMTP_PASS || ENV.SMTP_USER.includes('your-email') || ENV.SMTP_PASS.includes('your-16-character')) {
         console.warn('[EmailService] SMTP credentials not fully configured in .env. Cannot dispatch verification email.');
