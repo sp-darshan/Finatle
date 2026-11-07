@@ -1,7 +1,7 @@
 import { prisma } from '../config/db';
 import { inMemoryUsers } from './authService';
 import { UpdateProfileDto } from '../types/auth.types';
-import { NotFoundError, UnauthorizedError } from '../errors/AppError';
+import { NotFoundError, UnauthorizedError, BadRequestError } from '../errors/AppError';
 import { parseOptionalAge, sanitizeString } from '../utils/parsers';
 import { cacheService } from './cacheService';
 
@@ -73,15 +73,29 @@ export class UserService {
 
     const { name, phone, age } = dto;
     const parsedAge = age !== undefined ? parseOptionalAge(age) : undefined;
-    const sanitizedName = name !== undefined ? sanitizeString(name) : undefined;
-    const sanitizedPhone = phone !== undefined ? sanitizeString(phone) : undefined;
+    
+    let sanitizedName: string | undefined = undefined;
+    if (name !== undefined) {
+      if (!name || !name.trim()) {
+        throw new BadRequestError('Name cannot be empty.');
+      }
+      sanitizedName = name.trim();
+    }
+
+    let cleanedPhone: string | undefined = undefined;
+    if (phone !== undefined) {
+      cleanedPhone = phone ? phone.replace(/\D/g, '') : '';
+      if (cleanedPhone.length !== 10) {
+        throw new BadRequestError('Please enter a valid 10-digit mobile number.');
+      }
+    }
 
     try {
       const updated = await prisma.user.update({
         where: { uid: userId },
         data: {
           name: sanitizedName,
-          phone: sanitizedPhone,
+          phone: cleanedPhone,
           age: parsedAge !== -1 ? parsedAge : undefined,
         },
         select: {
@@ -101,6 +115,10 @@ export class UserService {
         user: updated,
       };
     } catch (dbError: any) {
+      if (dbError instanceof BadRequestError || dbError instanceof UnauthorizedError) {
+        throw dbError;
+      }
+
       console.error('[UserService] Profile update error:', dbError?.message || dbError);
       const fallbackUser = inMemoryUsers.find((u) => u.uid === userId);
       if (!fallbackUser) {
@@ -108,7 +126,7 @@ export class UserService {
       }
 
       if (sanitizedName !== undefined) fallbackUser.name = sanitizedName;
-      if (sanitizedPhone !== undefined) fallbackUser.phone = sanitizedPhone;
+      if (cleanedPhone !== undefined) fallbackUser.phone = cleanedPhone;
       if (parsedAge !== undefined && parsedAge !== -1) fallbackUser.age = parsedAge;
 
       await cacheService.invalidateUserFinance(userId);

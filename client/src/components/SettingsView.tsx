@@ -9,7 +9,7 @@ import {
   CheckCircleIcon,
   TrashIcon,
 } from './Icons';
-import { LuCircleAlert, LuInfo, LuFileSpreadsheet, LuFileJson, LuX, LuCheck } from 'react-icons/lu';
+import { LuCircleAlert, LuFileSpreadsheet, LuFileJson, LuX, LuCheck } from 'react-icons/lu';
 import { apiFetch } from '../lib/api';
 import type { TransactionItem } from './RecentTransactions';
 import { CustomDropdown } from './CustomDropdown';
@@ -29,6 +29,7 @@ interface SettingsViewProps {
   onUpdateUser: (updatedUser: SettingsUser) => void;
   onLogout: () => void;
   onDeleteAccount?: () => void;
+  onTokenUpdate?: (newToken: string) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -38,6 +39,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateUser,
   onLogout,
   onDeleteAccount,
+  onTokenUpdate,
 }) => {
   // Profile State
   const [name, setName] = useState(user?.name || '');
@@ -54,7 +56,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [otpSending, setOtpSending] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const [securityMessage, setSecurityMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Preferences State
@@ -147,7 +148,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // Step 1: Send OTP to email for password change
   const handleRequestOtp = async () => {
     setSecurityMessage(null);
-    setDevOtpHint(null);
 
     if (!newPassword) {
       setSecurityMessage({ text: 'Please enter a new password first.', type: 'error' });
@@ -182,18 +182,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         setOtpSent(true);
         setOtpTimer(60); // 60s cooldown
-        if (data.devOtp) {
-          setDevOtpHint(data.devOtp);
-        }
         setSecurityMessage({
           text: `Verification code sent to ${user?.email || 'your email address'}.`,
           type: 'success',
         });
       } else {
         setOtpSent(true);
-        setDevOtpHint('123456');
         setSecurityMessage({
-          text: 'Demo verification code generated: 123456 (Guest mode).',
+          text: `Verification code sent to ${user?.email || 'your email address'}.`,
           type: 'success',
         });
       }
@@ -235,7 +231,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           throw new Error(data.message || data.error || 'Failed to update password');
         }
 
-        setSecurityMessage({ text: 'Password successfully changed and verified!', type: 'success' });
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          onTokenUpdate?.(data.token);
+        }
+
+        setSecurityMessage({
+          text: 'Password successfully changed! All other devices have been logged out for security.',
+          type: 'success',
+        });
       } else {
         setSecurityMessage({ text: 'Password updated successfully (Guest mode).', type: 'success' });
       }
@@ -245,7 +249,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setConfirmPassword('');
       setOtp('');
       setOtpSent(false);
-      setDevOtpHint(null);
       setTimeout(() => setSecurityMessage(null), 5000);
     } catch (err: any) {
       setSecurityMessage({ text: err.message || 'Error updating password', type: 'error' });
@@ -370,7 +373,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           <form onSubmit={handleSaveProfile} className="settings-form">
             <div className="form-group">
-              <label>Full Name</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>Full Name</span>
+                <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500 }}>(required)</span>
+              </label>
               <div className="settings-input-with-icon">
                 <UserIcon size={16} className="input-prefix-icon" />
                 <input
@@ -379,27 +385,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   placeholder="e.g. John Doe, Alex Smith"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  required
                 />
               </div>
             </div>
 
             <div className="form-row-2col">
               <div className="form-group">
-                <label>Phone Number</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>Phone Number</span>
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500 }}>(required)</span>
+                </label>
                 <div className="settings-input-with-icon">
                   <PhoneIcon size={16} className="input-prefix-icon" />
                   <input
                     type="tel"
                     className="form-control"
-                    placeholder="e.g. +91 98765 43210"
+                    placeholder="e.g. 9876543210"
+                    maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    required
                   />
                 </div>
               </div>
 
               <div className="form-group">
-                <label>Age (Years)</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>Age (Years)</span>
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500 }}>(optional)</span>
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -528,12 +543,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     required
                     autoFocus
                   />
-                  {devOtpHint && (
-                    <div className="settings-dev-otp-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <LuInfo size={13} />
-                      <span>Dev OTP Code: <strong>{devOtpHint}</strong></span>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

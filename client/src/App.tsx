@@ -439,6 +439,22 @@ export function App() {
       });
   }, []);
 
+  // Multi-Device Security: Cleanly log out if password was changed on another device
+  useEffect(() => {
+    const handleRevocation = (e: any) => {
+      const message = e.detail?.message || 'Your session expired because your password was changed from another device. Please log in again.';
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('finatle_active_tab');
+      setToken(null);
+      setUser(null);
+      showToast(message, 'error');
+    };
+
+    window.addEventListener('finatle:session_revoked', handleRevocation);
+    return () => window.removeEventListener('finatle:session_revoked', handleRevocation);
+  }, [showToast]);
+
   const fetchUserData = async (authToken: string, refreshLoans = true) => {
     const refreshRequest = ++refreshRequestRef.current;
     try {
@@ -2787,6 +2803,10 @@ export function App() {
                 onUpdateUser={(updatedUser) => {
                   setUser(updatedUser);
                   localStorage.setItem('user', JSON.stringify(updatedUser));
+                }}
+                onTokenUpdate={(newToken) => {
+                  setToken(newToken);
+                  localStorage.setItem('token', newToken);
                 }}
                 onLogout={handleLogout}
                 onDeleteAccount={handleLogout}

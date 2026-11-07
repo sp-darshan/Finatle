@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { signUp, signIn } from '../controllers/authController';
+import {
+  signUp,
+  sendSignUpOtp,
+  signIn,
+  sendForgotPasswordOtp,
+  resetForgotPassword,
+} from '../controllers/authController';
 import { getMe, updateProfile, deleteMe } from '../controllers/userController';
 import { sendPasswordOtp, changePasswordWithOtp } from '../controllers/otpController';
 import { authMiddleware } from '../middlewares/authMiddleware';
@@ -8,8 +14,11 @@ import { asyncHandler } from '../utils/asyncHandler';
 const router = Router();
 
 // Public Auth Endpoints
+router.post('/signup/send-otp', asyncHandler(sendSignUpOtp));
 router.post('/signup', asyncHandler(signUp));
 router.post('/login', asyncHandler(signIn));
+router.post('/forgot-password/send-otp', asyncHandler(sendForgotPasswordOtp));
+router.post('/forgot-password/reset', asyncHandler(resetForgotPassword));
 
 // Protected Auth & User Profile Endpoints
 router.get('/me', authMiddleware as any, asyncHandler(getMe));

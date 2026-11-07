@@ -1,15 +1,100 @@
 import { prisma } from '../config/db';
 import { hashPassword } from '../utils/password';
+import { generateToken } from '../utils/jwt';
 import { inMemoryUsers } from './authService';
+import { SessionService } from './sessionService';
 import { ChangePasswordWithOtpDto, OtpRecord } from '../types/auth.types';
-import { BadRequestError, UnauthorizedError } from '../errors/AppError';
+import { BadRequestError, UnauthorizedError, NotFoundError } from '../errors/AppError';
+import { EmailService } from './emailService';
 
-// In-memory OTP storage for password change & verification
+// In-memory OTP storage for password change, sign up verification, and forgot password
 const otpStorage = new Map<string, OtpRecord>();
 
 export class OtpService {
   /**
-   * Generate and store 6-digit numeric OTP for user password change
+   * Send 6-digit verification code to email for public flows (SIGNUP or FORGOT_PASSWORD)
+   */
+  static async sendPublicOtp(email: string, purpose: 'SIGNUP' | 'FORGOT_PASSWORD') {
+    if (!email || !email.trim()) {
+      throw new BadRequestError('Email address is required.');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      throw new BadRequestError('Please enter a valid email address (e.g. name@example.com).');
+    }
+
+    // If Forgot Password, verify user exists first
+    if (purpose === 'FORGOT_PASSWORD') {
+      const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      const fallbackUser = inMemoryUsers.find((u) => u.email === normalizedEmail);
+      if (!user && !fallbackUser) {
+        throw new NotFoundError('No Finatle account found with this email address.');
+      }
+    }
+
+    // If Sign Up, ensure email is not already registered
+    if (purpose === 'SIGNUP') {
+      const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      const fallbackUser = inMemoryUsers.find((u) => u.email === normalizedEmail);
+      if (existingUser || fallbackUser) {
+        throw new BadRequestError('An account with this email address already exists. Please Sign In instead.');
+      }
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    const storageKey = `${normalizedEmail}:${purpose}`;
+    otpStorage.set(storageKey, {
+      otp,
+      email: normalizedEmail,
+      purpose,
+      expiresAt,
+    });
+
+    // Dispatch email via Nodemailer
+    await EmailService.sendOtpEmail(normalizedEmail, otp, purpose);
+
+    return {
+      success: true,
+      message: `A 6-digit verification code has been sent to ${normalizedEmail}.`,
+      email: normalizedEmail,
+      expiresInMinutes: 10,
+    };
+  }
+
+  /**
+   * Verify an OTP for public flows (without consuming it or consuming it on finalize)
+   */
+  static verifyPublicOtp(email: string, otp: string | number, purpose: 'SIGNUP' | 'FORGOT_PASSWORD', consume = true): boolean {
+    const normalizedEmail = email.trim().toLowerCase();
+    const storageKey = `${normalizedEmail}:${purpose}`;
+    const record = otpStorage.get(storageKey);
+
+    if (!record) {
+      throw new BadRequestError('No OTP request found for this email. Please request a new verification code.');
+    }
+
+    if (Date.now() > record.expiresAt) {
+      otpStorage.delete(storageKey);
+      throw new BadRequestError('The verification code has expired. Please request a new one.');
+    }
+
+    if (record.otp.trim() !== String(otp).trim()) {
+      throw new BadRequestError('The 6-digit verification code you entered is incorrect.');
+    }
+
+    if (consume) {
+      otpStorage.delete(storageKey);
+    }
+
+    return true;
+  }
+
+  /**
+   * Generate and store 6-digit numeric OTP for user password change (Authenticated Settings)
    */
   static async sendPasswordOtp(userId?: string, userEmail?: string) {
     if (!userId || !userEmail) {
@@ -22,27 +107,23 @@ export class OtpService {
     otpStorage.set(userId, {
       otp,
       email: userEmail,
+      purpose: 'SETTINGS',
       expiresAt,
     });
 
-    console.log('\n======================================================');
-    console.log('🔐 [FINATLE SECURITY OTP VERIFICATION]');
-    console.log(`📧 User Email: ${userEmail}`);
-    console.log(`🔢 6-Digit OTP Code: ${otp}`);
-    console.log(`⏳ Valid For: 10 minutes (Expires: ${new Date(expiresAt).toLocaleTimeString()})`);
-    console.log('======================================================\n');
+    // Also dispatch email
+    await EmailService.sendOtpEmail(userEmail, otp, 'FORGOT_PASSWORD');
 
     return {
       success: true,
       message: `A 6-digit OTP verification code has been sent to ${userEmail}.`,
       email: userEmail,
-      devOtp: otp,
       expiresInMinutes: 10,
     };
   }
 
   /**
-   * Verify email OTP and update password
+   * Verify email OTP and update password (Authenticated Settings)
    */
   static async changePasswordWithOtp(userId: string | undefined, dto: ChangePasswordWithOtpDto) {
     if (!userId) {
@@ -88,11 +169,23 @@ export class OtpService {
     }
 
     // Invalidate OTP after successful change
+    const userEmail = record.email;
     otpStorage.delete(userId);
+
+    // Invalidate all other sessions across all devices
+    const newVersion = await SessionService.revokeAllOtherSessions(userId);
+
+    // Issue fresh token specifically for the device that performed the change
+    const newToken = generateToken({
+      userId,
+      email: userEmail,
+      tokenVersion: newVersion,
+    });
 
     return {
       success: true,
-      message: 'Password has been changed and secured successfully.',
+      message: 'Password has been changed and secured successfully. All other devices have been logged out.',
+      token: newToken,
     };
   }
 }

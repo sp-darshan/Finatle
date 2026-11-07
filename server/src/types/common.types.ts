@@ -3,6 +3,7 @@ import { Request } from 'express';
 export interface AuthTokenPayload {
   userId: string;
   email: string;
+  tokenVersion?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
