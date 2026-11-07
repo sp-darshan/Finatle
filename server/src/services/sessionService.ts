@@ -18,7 +18,7 @@ export class SessionService {
 
     // 2. Database lookup
     try {
-      const user = await prisma.user.findUnique({
+      const user = await (prisma.user as any).findUnique({
         where: { uid: userId },
         select: { tokenVersion: true },
       });
@@ -43,7 +43,7 @@ export class SessionService {
     const cacheKey = `auth:token_version:${userId}`;
 
     try {
-      const updated = await prisma.user.update({
+      const updated = await (prisma.user as any).update({
         where: { uid: userId },
         data: { tokenVersion: { increment: 1 } },
         select: { tokenVersion: true },

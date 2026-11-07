@@ -6,15 +6,25 @@ export class EmailService {
 
   private static getTransporter(): Transporter {
     if (!this.transporter) {
+      const port = Number(ENV.SMTP_PORT) || 465;
+      const isSecure = port === 465;
+
       this.transporter = nodemailer.createTransport({
-        host: ENV.SMTP_HOST,
-        port: ENV.SMTP_PORT,
-        secure: ENV.SMTP_PORT === 465,
+        host: ENV.SMTP_HOST || 'smtp.gmail.com',
+        port,
+        secure: isSecure,
         auth: {
           user: ENV.SMTP_USER,
           pass: ENV.SMTP_PASS,
         },
-      });
+        pool: true, // Keep socket pool warm for fast dispatches
+        maxConnections: 3,
+        maxMessages: 100,
+        family: 4, // Force IPv4 to eliminate 20s-30s IPv6 timeout on Render containers
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000,
+      } as any);
     }
     return this.transporter;
   }

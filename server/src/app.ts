@@ -8,10 +8,43 @@ import { errorHandler } from './middlewares/errorHandler';
 export function createApp(): Express {
   const app: Express = express();
 
-  // Basic Middlewares
+  // Production-Hardened CORS Configuration
+  const defaultAllowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:4173',
+    'http://127.0.0.1:5173',
+  ];
+
+  const configuredOrigins = (ENV.CLIENT_URL || '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
+
   app.use(
     cors({
-      origin: ENV.CLIENT_URL || '*',
+      origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, server-to-server, or Postman)
+        if (!origin) return callback(null, true);
+
+        // In development, automatically permit any localhost origin
+        if (ENV.NODE_ENV !== 'production') {
+          if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+            return callback(null, true);
+          }
+        }
+
+        // Match exact allowed origin
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        // In production, reject unauthorized domains
+        return callback(new Error(`CORS Error: Origin '${origin}' is not authorized to access this API.`));
+      },
+      credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     })

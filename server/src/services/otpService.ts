@@ -54,8 +54,10 @@ export class OtpService {
       expiresAt,
     });
 
-    // Dispatch email via Nodemailer
-    await EmailService.sendOtpEmail(normalizedEmail, otp, purpose);
+    // Dispatch email asynchronously in background so frontend UI responds in <100ms
+    EmailService.sendOtpEmail(normalizedEmail, otp, purpose).catch((err) => {
+      console.error('[EmailService] Async delivery error for', normalizedEmail, err);
+    });
 
     return {
       success: true,
@@ -111,8 +113,10 @@ export class OtpService {
       expiresAt,
     });
 
-    // Also dispatch email
-    await EmailService.sendOtpEmail(userEmail, otp, 'FORGOT_PASSWORD');
+    // Dispatch email asynchronously in background so frontend UI responds in <100ms
+    EmailService.sendOtpEmail(userEmail, otp, 'FORGOT_PASSWORD').catch((err) => {
+      console.error('[EmailService] Async delivery error for', userEmail, err);
+    });
 
     return {
       success: true,

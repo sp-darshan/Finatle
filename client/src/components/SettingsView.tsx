@@ -4,7 +4,6 @@ import {
   PhoneIcon,
   MailIcon,
   LockIcon,
-  ShieldIcon,
   KeyIcon,
   CheckCircleIcon,
   TrashIcon,
@@ -183,13 +182,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setOtpSent(true);
         setOtpTimer(60); // 60s cooldown
         setSecurityMessage({
-          text: `Verification code sent to ${user?.email || 'your email address'}.`,
+          text: `A 6-digit verification code has been sent to your registered email (${user?.email || 'your account email'}).`,
           type: 'success',
         });
       } else {
         setOtpSent(true);
         setSecurityMessage({
-          text: `Verification code sent to ${user?.email || 'your email address'}.`,
+          text: `A 6-digit verification code has been sent to your registered email (${user?.email || 'your account email'}).`,
           type: 'success',
         });
       }
@@ -462,22 +461,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </form>
         </section>
 
-        {/* SECTION 2: Security & Password Change with Email OTP Verification */}
+        {/* SECTION 2: Change Password */}
         <section className="settings-section-card">
           <div className="settings-card-header">
             <div className="settings-header-icon blue">
-              <ShieldIcon size={20} />
+              <LockIcon size={20} />
             </div>
             <div>
-              <h3>Security & Password Verification</h3>
-              <p>Change your account password securely using a 6-digit OTP sent to your email</p>
+              <h3>Change Password</h3>
+              <p>Update your account password using your verified email address</p>
             </div>
           </div>
 
           <form onSubmit={handleVerifyOtpAndChangePassword} className="settings-form">
             <div className="form-row-2col">
               <div className="form-group">
-                <label>New Password</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>New Password</span>
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500 }}>(required)</span>
+                </label>
                 <div className="settings-input-with-icon">
                   <LockIcon size={16} className="input-prefix-icon" />
                   <input
@@ -486,13 +488,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="At least 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={otpSent}
                     required
                   />
                 </div>
               </div>
 
               <div className="form-group">
-                <label>Confirm New Password</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>Confirm New Password</span>
+                  <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500 }}>(required)</span>
+                </label>
                 <div className="settings-input-with-icon">
                   <KeyIcon size={16} className="input-prefix-icon" />
                   <input
@@ -501,51 +507,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="Repeat new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={otpSent}
                     required
                   />
                 </div>
               </div>
             </div>
 
-            {/* OTP Section */}
-            <div className="settings-otp-box">
-              <div className="settings-otp-header">
-                <div>
-                  <strong>Email Verification (OTP)</strong>
-                  <p>A 6-digit security code will be sent to <strong>{user?.email}</strong></p>
+            {/* OTP Input once Code is dispatched */}
+            {otpSent && (
+              <div className="form-group" style={{ maxWidth: '320px', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label style={{ margin: 0, fontWeight: 700 }}>Enter 6-Digit Verification Code</label>
+                  <button
+                    type="button"
+                    onClick={handleRequestOtp}
+                    disabled={otpSending || otpTimer > 0}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: otpTimer > 0 ? '#94a3b8' : '#2563eb',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: otpTimer > 0 ? 'default' : 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {otpSending ? 'Sending...' : otpTimer > 0 ? `Resend in ${otpTimer}s` : 'Resend code'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="settings-send-otp-btn"
-                  onClick={handleRequestOtp}
-                  disabled={otpSending || otpTimer > 0}
-                >
-                  {otpSending
-                    ? 'Sending OTP...'
-                    : otpTimer > 0
-                    ? `Resend in ${otpTimer}s`
-                    : otpSent
-                    ? 'Resend OTP'
-                    : 'Send Verification OTP'}
-                </button>
+                <input
+                  type="text"
+                  maxLength={6}
+                  className="form-control settings-otp-input"
+                  placeholder="• • • • • •"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  required
+                  autoFocus
+                />
               </div>
-
-              {otpSent && (
-                <div className="settings-otp-input-wrap">
-                  <label>Enter 6-Digit Email OTP</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    className="form-control settings-otp-input"
-                    placeholder="• • • • • •"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    required
-                    autoFocus
-                  />
-                </div>
-              )}
-            </div>
+            )}
 
             {securityMessage && (
               <div className={`settings-alert-banner ${securityMessage.type}`}>
@@ -554,16 +556,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
-            {otpSent && (
-              <button
-                type="submit"
-                className="btn-submit-primary"
-                style={{ width: 'auto', alignSelf: 'flex-start', minWidth: '180px', background: '#2563eb' }}
-                disabled={passwordSaving || !otp}
-              >
-                {passwordSaving ? 'Verifying & Updating...' : 'Verify OTP & Change Password'}
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem' }}>
+              {!otpSent ? (
+                <button
+                  type="button"
+                  onClick={handleRequestOtp}
+                  className="btn-submit-primary"
+                  style={{ width: 'auto', minWidth: '160px' }}
+                  disabled={otpSending || !newPassword || !confirmPassword}
+                >
+                  {otpSending ? 'Sending Code...' : 'Change Password'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="submit"
+                    className="btn-submit-primary"
+                    style={{ width: 'auto', minWidth: '200px', background: '#2563eb' }}
+                    disabled={passwordSaving || otp.length !== 6}
+                  >
+                    {passwordSaving ? 'Updating Password...' : 'Confirm & Update Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp('');
+                      setSecurityMessage(null);
+                    }}
+                    style={{
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.6rem 1rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
           </form>
         </section>
 
