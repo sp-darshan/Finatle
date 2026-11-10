@@ -289,6 +289,5 @@ export class AccountService {
       cacheService.delete(`accounts:${userId}`),
       cacheService.invalidateUserFinance(userId),
     ]);
-    FinanceService.warmUserFinance(userId).catch(() => {});
   }
 }

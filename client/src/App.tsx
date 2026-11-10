@@ -298,6 +298,10 @@ export function App() {
   const recentlyAddedTxIdsRef = useRef<Set<string>>(new Set());
   const recentlyAddedLoanIdsRef = useRef<Set<string>>(new Set());
   const pendingEditedTxRef = useRef<Map<string, TransactionItem>>(new Map());
+  // Tracks transactions modified locally on the dashboard with their timestamp
+  // Ensures local dashboard edits always take precedence over server/cache payloads
+  const locallyModifiedTxRef = useRef<Map<string, { tx: TransactionItem; timestamp: number }>>(new Map());
+  const tempIdToRealIdMap = useRef<Map<string, string>>(new Map());
 
   const showToast = useCallback((message: string, type: 'error' | 'success' | 'info' = 'error') => {
     if (!message) return;
@@ -515,8 +519,30 @@ export function App() {
               !pendingDeletedTxIdsRef.current.has(t.id)
             );
             const serverMappedWithPendingEdits = mapped.map((t) => {
+              // 1. Check if explicitly in pending edited ref
               if (pendingEditedTxRef.current.has(t.id)) {
                 return pendingEditedTxRef.current.get(t.id)!;
+              }
+
+              // 2. Check if recently modified locally on dashboard (within 2 minutes)
+              // Dashboard is Primary: Local changes must NEVER be reverted by stale server/cache data
+              const localEdit = locallyModifiedTxRef.current.get(t.id);
+              if (localEdit && Date.now() - localEdit.timestamp < 120000) {
+                return {
+                  ...t,
+                  ...localEdit.tx,
+                  id: t.id,
+                  items: (localEdit.tx.items && localEdit.tx.items.length > 0) ? localEdit.tx.items : (t.items || []),
+                };
+              }
+
+              // 3. Check prev local state for existing items or active local data
+              const localTx = prev.find((p) => p.id === t.id);
+              if (localTx) {
+                // If local state has receipt line items and incoming server doesn't, preserve items
+                if (Array.isArray(localTx.items) && localTx.items.length > 0 && (!t.items || t.items.length === 0)) {
+                  return { ...t, items: localTx.items };
+                }
               }
               return t;
             });
@@ -1042,16 +1068,19 @@ export function App() {
               }
               const data = await res.json();
               const realTxId = data.transaction?.tid || data.transaction?.id || userShareTransaction.optimisticData.id;
-              const realItem: TransactionItem = {
-                id: realTxId,
-                name: data.transaction?.description || userShareTransaction.optimisticData.name,
-                category: data.transaction?.category || userShareTransaction.optimisticData.category,
-                date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : userShareTransaction.optimisticData.date,
-                amount: Number(data.transaction?.amount ?? userShareTransaction.optimisticData.amount),
-                type: data.transaction?.type || userShareTransaction.optimisticData.type,
-                accountId: data.transaction?.accountId || txAccountId,
-              };
               setTransactions((prev) => {
+                const currentTx = prev.find((t) => t.id === userShareTransaction.optimisticData.id);
+                const existingItems = currentTx?.items || userShareTransaction.optimisticData.items || [];
+                const realItem: TransactionItem = {
+                  id: realTxId,
+                  name: data.transaction?.description || userShareTransaction.optimisticData.name,
+                  category: data.transaction?.category || userShareTransaction.optimisticData.category,
+                  date: data.transaction?.occurredAt ? new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : userShareTransaction.optimisticData.date,
+                  amount: Number(data.transaction?.amount ?? userShareTransaction.optimisticData.amount),
+                  type: data.transaction?.type || userShareTransaction.optimisticData.type,
+                  accountId: data.transaction?.accountId || txAccountId,
+                  items: existingItems,
+                };
                 const updated = prev.map((t) => (t.id === userShareTransaction.optimisticData.id ? realItem : t));
                 localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
                 return updated;
@@ -1175,17 +1204,56 @@ export function App() {
             const data = await res.json();
             if (data.transaction) {
               const realTxId = data.transaction.tid || data.transaction.id || optimisticData.id;
+              tempIdToRealIdMap.current.set(optimisticData.id, realTxId);
               recentlyAddedTxIdsRef.current.add(realTxId);
-              const realItem: TransactionItem = {
-                id: realTxId,
-                name: cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction',
-                category: (data.transaction.category === 'General' || !data.transaction.category) ? 'Groceries' : data.transaction.category,
-                date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                amount: Number(data.transaction.amount),
-                type: data.transaction.type,
-                accountId: data.transaction.accountId || txAccountId,
-              };
+
               setTransactions((prev) => {
+                const currentTx = prev.find((t) => t.id === optimisticData.id);
+                const localEdit = locallyModifiedTxRef.current.get(optimisticData.id);
+
+                // If user edited this transaction on dashboard while creation was in-flight, local edit MUST WIN!
+                const effectiveName = localEdit?.tx.name || currentTx?.name || cleanSplitText(data.transaction.description) || data.transaction.category || 'Transaction';
+                const effectiveAmount = localEdit?.tx.amount ?? currentTx?.amount ?? Number(data.transaction.amount);
+                const effectiveCategory = localEdit?.tx.category || currentTx?.category || data.transaction.category || 'Groceries';
+                const existingItems = localEdit?.tx.items || currentTx?.items || optimisticData.items || [];
+
+                const finalItems = existingItems.length > 0 ? existingItems : (Array.isArray(data.transaction.items) && data.transaction.items.length > 0 ? data.transaction.items.map((it: any) => ({
+                  id: it.id,
+                  name: it.name,
+                  price: Number(it.price) || 0,
+                  quantity: Number(it.quantity) || 1,
+                })) : []);
+
+                const realItem: TransactionItem = {
+                  id: realTxId,
+                  name: effectiveName,
+                  category: (effectiveCategory === 'General' || !effectiveCategory) ? 'Groceries' : effectiveCategory,
+                  date: new Date(data.transaction.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                  amount: effectiveAmount,
+                  type: data.transaction.type,
+                  accountId: data.transaction.accountId || txAccountId,
+                  items: finalItems,
+                };
+
+                // Register under real ID so background sync and cache cannot revert local edits
+                locallyModifiedTxRef.current.set(realTxId, { tx: realItem, timestamp: Date.now() });
+
+                // If user modified this transaction while creation was in flight, push updates to DB
+                if (localEdit || (currentTx && (currentTx.name !== optimisticData.name || currentTx.amount !== optimisticData.amount || (currentTx.items && currentTx.items.length > 0)))) {
+                  apiFetch(`/api/finance/transactions/${realTxId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      type: realItem.type,
+                      amount: realItem.amount,
+                      description: realItem.name,
+                      category: realItem.category,
+                      accountId: realItem.accountId,
+                      items: realItem.items,
+                    }),
+                  }).catch(() => {});
+                }
+
                 const updated = prev.map((t) => (t.id === optimisticData.id ? realItem : t));
                 localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
                 return updated;
@@ -1332,14 +1400,27 @@ export function App() {
       const updatedData = action.data;
       const targetId = action.originalId;
 
-      // Lock in pending edited map to immediately preserve local update across background syncs
+      // Lock in pending edited and locally modified map so local dashboard edit ALWAYS wins over any background sync/cache
       pendingEditedTxRef.current.set(targetId, updatedData);
+      locallyModifiedTxRef.current.set(targetId, { tx: updatedData, timestamp: Date.now() });
 
-      const oldTx = prevTransactions.find((t) => t.id === targetId);
+      // If this targetId is a temp ID that was already mapped to a real DB id, also register under the real DB id
+      const mappedRealId = tempIdToRealIdMap.current.get(targetId);
+      if (mappedRealId) {
+        pendingEditedTxRef.current.set(mappedRealId, { ...updatedData, id: mappedRealId });
+        locallyModifiedTxRef.current.set(mappedRealId, { tx: { ...updatedData, id: mappedRealId }, timestamp: Date.now() });
+      }
 
-      // Instant local state update
+      const oldTx = prevTransactions.find((t) => t.id === targetId || (mappedRealId && t.id === mappedRealId));
+
+      // Instant local state update (0ms reflection)
       setTransactions((prev) => {
-        const updated = prev.map((t) => (t.id === targetId ? updatedData : t));
+        const updated = prev.map((t) => {
+          if (t.id === targetId || (mappedRealId && t.id === mappedRealId)) {
+            return { ...updatedData, id: t.id };
+          }
+          return t;
+        });
         localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
         return updated;
       });
@@ -1371,7 +1452,8 @@ export function App() {
       }
 
       if (token) {
-        apiFetch(`/api/finance/transactions/${targetId}`, {
+        const effectiveApiId = mappedRealId || targetId;
+        apiFetch(`/api/finance/transactions/${effectiveApiId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -1388,12 +1470,55 @@ export function App() {
               const data = await res.json().catch(() => ({}));
               throw new Error(data.message || data.error || 'Failed to update transaction.');
             }
+            const resData = await res.json().catch(() => ({}));
+            const serverTx = resData.transaction || resData;
+
+            if (serverTx && (serverTx.tid || serverTx.id)) {
+              const realId = serverTx.tid || serverTx.id;
+              tempIdToRealIdMap.current.set(targetId, realId);
+
+              const serverItems = Array.isArray(serverTx.items) && serverTx.items.length > 0
+                ? serverTx.items.map((it: any) => ({
+                    id: it.id,
+                    name: it.name,
+                    price: Number(it.price) || 0,
+                    quantity: Number(it.quantity) || 1,
+                  }))
+                : (updatedData.items || []);
+
+              const finalTx: TransactionItem = {
+                ...updatedData,
+                id: realId,
+                name: updatedData.name, // Local dashboard edit is PRIMARY
+                items: serverItems,
+              };
+
+              locallyModifiedTxRef.current.set(realId, { tx: finalTx, timestamp: Date.now() });
+
+              setTransactions((prev) => {
+                const updated = prev.map((t) => {
+                  if (t.id === targetId || t.id === realId) {
+                    return finalTx;
+                  }
+                  return t;
+                });
+                localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(updated));
+                return updated;
+              });
+            }
+
+            // NOTE: Do NOT call fetchUserData() immediately here.
+            // The dashboard state already has the updated transaction and accurate account balance.
+            // Calling fetchUserData immediately triggers a race condition against Redis/memory caches.
             pendingEditedTxRef.current.delete(targetId);
-            fetchUserData(token, false);
+            if (serverTx?.tid && serverTx.tid !== targetId) {
+              pendingEditedTxRef.current.delete(serverTx.tid);
+            }
           })
           .catch((err) => {
             console.error('[Optimistic] Update transaction failed, reverting:', err);
             pendingEditedTxRef.current.delete(targetId);
+            locallyModifiedTxRef.current.delete(targetId);
             setTransactions(prevTransactions);
             setAccounts(prevAccounts);
             localStorage.setItem(`finatle_cache_tx_${uid}`, JSON.stringify(prevTransactions));
@@ -2285,21 +2410,27 @@ export function App() {
     const paidBackTxNames = new Set(
       transactions
         .filter((t) => t.category && t.category.toLowerCase().includes('paid back'))
-        .map((t) => (t.name || '').trim().toLowerCase())
+        .map((t) => ((t as any).description || (t as any).name || (t as any).title || '').trim().toLowerCase())
     );
+
+    const isLentPaidBack = (loan: any) => {
+      const name = (loan.personName || loan.title || '').trim().toLowerCase();
+      return loan.kind === 'lent' && loan.status === 'PAID' && name && paidBackTxNames.has(name);
+    };
+
+    const getLoanPaid = (l: any) => {
+      if (isLentPaidBack(l)) {
+        return 0;
+      }
+      if (l.paidAmount !== undefined && l.paidAmount !== null) {
+        return Number(l.paidAmount);
+      }
+      return l.status === 'PAID' ? Number(l.amount) : 0;
+    };
 
     const lentOut = accountLoans
       .filter((l) => l.kind === 'lent' && !l.isSplit)
-      .reduce(
-        (sum, l) =>
-          sum +
-          Math.max(
-            0,
-            Number(l.amount) -
-              Number(l.paidAmount !== undefined ? l.paidAmount : (l.kind === 'lent' && l.status === 'PAID' && l.personName && paidBackTxNames.has(l.personName.trim().toLowerCase()) ? 0 : (l.status === 'PAID' ? l.amount : 0)))
-          ),
-        0
-      );
+      .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - getLoanPaid(l)), 0);
 
     const borrowedOut = accountLoans
       .filter((l) => l.kind === 'borrowed')
@@ -2343,16 +2474,7 @@ export function App() {
 
     const allTimeLentOut = allAccountLoans
       .filter((l) => l.kind === 'lent' && !l.isSplit)
-      .reduce(
-        (sum, l) =>
-          sum +
-          Math.max(
-            0,
-            Number(l.amount) -
-              Number(l.paidAmount !== undefined ? l.paidAmount : (l.kind === 'lent' && l.status === 'PAID' && l.personName && paidBackTxNames.has(l.personName.trim().toLowerCase()) ? 0 : (l.status === 'PAID' ? l.amount : 0)))
-          ),
-        0
-      );
+      .reduce((sum, l) => sum + Math.max(0, Number(l.amount) - getLoanPaid(l)), 0);
 
     const currentAvailableBal = totalInitialBalance + allTimeInc - allTimeExp - allTimeLentOut;
 

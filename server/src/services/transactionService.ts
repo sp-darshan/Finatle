@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/db';
 import { CalculationService } from './calculationService';
+import { AccountBalanceService } from './accountBalanceService';
 import { CreateTransactionDto, UpdateTransactionDto } from '../types/finance.types';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../errors/AppError';
 import { parseAmount, sanitizeString } from '../utils/parsers';
@@ -24,27 +25,7 @@ export class TransactionService {
     }
 
 
-    let targetAccount = dto.accountId
-      ? await prisma.account.findFirst({ where: { aid: dto.accountId, uid: userId } })
-      : await prisma.account.findFirst({ where: { uid: userId, isDefault: true } });
-
-    if (!targetAccount) {
-      targetAccount = await prisma.account.findFirst({ where: { uid: userId } });
-    }
-
-    if (!targetAccount) {
-      targetAccount = await prisma.account.create({
-        data: {
-          uid: userId,
-          name: 'Cash',
-          type: 'CASH',
-          balance: 0,
-          initialBalance: 0,
-          color: '#10b981',
-          isDefault: true,
-        },
-      });
-    }
+    const targetAccount = await AccountBalanceService.resolveAccount(userId, dto.accountId);
 
     const state = await CalculationService.getFinancialState(userId, targetAccount.aid);
     const transactionImpact = type === 'INCOME' ? amount : -amount;
@@ -110,10 +91,7 @@ export class TransactionService {
           },
         });
 
-        const updatedAccount = await tx.account.update({
-          where: { aid: targetAccount.aid },
-          data: { balance: { increment: new Prisma.Decimal(balanceChange) } },
-        });
+        const updatedAccount = await AccountBalanceService.adjustBalance(tx, targetAccount.aid, balanceChange);
 
         return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid, accountId: targetAccount.aid }, account: updatedAccount };
       },
@@ -125,7 +103,6 @@ export class TransactionService {
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
-    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return result;
   }
@@ -235,23 +212,7 @@ export class TransactionService {
     const sourceAccountId = existing.accountId;
     let targetAccountId = dto.accountId !== undefined ? dto.accountId : sourceAccountId;
 
-    let targetAccount = targetAccountId
-      ? await prisma.account.findFirst({ where: { aid: targetAccountId, uid: userId } })
-      : await prisma.account.findFirst({ where: { uid: userId, isDefault: true } }) || await prisma.account.findFirst({ where: { uid: userId } });
-
-    if (!targetAccount) {
-      targetAccount = await prisma.account.create({
-        data: {
-          uid: userId,
-          name: 'Cash',
-          type: 'CASH',
-          balance: 0,
-          initialBalance: 0,
-          color: '#10b981',
-          isDefault: true,
-        },
-      });
-    }
+    const targetAccount = await AccountBalanceService.resolveAccount(userId, targetAccountId);
     targetAccountId = targetAccount.aid;
 
     const oldImpact = existing.type === 'INCOME' ? Number(existing.amount) : -Number(existing.amount);
@@ -335,21 +296,12 @@ export class TransactionService {
 
         if (sourceAccountId === targetAccountId) {
           const netDifference = newImpact - oldImpact;
-          await tx.account.update({
-            where: { aid: targetAccountId },
-            data: { balance: { increment: new Prisma.Decimal(netDifference) } },
-          });
+          await AccountBalanceService.adjustBalance(tx, targetAccountId, netDifference);
         } else {
           if (sourceAccountId) {
-            await tx.account.update({
-              where: { aid: sourceAccountId },
-              data: { balance: { decrement: new Prisma.Decimal(oldImpact) } },
-            });
+            await AccountBalanceService.adjustBalance(tx, sourceAccountId, -oldImpact);
           }
-          await tx.account.update({
-            where: { aid: targetAccountId },
-            data: { balance: { increment: new Prisma.Decimal(newImpact) } },
-          });
+          await AccountBalanceService.adjustBalance(tx, targetAccountId, newImpact);
         }
 
         return { transaction: { ...transaction, id: transaction.tid, tid: transaction.tid, accountId: targetAccountId }, account: targetAccount };
@@ -362,7 +314,6 @@ export class TransactionService {
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
-    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return result;
   }
@@ -402,15 +353,9 @@ export class TransactionService {
       async (tx) => {
         await tx.transaction.delete({ where: { tid: existing.tid } });
 
-        const targetAccount = existing.accountId
-          ? await tx.account.findFirst({ where: { aid: existing.accountId } })
-          : await tx.account.findFirst({ where: { uid: userId, isDefault: true } }) || await tx.account.findFirst({ where: { uid: userId } });
-
+        const targetAccount = await AccountBalanceService.resolveAccount(userId, existing.accountId, tx);
         if (targetAccount) {
-          await tx.account.update({
-            where: { aid: targetAccount.aid },
-            data: { balance: { increment: new Prisma.Decimal(reverseImpact) } },
-          });
+          await AccountBalanceService.adjustBalance(tx, targetAccount.aid, reverseImpact);
         }
       },
       {
@@ -421,7 +366,6 @@ export class TransactionService {
 
     await cacheService.delete(`accounts:${userId}`);
     await cacheService.invalidateUserFinance(userId);
-    FinanceService.warmUserFinance(userId).catch(() => {});
 
     return { message: 'Transaction deleted successfully' };
   }
